@@ -1,0 +1,7 @@
+RECry plays the game's Bink cutscenes with FFmpeg 6.1.2 (https://ffmpeg.org),
+licensed under the GNU LGPL 2.1 or later (see FFmpeg-LGPL-2.1.txt). The
+libraries in libs.aarch64/ are unmodified upstream source, built as shared
+libraries with only the file protocol, the Bink demuxer, the Bink video/audio
+decoders and libswresample enabled (configuration: tools/build.sh in the
+RECry source). They are linked dynamically and can be replaced with any
+compatible build of the same major versions.

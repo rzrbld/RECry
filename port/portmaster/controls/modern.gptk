@@ -1,0 +1,37 @@
+# RECry controller preset "Modern shooter" for gptokeyb2 (PortMaster).
+# Based on the Steam Input layout "Far Cry 1 custom layout to match modern
+# shooters". gptokeyb2 turns the buttons below into Far Cry's own keyboard /
+# mouse bindings; the game reads the analog sticks itself (move and look,
+# through PortMaster's SDL controller mapping). gptokeyb2 has no tap-vs-hold, so
+# the layout's hold actions sit on an LB layer (hold LB):
+#   LB + B prone, LB + X use, LB + Y fire mode, LB + right stick lean.
+# Edit freely: any gptokeyb2 key name works (see the gptokeyb2 README).
+
+[controls]
+overlay = clear
+
+a     = space          # jump
+b     = ctrl           # crouch (hold)
+x     = r              # reload
+y     = pagedown       # next weapon
+l2    = mouse_right    # aim / zoom
+r2    = mouse_left     # fire
+r1    = g              # throw grenade
+l1    = hold_state lb  # layer below
+l3    = shift          # sprint (hold)
+r3    = l              # flashlight
+up    = b              # binoculars
+down  = h              # switch grenade type
+left  = q              # lean left
+right = e              # lean right
+back  = esc            # pause menu
+start = tab            # objectives / score
+
+[controls:lb]
+overlay = parent
+
+b = v                  # prone
+x = f                  # use, enter vehicles
+y = x                  # fire mode
+right_analog_left  = q # lean left
+right_analog_right = e # lean right

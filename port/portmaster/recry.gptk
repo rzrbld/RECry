@@ -1,0 +1,4 @@
+# RECry: the game reads the controller itself (see RECry.sh).
+# With gptokeyb2 the handheld is presented as a virtual Xbox 360 pad; this
+# file is only used by the older gptokeyb fallback and maps nothing, so
+# gptokeyb just provides the PortMaster hotkey exit.

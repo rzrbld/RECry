@@ -1,0 +1,4 @@
+Copy both files of your GOG Far Cry installer into this folder:
+  setup_far_cry_1.40_hotfix_(29940).exe
+  setup_far_cry_1.40_hotfix_(29940)-1.bin
+Then start RECry: the first start unpacks the game into ../gamedata/.

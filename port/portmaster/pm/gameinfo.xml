@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<gameList>
+  <game>
+    <path>./RECry.sh</path>
+    <name>RECry (Far Cry)</name>
+    <desc>Far Cry (2004) on its original CryEngine, built for Linux / OpenGL ES handhelds. Requires your own GOG copy of the game.</desc>
+    <releasedate>20040323T000000</releasedate>
+    <developer>Crytek</developer>
+    <publisher>Ubisoft</publisher>
+    <genre>Action/FPS</genre>
+    <image>./recry/screenshot.png</image>
+  </game>
+</gameList>

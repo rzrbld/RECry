@@ -1,0 +1,40 @@
+{
+  "version": 4,
+  "name": "recry.zip",
+  "items": [
+    "RECry.sh",
+    "recry/"
+  ],
+  "items_opt": [],
+  "attr": {
+    "title": "RECry (Far Cry)",
+    "porter": [
+      "rzrbld"
+    ],
+    "desc": "RECry: Far Cry (2004) on the original CryEngine, built for Linux and OpenGL ES 3 from the released engine source, with the original cutscenes. Your own GOG copy of the game is required. About 30 FPS on the H700 with the handheld options; any screen size and aspect ratio.",
+    "desc_md": null,
+    "inst": "Copy RECry.sh into your Ports folder and recry into ports. Put both files of the GOG installer (setup_far_cry_1.40_hotfix_(29940).exe and its -1.bin) into recry/installer. Start RECry: the first start unpacks the game (about 3.5 GB, takes a while). See README.md.",
+    "inst_md": null,
+    "genres": [
+      "action",
+      "fps"
+    ],
+    "image": null,
+    "rtr": false,
+    "exp": true,
+    "runtime": [],
+    "store": [
+      {
+        "name": "GOG",
+        "gameurl": "https://www.gog.com/en/game/far_cry",
+        "developerurl": "https://www.crytek.com/"
+      }
+    ],
+    "availability": "commercial",
+    "reqs": [],
+    "arch": [
+      "aarch64"
+    ],
+    "min_glibc": "2.30"
+  }
+}
