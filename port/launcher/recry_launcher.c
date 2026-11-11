@@ -255,7 +255,7 @@ static void cfg_load(void) {
         else if (sscanf(line, "RECRY_VIEW=%63s", v) == 1) g_view = !strcmp(v, "on") ? 1 : !strcmp(v, "off") ? 2 : 0;
         else if (sscanf(line, "RECRY_TEXT=%63s", v) == 1) g_text = !strcmp(v, "auto") ? 0 : atoi(v);
         else if (sscanf(line, "RECRY_LIMIT=%d", &n) == 1) g_limit = n;
-        else if (sscanf(line, "RECRY_FPS=%d", &n) == 1) g_fps = n != 0;
+        else if (sscanf(line, "RECRY_FPS=%d", &n) == 1) g_fps = n < 0 || n > 2 ? 0 : n;   /* 0 off, 1 on, 2 built-in */
         else if (sscanf(line, "RECRY_CPU=%63s", v) == 1) g_cpu_perf = strcmp(v, "system") != 0;
         else if (sscanf(line, "RECRY_CONTROLS=%63s", v) == 1) g_controls = !strcmp(v, "modern");
     }
@@ -352,7 +352,7 @@ static int page_settings(void) {
         snprintf(v[S_PHYS], 48, "%s", tri3[0][g_phys]); snprintf(v[S_FX], 48, "%s", tri3[1][g_fx]); snprintf(v[S_VIEW], 48, "%s", tri3[2][g_view]);
         if (g_text) snprintf(v[S_TEXT], 48, "%d %%", g_text); else snprintf(v[S_TEXT], 48, "Auto");
         if (g_limit) snprintf(v[S_LIMIT], 48, "%d FPS", g_limit); else snprintf(v[S_LIMIT], 48, "Off");
-        snprintf(v[S_FPS], 48, "%s", g_fps ? "On" : "Off");
+        snprintf(v[S_FPS], 48, "%s", g_fps == 1 ? "On" : g_fps == 2 ? "Built-in" : "Off");
         snprintf(v[S_CPU], 48, "%s", g_cpu_perf ? "Performance" : "System");
         snprintf(v[S_CTRL], 48, "%s", k_layout_name[g_controls]);
         int rowh = 22, y0 = PY + 46;
@@ -377,8 +377,8 @@ static int page_settings(void) {
             sel == S_FX ? "Reduced: fewer particles and decals, no water reflections. Auto: by device" :
             sel == S_VIEW ? "Reduced: shorter draw distance for props (not enemies). Auto: by device" :
             sel == S_TEXT ? "Size of menu text in the game. Auto = bigger on small screens" :
-            sel == S_LIMIT ? "Frame rate cap. 30 keeps the pace even on handhelds" :
-            sel == S_FPS ? "Show the frame rate in the corner of the screen" :
+            sel == S_LIMIT ? (g_limit == 0 ? "Off: uncapped, as fast as the device can" : g_limit == 60 ? "60 FPS cap: for fast devices" : "30 FPS cap: steady pacing on handhelds") :
+            sel == S_FPS ? (g_fps == 2 ? "Built-in: the engine's own statistics (FPS, draw calls, memory)" : "On: a small frame rate counter in the top right corner") :
             sel == S_CPU ? "Performance: CPU at full rated speed while playing (restored on exit)" :
             sel == S_CTRL ? (g_controls ? "Modern shooter: B crouch, RB grenade, LB layer. A shows the layout" : "Classic: the port's original layout. A shows the layout") :
             sel == S_RUN ? "Save these settings and start Far Cry" : "Leave without starting the game";
@@ -400,7 +400,7 @@ static int page_settings(void) {
             case S_VIEW: g_view = (g_view + 3 + d) % 3; break;
             case S_TEXT: { static const int T[] = { 0, 100, 115, 130, 150 }; int i = 0; while (i < 5 && T[i] != g_text) i++; if (i == 5) i = 0; g_text = T[(i + 5 + d) % 5]; break; }
             case S_LIMIT: { static const int L[] = { 30, 60, 0 }; int i = g_limit == 60 ? 1 : g_limit == 0 ? 2 : 0; g_limit = L[(i + 3 + d) % 3]; break; }
-            case S_FPS: g_fps = !g_fps; break;
+            case S_FPS: g_fps = (g_fps + 3 + d) % 3; break;
             case S_CPU: g_cpu_perf = !g_cpu_perf; break;
             case S_CTRL: g_controls = !g_controls; break;
             }

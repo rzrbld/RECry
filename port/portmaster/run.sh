@@ -140,8 +140,9 @@ handheld_cvars() {
         echo 'e_terrain_occlusion_culling_precision = "0.3"'
     fi
     echo "r_Width = \"$RW\""; echo "r_Height = \"$RH\""; echo 'r_Fullscreen = "1"'
-    echo "g_maxfps = \"${RECRY_LIMIT:-30}\""
-    echo "r_DisplayInfo = \"${RECRY_FPS:-0}\""
+    echo "g_maxfps = \"${RECRY_LIMIT:-30}\""                 # 30 / 60 / 0 = uncapped
+    # FPS counter: 1 = small counter (FARCRY_SHOW_FPS), 2 = the engine's own statistics
+    if [[ ${RECRY_FPS:-0} == 2 ]]; then echo 'r_DisplayInfo = "1"'; else echo 'r_DisplayInfo = "0"'; fi
 }
 for name in System.Cfg system.cfg; do
     { echo "-- Far Cry port settings: physics=$HANDHELD_PHYSICS effects=$HANDHELD_EFFECTS view=$HANDHELD_VIEW"; handheld_cvars; } >> "$RUNTIME/$name"
@@ -154,6 +155,7 @@ if [[ $ui == auto ]]; then
     if (( RH <= 480 )); then ui_scale=1.3; elif (( RH <= 600 )); then ui_scale=1.15; else ui_scale=1.0; fi
 else ui_scale=$(awk -v p="$ui" 'BEGIN{printf "%.2f", p/100}'); fi
 export FARCRY_UI_TEXT_SCALE=${FARCRY_UI_TEXT_SCALE:-$ui_scale}
+[[ ${RECRY_FPS:-0} == 1 ]] && export FARCRY_SHOW_FPS=1
 export FARCRY_HUD_TEXT_SCALE=${FARCRY_HUD_TEXT_SCALE:-$(awk -v s="$FARCRY_UI_TEXT_SCALE" 'BEGIN{printf "%.2f", 1+(s-1)*0.625}')}
 
 # ---------------------------------------------------------------- engine

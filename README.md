@@ -12,6 +12,18 @@ and packaged for [PortMaster](https://portmaster.games).
 **No game files are included.** You need your own copy of Far Cry from
 [GOG.com](https://www.gog.com/en/game/far_cry).
 
+## Screenshots
+
+Captured on the Anbernic RG40XX-H (H700) at 640x480 with the launcher's Auto settings,
+unedited:
+
+| | |
+|---|---|
+| ![Fort](docs/screenshots/fort.png) | ![Pier](docs/screenshots/pier.png) |
+| Fort | Pier |
+| ![Catacombs](docs/screenshots/catacombs.png) | ![Swamp](docs/screenshots/swamp.png) |
+| Catacombs | Swamp |
+
 ## Performance: Anbernic RG40XX-H (Allwinner H700)
 
 Measured on an RG40XX-H (H700, 4x Cortex-A53 at 1.5 GHz, Mali-G31, 1 GB RAM, muOS),

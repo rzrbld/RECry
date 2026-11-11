@@ -1245,6 +1245,22 @@ void CSystem::RenderStats()
 	if (!m_pConsole || !m_pI3DEngine)
 		return;
 
+	// Port: a small FPS counter (launcher: FPS counter = On, FARCRY_SHOW_FPS=1),
+	// the average over each half second, top right. The engine's own statistics
+	// (r_DisplayInfo, launcher: Built-in) replace it when enabled.
+	{
+		static const bool s_bShowFps = getenv("FARCRY_SHOW_FPS") && atoi(getenv("FARCRY_SHOW_FPS")) != 0;
+		if (s_bShowFps && !m_rDisplayInfo->GetIVal() && m_pRenderer)
+		{
+			static float s_fAccum = 0.f, s_fShown = 0.f; static int s_nFrames = 0;
+			const float ft = m_Time.GetFrameTime();
+			if (ft > 0.f && ft < 1.f) { s_fAccum += ft; ++s_nFrames; }
+			if (s_fAccum >= 0.5f) { s_fShown = s_nFrames / s_fAccum; s_fAccum = 0.f; s_nFrames = 0; }
+			if (s_fShown > 0.f)
+				m_pRenderer->TextToScreen(90.f, 1.f, "%.0f FPS", s_fShown);
+		}
+	}
+
 	// Draw engine stats
 	//ICVar * pDispInfoCVar = m_pConsole->GetCVar("r_DisplayInfo");
 	if (m_rDisplayInfo->GetIVal())

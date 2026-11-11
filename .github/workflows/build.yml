@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   aarch64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container: debian:bookworm
     steps:
       - name: Host packages

@@ -40,8 +40,8 @@ the launcher's Auto settings.
 | Picture | Keep aspect (bars when shapes differ) or stretch |
 | Physics / Effects / View distance | Auto chooses by device: simplified on slow handhelds (H700, RK3326, ...), stock Far Cry on fast ones |
 | Menu text size | Bigger menu text for small screens |
-| Frame limit | 30 / 60 / off |
-| FPS counter | On-screen frame rate |
+| Frame limit | 30, 60 or uncapped |
+| FPS counter | Off, On (a small counter) or Built-in (the engine's own statistics) |
 | CPU | Performance governor while playing (restored on exit) |
 | Controls | Classic or Modern shooter (see Controls) |
 
