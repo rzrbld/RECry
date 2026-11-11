@@ -43,7 +43,10 @@ if [ -z "$RECRY_SKIP_LAUNCHER" ]; then
     exit 0
   fi
 fi
+# Launcher settings; RECRY_* already set in the environment win (testing).
+_recry_env=$(declare -p $(compgen -v RECRY_) 2>/dev/null)
 [ -f "$CONFDIR/recry.cfg" ] && source "$CONFDIR/recry.cfg"
+[ -n "$_recry_env" ] && eval "$_recry_env"
 
 # CPU: the game is CPU-bound. "perf" holds the cores at their rated speed
 # (performance governor) while playing; the firmware's settings are restored

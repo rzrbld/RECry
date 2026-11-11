@@ -676,10 +676,15 @@ void PortPollSDLEvents(CXKeyboard& kb, CXMouse& ms, CGamepad& gp, CJoystick& joy
             kb.OnKey(SDLScancodeToXKEY(e.key.keysym.scancode), false);
             break;
         case SDL_MOUSEMOTION:
+        {
             ms.OnMove((float)e.motion.xrel, (float)e.motion.yrel);
-            ms.SetVScreenX((float)e.motion.x);
-            ms.SetVScreenY((float)e.motion.y);
+            // The menus work in Far Cry's virtual 800x600 screen; SDL reports window pixels.
+            int ww = 800, wh = 600;
+            if (SDL_Window* w = SDL_GetWindowFromID(e.motion.windowID)) SDL_GetWindowSize(w, &ww, &wh);
+            ms.SetVScreenX(ww > 0 ? e.motion.x * 800.0f / ww : (float)e.motion.x);
+            ms.SetVScreenY(wh > 0 ? e.motion.y * 600.0f / wh : (float)e.motion.y);
             break;
+        }
         case SDL_MOUSEBUTTONDOWN:
             if (e.button.button >= 1 && e.button.button <= 8) {
                 const int slot = e.button.button==SDL_BUTTON_RIGHT ? 1 : e.button.button==SDL_BUTTON_MIDDLE ? 2 : e.button.button-1;

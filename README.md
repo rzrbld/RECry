@@ -114,6 +114,22 @@ shooters"; gptokeyb2 has no tap-vs-hold, so its hold actions are on an LB layer)
 | Y | Next weapon | | LB + B / X / Y | Prone / use / fire mode |
 | | | | LB + right stick | Lean |
 
+## Launcher settings
+
+| Setting | |
+|---|---|
+| Resolution | Game resolution. Auto = the screen up to 480 lines, else 480 lines at the screen's shape |
+| Picture | Keep aspect (bars when shapes differ) or stretch |
+| Physics / Effects / View distance | Auto chooses by device: simplified on slow handhelds, stock Far Cry on fast ones |
+| Menu text size | Bigger menu text for small screens |
+| Frame limit | 30, 60 or uncapped |
+| FPS counter | Off, On (a small counter) or Built-in (the engine's own statistics) |
+| CPU | Performance governor while playing (restored on exit) |
+| Look speed / Pointer speed | Right stick turning speed and the menu pointer speed, 5-200 % (30 % = default) |
+| Controls | Classic or Modern shooter (see Controls) |
+
+In the menus either stick moves the pointer and A clicks.
+
 ## Building
 
 No game files are needed to build. On Debian 12 / Ubuntu 22.04+ (x86-64):

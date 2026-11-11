@@ -813,7 +813,37 @@ void CInput::UpdateController()
 	// ESC toggles game/menu through XConsole::OnInputEvent).
 	if (bMenu)
 	{
-		if (m_Gamepad.KeyPressed(XKEY_GP_A))
+		// The menus are mouse driven: either stick moves the cursor (virtual
+		// 800x600 screen) and A clicks where it points. Before the cursor is
+		// moved (or after D-pad focus navigation) A activates the focused item.
+		static bool s_bPadCursor = false;
+		{
+			float sx = m_Gamepad.GetStickLX() + m_Gamepad.GetStickRX();
+			float sy = m_Gamepad.GetStickLY() + m_Gamepad.GetStickRY();
+			if (sx > 1.f) sx = 1.f; if (sx < -1.f) sx = -1.f; if (sy > 1.f) sy = 1.f; if (sy < -1.f) sy = -1.f;
+			const float mag = sqrtf(sx*sx + sy*sy);
+			if (mag > 0.05f)
+			{
+				float ft = 1.0f / 30.0f;
+				if (m_pSystem->GetITimer()) { float t = m_pSystem->GetITimer()->GetFrameTime(); if (t > 0.f && t < 0.25f) ft = t; }
+				const float speed = PortCfgFloat("FARCRY_PAD_CURSOR_SPEED", 700.0f) * mag;  // virtual pixels/s at full deflection, eased near the centre
+				float x = m_Mouse.GetVScreenX(), y = m_Mouse.GetVScreenY();
+				if (!s_bPadCursor && x <= 1.f && y <= 1.f) { x = 400.f; y = 300.f; }   // first use: start in the middle
+				x += sx * speed * ft; y += sy * speed * ft;
+				if (x < 0.f) x = 0.f; if (x > 799.f) x = 799.f; if (y < 0.f) y = 0.f; if (y > 599.f) y = 599.f;
+				m_Mouse.SetVScreenX(x); m_Mouse.SetVScreenY(y);
+				s_bPadCursor = true;
+			}
+		}
+		if (m_Gamepad.KeyPressed(XKEY_GP_DPAD_UP) || m_Gamepad.KeyPressed(XKEY_GP_DPAD_DOWN) ||
+			m_Gamepad.KeyPressed(XKEY_GP_DPAD_LEFT) || m_Gamepad.KeyPressed(XKEY_GP_DPAD_RIGHT))
+			s_bPadCursor = false;
+		if (s_bPadCursor)
+		{
+			if (m_Gamepad.KeyPressed(XKEY_GP_A)) m_Mouse.OnButton(0, true);
+			if (m_Gamepad.KeyReleased(XKEY_GP_A)) m_Mouse.OnButton(0, false);
+		}
+		else if (m_Gamepad.KeyPressed(XKEY_GP_A))
 		{
 			PostSyntheticKey(XKEY_RETURN, true, m_Keyboard.GetModifiers());
 			PostSyntheticKey(XKEY_RETURN, false, m_Keyboard.GetModifiers());

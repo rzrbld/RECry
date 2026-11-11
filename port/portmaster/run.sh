@@ -171,7 +171,11 @@ export FARCRY_GLES_QUEUE_FRAMES=${FARCRY_GLES_QUEUE_FRAMES:-2}
 export FARCRY_TEXCACHE=${FARCRY_TEXCACHE:-$BASE/cache/textures}
 export FARCRY_TEXCONV_THREADS=${FARCRY_TEXCONV_THREADS:-3}
 export FARCRY_PAD_DEADZONE=${FARCRY_PAD_DEADZONE:-0.22}
-export FARCRY_PAD_LOOK_SCALE=${FARCRY_PAD_LOOK_SCALE:-180}
+# Stick speeds from the launcher (percent; 30 = the tuned default):
+# look 30 % = 180 degrees/s, menu pointer 30 % = 700 virtual pixels/s.
+look=${RECRY_LOOK:-30}; pointer=${RECRY_POINTER:-30}
+export FARCRY_PAD_LOOK_SCALE=${FARCRY_PAD_LOOK_SCALE:-$(( look * 6 ))}
+export FARCRY_PAD_CURSOR_SPEED=${FARCRY_PAD_CURSOR_SPEED:-$(( pointer * 70 / 3 ))}
 # Video, audio and the GL driver come from the firmware through SDL.
 echo "Device: ${DEVICE_NAME:-?} cpu=${DEVICE_CPU:-?} ram=${DEVICE_RAM:-?}GB class=$DEVCLASS screen=${SW}x${SH} render=${RW}x${RH} scale=$FARCRY_SCALE"
 echo "Options: physics=$HANDHELD_PHYSICS effects=$HANDHELD_EFFECTS view=$HANDHELD_VIEW text=$FARCRY_UI_TEXT_SCALE limit=${RECRY_LIMIT:-30} fps=${RECRY_FPS:-0}"

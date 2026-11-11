@@ -44,8 +44,11 @@ the launcher's Auto settings.
 | FPS counter | Off, On (a small counter) or Built-in (the engine's own statistics) |
 | CPU | Performance governor while playing (restored on exit) |
 | Controls | Classic or Modern shooter (see Controls) |
+| Look speed / Pointer speed | Right stick turning speed in the game and the stick-driven menu pointer, 5-200 % (30 % = default) |
 
 ## Controls
+
+In the menus either stick moves the pointer and A clicks.
 
 Two presets, chosen in the launcher (Controls). Both go through PortMaster's gptokeyb2, so
 they work with each handheld's own controls. Classic: gptokeyb2 presents a virtual Xbox pad

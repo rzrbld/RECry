@@ -32,6 +32,14 @@ int PortAudio_ExternalWrite(const Sint16* lr, int frames);
 int PortAudio_ExternalQueued();
 void PortAudio_ExternalClear();
 void PortAudio_ExternalPause(bool p);
+long long PortAudio_ExternalMixed();
+// The game's menus open the same movie more than once (Ubi.bik, Crytek.bik are
+// opened twice each). Only one player may own the shared mixer stream: the
+// most recently opened one. Without this, two players fed the stream at once
+// and closing either cleared/paused it under the other (movie sound playing,
+// cutting out or missing). Game sounds are unaffected (separate mixer path).
+static void* g_audioOwner = nullptr;
+static std::vector<void*> g_mixerPlayers;   // open players using the mixer, oldest first
 
 namespace
 {
@@ -54,6 +62,7 @@ namespace
     int audioRate = 0;
     bool soundOn = true, videoOn = true, eof = false;
     float volume = 1.0f;
+    long long aDecoded = 0, aWritten = 0, aDropped = 0;   // audio frames (diagnostic log)
     Uint64 startTicks = 0, pausedAt = 0;
     bool paused = false;
     // Decode-ahead worker: converted BGRA frames (Width*Height*4).
@@ -134,13 +143,14 @@ namespace
     buf.resize((size_t)outSamples * 4);
     uint8_t* out[1] = { (uint8_t*)&buf[0] };
     const int got = swr_convert(s->swr, out, outSamples, (const uint8_t**)f->extended_data, f->nb_samples);
+    if (got > 0) s->aDecoded += got;
     if (got <= 0 || !s->soundOn) return;
     if (s->volume < 0.999f)
     {
       int16_t* p = (int16_t*)&buf[0];
       for (int i = 0; i < got * 2; ++i) p[i] = (int16_t)(p[i] * s->volume);
     }
-    if (s->mixer) PortAudio_ExternalWrite((const Sint16*)buf.data(), got);
+    if (s->mixer) { if (g_audioOwner == s) { int w = PortAudio_ExternalWrite((const Sint16*)buf.data(), got); s->aWritten += w; s->aDropped += got - w; } else s->aDropped += got; }
     else SDL_QueueAudio(s->audio, buf.data(), (Uint32)got * 4);
   }
 
@@ -223,7 +233,7 @@ HBINK BinkOpen(const char* name, U32 flags)
   {
     SDL_AudioSpec want; SDL_zero(want);
     want.freq = s->adec->sample_rate; want.format = AUDIO_S16SYS; want.channels = 2; want.samples = 1024;
-    if (PortAudio_ExternalRate() > 0) { s->mixer = true; want.freq = PortAudio_ExternalRate(); PortAudio_ExternalClear(); PortAudio_ExternalPause(false); }
+    if (PortAudio_ExternalRate() > 0) { s->mixer = true; want.freq = PortAudio_ExternalRate(); g_audioOwner = s; g_mixerPlayers.push_back(s); PortAudio_ExternalClear(); PortAudio_ExternalPause(false); }
     else if (SDL_WasInit(SDL_INIT_AUDIO) || SDL_InitSubSystem(SDL_INIT_AUDIO) == 0)
       s->audio = SDL_OpenAudioDevice(nullptr, 0, &want, nullptr, 0);
     if (s->audio || s->mixer)
@@ -248,7 +258,7 @@ HBINK BinkOpen(const char* name, U32 flags)
   s->w = (int)b->Width; s->h = (int)b->Height;
   s->worker = std::thread(Worker, s);
   s->startTicks = SDL_GetPerformanceCounter();
-  fprintf(stderr, "PORT bink: %s %ux%u %u frames %.2f fps audio=%d\n", path.c_str(), b->Width, b->Height, b->Frames,
+  fprintf(stderr, "PORT bink: open %p %s %ux%u %u frames %.2f fps audio=%d\n", (void*)s, path.c_str(), b->Width, b->Height, b->Frames,
           (double)b->FrameRate / b->FrameRateDiv, s->mixer ? 2 : (s->audio != 0));
   return b;
 }
@@ -257,11 +267,22 @@ void BinkClose(HBINK b)
 {
   SBinkState* s = St(b);
   if (!s) return;
+  fprintf(stderr, "PORT bink: close %p (frame %u, sound owner %s) audio: dec=%d swr=%d decoded=%lld written=%lld dropped=%lld soundOn=%d vol=%.2f queued=%d mixed=%lld\n",
+          (void*)s, b->FrameNum, g_audioOwner == s ? "yes" : "no", s->adec != nullptr, s->swr != nullptr, s->aDecoded, s->aWritten, s->aDropped,
+          (int)s->soundOn, s->volume, PortAudio_ExternalQueued(), PortAudio_ExternalMixed());
   { std::lock_guard<std::mutex> lk(s->m); s->stop = true; }
   s->cv.notify_all();
   if (s->worker.joinable()) s->worker.join();
   if (s->audio) SDL_CloseAudioDevice(s->audio);
-  if (s->mixer) PortAudio_ExternalClear();
+  if (s->mixer)
+  {
+    for (size_t i = 0; i < g_mixerPlayers.size(); ++i) if (g_mixerPlayers[i] == s) { g_mixerPlayers.erase(g_mixerPlayers.begin() + i); break; }
+    if (g_audioOwner == s)
+    {   // the newest player still open takes over the stream
+      PortAudio_ExternalClear(); PortAudio_ExternalPause(false);
+      g_audioOwner = g_mixerPlayers.empty() ? nullptr : g_mixerPlayers.back();
+    }
+  }
   swr_free(&s->swr);
   avcodec_free_context(&s->vdec); avcodec_free_context(&s->adec);
   av_frame_free(&s->frame); av_frame_free(&s->aframe); av_packet_free(&s->pkt);
@@ -324,8 +345,8 @@ S32 BinkPause(HBINK b, S32 pause)
 {
   SBinkState* s = St(b);
   if (!s) return 0;
-  if (pause && !s->paused) { s->paused = true; s->pausedAt = SDL_GetPerformanceCounter(); if (s->audio) SDL_PauseAudioDevice(s->audio, 1); if (s->mixer) PortAudio_ExternalPause(true); }
-  else if (!pause && s->paused) { s->paused = false; s->startTicks += SDL_GetPerformanceCounter() - s->pausedAt; if (s->audio) SDL_PauseAudioDevice(s->audio, 0); if (s->mixer) PortAudio_ExternalPause(false); }
+  if (pause && !s->paused) { s->paused = true; s->pausedAt = SDL_GetPerformanceCounter(); if (s->audio) SDL_PauseAudioDevice(s->audio, 1); if (s->mixer && g_audioOwner == s) PortAudio_ExternalPause(true); }
+  else if (!pause && s->paused) { s->paused = false; s->startTicks += SDL_GetPerformanceCounter() - s->pausedAt; if (s->audio) SDL_PauseAudioDevice(s->audio, 0); if (s->mixer && g_audioOwner == s) PortAudio_ExternalPause(false); }
   return s->paused;
 }
 
@@ -340,6 +361,6 @@ void BinkSetFrameRate(U32 rate, U32 div) { g_forceRate = rate; g_forceRateDiv = 
 S32 BinkSetVideoOnOff(HBINK b, S32 on) { if (SBinkState* s = St(b)) s->videoOn = on != 0; return on; }
 S32 BinkSetSoundOnOff(HBINK b, S32 on)
 {
-  if (SBinkState* s = St(b)) { s->soundOn = on != 0; if (!on && s->audio) SDL_ClearQueuedAudio(s->audio); if (!on && s->mixer) PortAudio_ExternalClear(); }
+  if (SBinkState* s = St(b)) { s->soundOn = on != 0; if (!on && s->audio) SDL_ClearQueuedAudio(s->audio); if (!on && s->mixer && g_audioOwner == s) PortAudio_ExternalClear(); }
   return on;
 }

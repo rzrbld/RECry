@@ -241,6 +241,7 @@ static int poll_key(void) {
 static char g_res[32] = "auto";        /* auto or WxH */
 static int g_stretch = 0, g_phys = 0, g_fx = 0, g_view = 0;   /* 0 auto, 1 on (simplified), 2 off (full) */
 static int g_text = 0, g_limit = 30, g_fps = 0, g_cpu_perf = 1, g_controls = 0;   /* controls: 0 classic, 1 modern */
+static int g_look = 30, g_pointer = 30;   /* stick speeds in %: 30 = the port's tuned default */
 
 static void cfg_load(void) {
     char p[4200]; snprintf(p, sizeof p, "%s/recry.cfg", g_conf);
@@ -258,6 +259,8 @@ static void cfg_load(void) {
         else if (sscanf(line, "RECRY_FPS=%d", &n) == 1) g_fps = n < 0 || n > 2 ? 0 : n;   /* 0 off, 1 on, 2 built-in */
         else if (sscanf(line, "RECRY_CPU=%63s", v) == 1) g_cpu_perf = strcmp(v, "system") != 0;
         else if (sscanf(line, "RECRY_CONTROLS=%63s", v) == 1) g_controls = !strcmp(v, "modern");
+        else if (sscanf(line, "RECRY_LOOK=%d", &n) == 1) g_look = n < 5 ? 5 : n > 200 ? 200 : n;
+        else if (sscanf(line, "RECRY_POINTER=%d", &n) == 1) g_pointer = n < 5 ? 5 : n > 200 ? 200 : n;
     }
     fclose(f);
 }
@@ -269,9 +272,9 @@ static int cfg_save(void) {
     char txt[16]; if (g_text) snprintf(txt, sizeof txt, "%d", g_text); else snprintf(txt, sizeof txt, "auto");
     fprintf(f, "# RECry settings (written by the launcher)\n"
                "RECRY_RES=%s\nRECRY_SCALE=%s\nRECRY_PHYSICS=%s\nRECRY_EFFECTS=%s\nRECRY_VIEW=%s\n"
-               "RECRY_TEXT=%s\nRECRY_LIMIT=%d\nRECRY_FPS=%d\nRECRY_CPU=%s\nRECRY_CONTROLS=%s\n",
+               "RECRY_TEXT=%s\nRECRY_LIMIT=%d\nRECRY_FPS=%d\nRECRY_CPU=%s\nRECRY_CONTROLS=%s\nRECRY_LOOK=%d\nRECRY_POINTER=%d\n",
             g_res, g_stretch ? "stretch" : "fit", tri(g_phys), tri(g_fx), tri(g_view), txt, g_limit, g_fps, g_cpu_perf ? "perf" : "system",
-            g_controls ? "modern" : "classic");
+            g_controls ? "modern" : "classic", g_look, g_pointer);
     if (fclose(f) || rename(t, p)) return -1;
     return 0;
 }
@@ -338,9 +341,9 @@ static int page_controls(void) {
 }
 
 static int page_settings(void) {
-    enum { S_RES, S_SCALE, S_PHYS, S_FX, S_VIEW, S_TEXT, S_LIMIT, S_FPS, S_CPU, S_CTRL, S_RUN, S_EXIT, S_N };
+    enum { S_RES, S_SCALE, S_PHYS, S_FX, S_VIEW, S_TEXT, S_LIMIT, S_FPS, S_CPU, S_LOOK, S_POINTER, S_CTRL, S_RUN, S_N };
     static const char *lab[S_N] = { "Resolution", "Picture", "Physics", "Effects", "View distance", "Menu text size",
-                                    "Frame limit", "FPS counter", "CPU", "Controls", "START GAME", "Exit" };
+                                    "Frame limit", "FPS counter", "CPU", "Look speed", "Pointer speed", "Controls", "START GAME" };
     int sel = S_RUN, ri = res_index();
     for (;;) {
         frame_begin("SETTINGS");
@@ -355,7 +358,8 @@ static int page_settings(void) {
         snprintf(v[S_FPS], 48, "%s", g_fps == 1 ? "On" : g_fps == 2 ? "Built-in" : "Off");
         snprintf(v[S_CPU], 48, "%s", g_cpu_perf ? "Performance" : "System");
         snprintf(v[S_CTRL], 48, "%s", k_layout_name[g_controls]);
-        int rowh = 22, y0 = PY + 46;
+        snprintf(v[S_LOOK], 48, "%d %%", g_look); snprintf(v[S_POINTER], 48, "%d %%", g_pointer);
+        int rowh = 21, y0 = PY + 46;
         for (int i = 0; i < S_N; i++) {
             int y = y0 + i * rowh + (i >= S_CTRL ? 4 : 0) + (i >= S_RUN ? 4 : 0);
             int on = i == sel;
@@ -381,7 +385,9 @@ static int page_settings(void) {
             sel == S_FPS ? (g_fps == 2 ? "Built-in: the engine's own statistics (FPS, draw calls, memory)" : "On: a small frame rate counter in the top right corner") :
             sel == S_CPU ? "Performance: CPU at full rated speed while playing (restored on exit)" :
             sel == S_CTRL ? (g_controls ? "Modern shooter: B crouch, RB grenade, LB layer. A shows the layout" : "Classic: the port's original layout. A shows the layout") :
-            sel == S_RUN ? "Save these settings and start Far Cry" : "Leave without starting the game";
+            sel == S_LOOK ? "Right stick turning speed in the game (30 % = default)" :
+            sel == S_POINTER ? "Menu pointer speed with the sticks (30 % = default)" :
+            "Save these settings and start Far Cry. B leaves without starting";
         fill(PX + 20, PY + PH - 30, PW - 40, 1, C_AMBER_DK, 255);
         text_c(F_SMALL, PY + PH - 24, h, C_DIM);
         hint("Up/Down select    Left/Right change    A confirm    B exit");
@@ -403,12 +409,13 @@ static int page_settings(void) {
             case S_FPS: g_fps = (g_fps + 3 + d) % 3; break;
             case S_CPU: g_cpu_perf = !g_cpu_perf; break;
             case S_CTRL: g_controls = !g_controls; break;
+            case S_LOOK: g_look += d * 5; if (g_look < 5) g_look = 5; if (g_look > 200) g_look = 200; break;
+            case S_POINTER: g_pointer += d * 5; if (g_pointer < 5) g_pointer = 5; if (g_pointer > 200) g_pointer = 200; break;
             }
         }
         if (k == K_A) {
             if (sel == S_CTRL) { int r = page_controls(); if (r >= 0) return r; }
             else if (sel == S_RUN) return cfg_save() == 0 ? EXIT_RUN : EXIT_ERR;
-            else if (sel == S_EXIT) return EXIT_USER;
         }
         if (k == K_B) return EXIT_USER;
         SDL_Delay(16);

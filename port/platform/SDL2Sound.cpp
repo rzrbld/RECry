@@ -23,6 +23,7 @@
 #include <ISystem.h>
 #include <ICryPak.h>
 #include <ILog.h>
+#include <IConsole.h>
 #include <Cry_Camera.h>
 #include <SDL.h>
 #include <vector>
@@ -54,6 +55,8 @@ int PortAudio_ExternalWrite(const Sint16* lr, int frames)
 int PortAudio_ExternalQueued() { return (int)g_extCount; }
 void PortAudio_ExternalClear() { if (!g_portAudioDevice) return; SDL_LockAudioDevice(g_portAudioDevice); g_extRead = g_extCount = 0; SDL_UnlockAudioDevice(g_portAudioDevice); }
 void PortAudio_ExternalPause(bool p) { g_extPaused = p; }
+static long long g_extMixed = 0;   // frames of movie audio mixed so far (diagnostic log)
+long long PortAudio_ExternalMixed() { return g_extMixed; }
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -323,7 +326,7 @@ public:
     bool SetGroupScale(int nGroup, float fScale);
     void Silence();
     void Pause(bool bPause, bool) { m_bPaused = bPause; }
-    void Mute(bool bMute) { m_bMuted = bMute; }
+    void Mute(bool bMute) { if (bMute != m_bMuted) fprintf(stderr, "[port/audio] game sound %s\n", bMute ? "muted (loading)" : "unmuted"); m_bMuted = bMute; }
     void GetSoundMemoryUsageInfo(size_t& nCurrentMemory, size_t& nMaxMemory);
     int GetUsedVoices();
     float GetCPUUsage() { return 0.0f; }
@@ -384,6 +387,20 @@ CSDL2SoundSystem::CSDL2SoundSystem(ISystem* pSystem)
 {
     for (int i = 0; i < 32; ++i) m_groupScale[i] = 1.0f;
     m_vListenerPos = Vec3(0,0,0);
+
+    // The sound cvars Crytek's sound system registers (SoundSystemCommon.cpp).
+    // Game scripts read them: the cutscene player sets the movie volume from
+    // s_SFXVolume and silences movies when s_SoundEnable is missing or 0
+    // (intro videos had no sound). Same names, defaults and flags as the original.
+    if (IConsole* pConsole = pSystem ? pSystem->GetIConsole() : NULL)
+    {
+        if (!pConsole->GetCVar("s_SoundEnable"))
+            pConsole->CreateVariable("s_SoundEnable", "1", VF_DUMPTODISK, "Toggles sound on and off.\nUsage: s_SoundEnable [0/1]\nDefault is 1 (on).");
+        if (!pConsole->GetCVar("s_SFXVolume"))
+            pConsole->CreateVariable("s_SFXVolume", "1", VF_DUMPTODISK, "Sets the percentile volume of the sound effects.\nUsage: s_SFXVolume 0.5\nDefault is 1, which is full volume.");
+        if (!pConsole->GetCVar("s_MusicVolume"))
+            pConsole->CreateVariable("s_MusicVolume", "0.5", VF_DUMPTODISK, "Sets the music volume from 0 to 1 in the games options.\nUsage: s_MusicVolume 0.5\nDefault is 0.5.");
+    }
 
     if (!PortSndEnvFlag("FARCRY_SDL_AUDIO", true))
     {
@@ -512,7 +529,10 @@ void CSDL2SoundSystem::AudioCallback(Sint16* pStream, int nLenBytes)
         }
     }
 
-    if (g_extCount && !g_extPaused && !m_bMuted)
+    // Movie audio is not affected by Mute(): the game mutes its sounds while it
+    // loads, and the intro videos play during the menu load (their sound cut
+    // out or never started, depending on timing). Pause/volume still apply.
+    if (g_extCount && !g_extPaused)
     {
         const size_t cap = g_extRing.size() / 2;
         const int n = (int)(g_extCount < (size_t)nFrames ? g_extCount : (size_t)nFrames);
@@ -521,7 +541,7 @@ void CSDL2SoundSystem::AudioCallback(Sint16* pStream, int nLenBytes)
             const size_t r = (g_extRead + f) % cap;
             pMix[f * 2] += g_extRing[r * 2]; pMix[f * 2 + 1] += g_extRing[r * 2 + 1];
         }
-        g_extRead = (g_extRead + n) % cap; g_extCount -= n;
+        g_extRead = (g_extRead + n) % cap; g_extCount -= n; g_extMixed += n;
     }
 
     for (int i = 0; i < nFrames * 2; ++i)
