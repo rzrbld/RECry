@@ -107,11 +107,13 @@ shooters"; gptokeyb2 has no tap-vs-hold, so its hold actions are on an LB layer)
 |---|---|---|---|---|
 | Left stick | Move | | RB | Throw grenade |
 | Right stick | Look | | L3 / R3 | Sprint / flashlight |
-| RT / LT | Fire / aim | | D-pad up / down | Binoculars / grenade type |
+| RT / LT | Fire / aim | | D-pad up | Binoculars |
 | A | Jump | | D-pad left / right | Lean left / right |
-| B | Crouch (hold) | | Select | Pause menu |
+| B | Crouch (hold) | | D-pad down | Use, enter vehicles |
+| | | | Select | Pause menu |
 | X | Reload | | Start | Objectives / score |
-| Y | Next weapon | | LB + B / X / Y | Prone / use / fire mode |
+| Y | Next weapon | | LB + B / Y | Prone / fire mode |
+| | | | LB + D-pad down | Grenade type |
 | | | | LB + right stick | Lean |
 
 ## Launcher settings

@@ -91,6 +91,8 @@ file(GLOB CRY3DENGINE_SRC ${SRC}/Cry3DEngine/*.cpp)
 file(GLOB CRYENTITY_SRC ${SRC}/CryEntitySystem/*.cpp)
 file(GLOB CRYANIM_SRC ${SRC}/CryAnimation/*.cpp)
 file(GLOB CRYPHYS_SRC ${SRC}/CryPhysics/*.cpp)
+# Physics keeps its original branchless min/max (see CryCommon/Cry_Math.h).
+set_source_files_properties(${CRYPHYS_SRC} PROPERTIES COMPILE_DEFINITIONS RECRY_PHYSICS_MINMAX)
 file(GLOB CRYAI_SRC ${SRC}/CryAISystem/*.cpp)
 file(GLOB CRYFONT_SRC ${SRC}/CryFont/*.cpp)
 list(FILTER CRYFONT_SRC EXCLUDE REGEX "/CryPakIO\\.cpp$")

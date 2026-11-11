@@ -495,10 +495,24 @@ template<class F> int intersect_lists(F *pSrc0,int nSrc0, F *pSrc1,int nSrc1, F 
 #ifdef min
  #undef min
 #endif
+#if defined(PHYSICS_EXPORTS) || defined(RECRY_PHYSICS_MINMAX) || (defined(WIN64) && defined(CRYENTITYDLL_EXPORTS))
+// Branchless approximations, as the physics module was built on Windows.
+// (op1+op2-|op1-op2|)/2 is not exact in floating point: min(1, 3.9) can
+// return 0.99999994.
 inline double min(double op1,double op2) { return (op1+op2-fabs(op1-op2))*0.5; }
 inline double max(double op1,double op2) { return (op1+op2+fabs(op1-op2))*0.5; }
 inline float max(float op1,float op2) { return (op1+op2+fabsf(op1-op2))*0.5f; }
 inline float min(float op1,float op2) { return (op1+op2-fabsf(op1-op2))*0.5f; }
+#else
+// RECry: exact min/max for everything else, as the shipped Windows modules
+// used. With the approximation a distance fade min(1.f, x) came out just
+// under 1 on some frames, which sent opaque brushes to the blended list:
+// walls and props flickered and darkened while walking (aarch64 H700).
+inline double min(double op1,double op2) { return op1 < op2 ? op1 : op2; }
+inline double max(double op1,double op2) { return op1 > op2 ? op1 : op2; }
+inline float max(float op1,float op2) { return op1 > op2 ? op1 : op2; }
+inline float min(float op1,float op2) { return op1 < op2 ? op1 : op2; }
+#endif
 inline int max(int op1,int op2) { return op1 - (op1-op2 & (op1-op2)>>31); }
 inline int min(int op1,int op2) { return op2 + (op1-op2 & (op1-op2)>>31); }
 inline double minmax(double op1,double op2,int bMax) { return (op1+op2+fabs(op1-op2)*(bMax*2-1))*0.5; }

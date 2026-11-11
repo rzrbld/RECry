@@ -314,9 +314,9 @@ static int page_controls(void) {
     static const char *modern[][2] = {
         { "Left stick", "Move" }, { "Right stick", "Look" }, { "RT / LT", "Fire / aim" }, { "A", "Jump" },
         { "B", "Crouch (hold)" }, { "X", "Reload" }, { "Y", "Next weapon" }, { "RB", "Throw grenade" },
-        { "L3 / R3", "Sprint / flashlight" }, { "D-pad up", "Binoculars" }, { "D-pad down", "Grenade type" },
+        { "L3 / R3", "Sprint / flashlight" }, { "D-pad up", "Binoculars" }, { "D-pad down", "Use, vehicles" },
         { "D-pad L / R", "Lean left / right" }, { "Select", "Pause menu" }, { "Start", "Objectives / score" },
-        { "LB + B / X", "Prone / use" }, { "LB + Y", "Fire mode" }, { "LB + R stick", "Lean" } };
+        { "LB + B", "Prone" }, { "LB + Y", "Fire mode" }, { "LB + D-pad down", "Grenade type" }, { "LB + R stick", "Lean" } };
     int which = g_controls;
     for (;;) {
         char title[64]; snprintf(title, sizeof title, "CONTROLS: %s", k_layout_name[which]);

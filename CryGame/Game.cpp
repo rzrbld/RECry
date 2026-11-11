@@ -1074,6 +1074,30 @@ bool CXGame::Update()
 				s_nBench = 2;
 			}
 		}
+		// Bench motion (testing): FARCRY_BENCH_SPIN=<deg/s> turns, FARCRY_BENCH_WALK=<m/s> moves
+		// along the initial yaw, both steadily from the placement on.
+		if (s_nBench == 2 && GetMyPlayer())
+		{
+			static const float fSpin = getenv("FARCRY_BENCH_SPIN") ? (float)atof(getenv("FARCRY_BENCH_SPIN")) : 0.f;
+			static const float fWalk = getenv("FARCRY_BENCH_WALK") ? (float)atof(getenv("FARCRY_BENCH_WALK")) : 0.f;
+			if (fSpin != 0.f || fWalk != 0.f)
+			{
+				// Engine frame time, so "fixed_time_step" gives the same motion per frame
+				// however slow a capture makes the frame.
+				const float dt = m_pSystem->GetITimer()->GetFrameTime();
+				float x = 0, y = 0, z = 0, yaw0 = 0; sscanf(szBench, "%f %f %f %f", &x, &y, &z, &yaw0);
+				IEntity* pP = GetMyPlayer();
+				// Absolute heading (placement yaw + spin so far): scripts cannot turn the bench camera.
+				static float s_fYaw = 1e9f; if (s_fYaw > 1e8f) s_fYaw = yaw0;
+				s_fYaw += fSpin * dt;
+				Vec3 a = pP->GetAngles(); a.x = 0; a.z = s_fYaw; pP->SetAngles(a);
+				if (fWalk != 0.f)
+				{
+					const float r = yaw0 * 3.14159265f / 180.f; Vec3 pos = pP->GetPos();
+					pos.x += -sinf(r) * fWalk * dt; pos.y += cosf(r) * fWalk * dt; pP->SetPos(pos);
+				}
+			}
+		}
 	}
 	// Test-only: spawn a named particle effect near the player.
 	if (const char* fx = getenv("FARCRY_TEST_EFFECT"))

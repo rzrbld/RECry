@@ -4,7 +4,8 @@
 # mouse bindings; the game reads the analog sticks itself (move and look,
 # through PortMaster's SDL controller mapping). gptokeyb2 has no tap-vs-hold, so
 # the layout's hold actions sit on an LB layer (hold LB):
-#   LB + B prone, LB + X use, LB + Y fire mode, LB + right stick lean.
+#   LB + B prone, LB + Y fire mode, LB + D-pad down grenade type,
+#   LB + right stick lean. Use is on D-pad down.
 # Edit freely: any gptokeyb2 key name works (see the gptokeyb2 README).
 
 [controls]
@@ -21,7 +22,7 @@ l1    = hold_state lb  # layer below
 l3    = shift          # sprint (hold)
 r3    = l              # flashlight
 up    = b              # binoculars
-down  = h              # switch grenade type
+down  = f              # use, enter vehicles
 left  = q              # lean left
 right = e              # lean right
 back  = esc            # pause menu
@@ -31,7 +32,7 @@ start = tab            # objectives / score
 overlay = parent
 
 b = v                  # prone
-x = f                  # use, enter vehicles
+down = h               # switch grenade type
 y = x                  # fire mode
 right_analog_left  = q # lean left
 right_analog_right = e # lean right
