@@ -5070,6 +5070,9 @@ void CPlayer::UpdateDrawAngles( )
 /*!drawn the player
 	called by the engine when the player has to be drawn
 */
+// Set while the game render callback (Game.cpp) draws the local first-person view.
+bool g_PortFPWeaponFromCallback = false;
+
 void CPlayer::OnDraw(const SRendParams & _RendParams)
 {
 	//return;
@@ -5103,7 +5106,14 @@ void CPlayer::OnDraw(const SRendParams & _RendParams)
 					pInst->RenderShadowVolumes(&RendParams);
 			}
 			else {
-				pInst->Draw(RendParams,m_pEntity->GetPos());
+				// Port: draw the local first-person view once per frame. Indoors (in a
+				// vis area) from the game render callback, lit by the ambient at the
+				// player's position (the engine pass uses one flat room ambient, which
+				// looked shaded); outdoors from the engine pass, which includes the
+				// outdoor ambient. Two copies with different lighting flickered.
+				const bool bIndoor = m_pEntity->GetEntityVisArea() != NULL;
+				if (!IsMyPlayer() || g_PortFPWeaponFromCallback == bIndoor)
+					pInst->Draw(RendParams,m_pEntity->GetPos());
 			}
 		}
 

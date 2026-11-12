@@ -754,11 +754,17 @@ bool CXGame::Init(struct ISystem *pSystem,bool bDedicatedSrv,bool bInEditor,cons
         if (!entity || !entity->GetContainer() || entity->IsHidden()) return;
         CPlayer* player = NULL;
         if (!entity->GetContainer()->QueryContainerInterface(CIT_IPLAYER,(void**)&player) || !player || !player->m_bFirstPerson) return;
+        // CPlayer::OnDraw draws the first-person hands and weapon from here only
+        // indoors (lit by the ambient at the player's position); outdoors the 3D
+        // engine's pass draws them. Two copies flickered while walking.
+        extern bool g_PortFPWeaponFromCallback;
+        g_PortFPWeaponFromCallback = true;
         SRendParams params;
         params.vPos = entity->GetPos();
         params.vAngles = entity->GetAngles();
         params.vAmbientColor = game->GetSystem()->GetI3DEngine()->GetAmbientColorFromPosition(entity->GetPos());
         player->OnDraw(params);
+        g_PortFPWeaponFromCallback = false;
     }, this);
 #endif
 	
