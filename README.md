@@ -122,7 +122,7 @@ shooters"; gptokeyb2 has no tap-vs-hold, so its hold actions are on an LB layer)
 |---|---|
 | Resolution | Game resolution. Auto = the screen up to 480 lines, else 480 lines at the screen's shape |
 | Picture | Keep aspect (bars when shapes differ) or stretch |
-| Physics / Effects / View distance | Auto chooses by device: simplified on slow handhelds, stock Far Cry on fast ones |
+| Physics / Effects / View distance | Auto: simplified on handhelds (H700, RK3326, RK3566/RK3568, ...), stock Far Cry on desktop-class devices |
 | Menu text size | Bigger menu text for small screens |
 | Frame limit | 30, 60 or uncapped |
 | FPS counter | Off, On (a small counter) or Built-in (the engine's own statistics) |

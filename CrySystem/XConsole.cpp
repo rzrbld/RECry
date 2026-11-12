@@ -900,6 +900,11 @@ void CXConsole::Draw()
   // draw progress bar
   if(m_nProgressRange)
   {
+    // Port: the loading screen is drawn blended over the frame; once the level
+    // starts rendering in the last loading steps it showed through (flicker).
+    // Start from black so only the loading picture and the bar are visible.
+    m_pRenderer->ClearColorBuffer(Vec3(0,0,0));
+
 		float fRcp1024 = 1.0f / 1024.0f;
 		float fProgress = min(1.0f, m_nProgress / (float)m_nProgressRange);
 

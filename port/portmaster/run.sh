@@ -84,8 +84,10 @@ fi
 export FARCRY_SCALE=${RECRY_SCALE:-fit}
 
 # ---------------------------------------------------------------- options
-# Trade-offs for slow handhelds: auto picks by device class (PortMaster's
-# DEVICE_CPU / DEVICE_RAM), on = simplified, off = stock Far Cry.
+# Trade-offs for handhelds: auto picks by device class (PortMaster's
+# DEVICE_CPU / DEVICE_RAM): simplified on every handheld SoC (H700, RK3326,
+# RK3566/RK3568, ...; the game is CPU-bound on all of them), stock Far Cry on
+# desktop-class devices. on = simplified, off = stock Far Cry.
 device_class() {
     local cpu=${DEVICE_CPU,,}
     case "$cpu" in
@@ -101,8 +103,8 @@ option() { # option <on|off|auto> <weak> <mid> <strong>
     case "${1,,}" in on|1|yes) echo 1; return ;; off|0|no) echo 0; return ;; esac
     case "$DEVCLASS" in weak) echo "$2" ;; mid) echo "$3" ;; *) echo "$4" ;; esac
 }
-export HANDHELD_PHYSICS=${HANDHELD_PHYSICS:-$(option "${RECRY_PHYSICS:-auto}" 1 0 0)}
-export HANDHELD_EFFECTS=${HANDHELD_EFFECTS:-$(option "${RECRY_EFFECTS:-auto}" 1 0 0)}
+export HANDHELD_PHYSICS=${HANDHELD_PHYSICS:-$(option "${RECRY_PHYSICS:-auto}" 1 1 0)}
+export HANDHELD_EFFECTS=${HANDHELD_EFFECTS:-$(option "${RECRY_EFFECTS:-auto}" 1 1 0)}
 export HANDHELD_VIEW=${HANDHELD_VIEW:-$(option "${RECRY_VIEW:-auto}" 1 1 0)}
 if [[ $HANDHELD_PHYSICS != 0 ]]; then
     # Ropes and ragdolls settle sooner (Pier: ropes 4.5 %, Steam: ragdolls ~7 % of frame time).

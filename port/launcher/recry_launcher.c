@@ -359,9 +359,21 @@ static int page_settings(void) {
         snprintf(v[S_CPU], 48, "%s", g_cpu_perf ? "Performance" : "System");
         snprintf(v[S_CTRL], 48, "%s", k_layout_name[g_controls]);
         snprintf(v[S_LOOK], 48, "%d %%", g_look); snprintf(v[S_POINTER], 48, "%d %%", g_pointer);
-        int rowh = 21, y0 = PY + 46;
+        /* Scrolling list: rows that do not fit scroll, the selection stays visible. */
+        int rowh = 21, y0 = PY + 46, yb = PY + PH - 36, viewh = yb - y0;
+        static int top = 0;
+        int vy[S_N]; for (int i = 0; i < S_N; i++) vy[i] = i * rowh + (i >= S_CTRL ? 4 : 0) + (i >= S_RUN ? 4 : 0);
+        const int total = vy[S_N - 1] + rowh;
+        if (vy[sel] < top) top = vy[sel];
+        if (vy[sel] + rowh > top + viewh) top = vy[sel] + rowh - viewh;
+        if (top > total - viewh) top = total - viewh;
+        if (top < 0) top = 0;
+        /* more rows above / below: small amber triangles at the right edge */
+        if (top > 0) for (int r = 0; r < 6; r++) fill(PX + PW - 24 - r, y0 - 10 + r, 1 + 2 * r, 1, C_AMBER, 255);
+        if (top + viewh < total) for (int r = 0; r < 6; r++) fill(PX + PW - 24 - r, yb + 8 - r, 1 + 2 * r, 1, C_AMBER, 255);
         for (int i = 0; i < S_N; i++) {
-            int y = y0 + i * rowh + (i >= S_CTRL ? 4 : 0) + (i >= S_RUN ? 4 : 0);
+            int y = y0 + vy[i] - top;
+            if (y < y0 || y + rowh > yb + 1) continue;
             int on = i == sel;
             if (on) fill(PX + 12, y - 1, PW - 24, rowh, C_AMBER, 235);
             SDL_Color fg = on ? C_SEL_FG : (i == S_RUN ? C_AMBER : C_TEXT);
@@ -377,9 +389,9 @@ static int page_settings(void) {
         const char *h =
             sel == S_RES ? "Game resolution. Lower is faster; the picture is scaled to the screen" :
             sel == S_SCALE ? (g_stretch ? "Fill the whole screen (the picture may look stretched)" : "Keep the game's shape, black bars if the screen differs") :
-            sel == S_PHYS ? "Simplified: idle objects sleep, fewer physics steps. Auto = simplified on slow handhelds" :
-            sel == S_FX ? "Reduced: fewer particles and decals, no water reflections. Auto: by device" :
-            sel == S_VIEW ? "Reduced: shorter draw distance for props (not enemies). Auto: by device" :
+            sel == S_PHYS ? "Simplified: idle objects sleep, fewer physics steps. Auto = simplified on handhelds" :
+            sel == S_FX ? "Reduced: fewer particles and decals, no water reflections. Auto = reduced on handhelds" :
+            sel == S_VIEW ? "Reduced: shorter draw distance for props (not enemies). Auto = reduced on handhelds" :
             sel == S_TEXT ? "Size of menu text in the game. Auto = bigger on small screens" :
             sel == S_LIMIT ? (g_limit == 0 ? "Off: uncapped, as fast as the device can" : g_limit == 60 ? "60 FPS cap: for fast devices" : "30 FPS cap: steady pacing on handhelds") :
             sel == S_FPS ? (g_fps == 2 ? "Built-in: the engine's own statistics (FPS, draw calls, memory)" : "On: a small frame rate counter in the top right corner") :
