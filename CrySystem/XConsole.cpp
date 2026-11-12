@@ -912,6 +912,12 @@ void CXConsole::Draw()
 	  m_pRenderer->Draw2dImage(40, 480, fProgress * (800.0f - 40.0f*2.0f), 13, m_nLoadingBarTexID, fTexProgress0, 1.0f, fTexProgress1, 0.0f);
   }
 
+  // Port: the loading screen shows only the picture and the progress bar, not
+  // the log text (FARCRY_LOADING_LOG=1 shows it, for development).
+  static const bool s_bLoadingLog = getenv("FARCRY_LOADING_LOG") != NULL;
+  if (m_nProgressRange && !s_bLoadingLog)
+    return;
+
   int nPrevMode = m_pRenderer->SetPolygonMode(0);
   //if (!m_bStaticBackground)
 	DrawBuffer(m_nScrollPos, "console");
