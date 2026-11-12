@@ -1244,6 +1244,10 @@ void CSystem::RenderStats()
 {
 	if (!m_pConsole || !m_pI3DEngine)
 		return;
+	// Port: no FPS counter or statistics over the loading screen (they changed
+	// every loading frame and flickered in the black band above the picture).
+	if (m_pConsole->IsLoadingScreen())
+		return;
 
 	// Port: a small FPS counter (launcher: FPS counter = On, FARCRY_SHOW_FPS=1),
 	// the average over each half second, top right. The engine's own statistics

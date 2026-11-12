@@ -3424,6 +3424,15 @@ void CGLRenderer::EF_LightMaterial(SLightMaterial *lm, int Flags)
 
     CFColor colAmb = EF_GetCurrentAmbient(lm, Flags);
     CFColor colDif = EF_GetCurrentDiffuse(lm, Flags);
+    // Port: characters lit by the sun in the fixed-function path got the shader's
+    // halved ambient (LMF_DIVIDEAMB2, compensated by the 2x texture stage for
+    // world geometry). With the engine's per-character ambient already applied
+    // that left their shadow sides near black next to their unlit attachments
+    // (helmets), so characters keep the full ambient.
+    if ((Flags & LMF_DIVIDEAMB2) && m_RP.m_pCurObject->m_pCharInstance)
+    {
+      colAmb.r = min(colAmb.r * 2.0f, 1.0f); colAmb.g = min(colAmb.g * 2.0f, 1.0f); colAmb.b = min(colAmb.b * 2.0f, 1.0f);
+    }
     CFColor colSpec = lm->Front.m_Specular;
     float fPow = lm->Front.m_SpecShininess;
     if (Flags & LMF_NOSPECULAR)

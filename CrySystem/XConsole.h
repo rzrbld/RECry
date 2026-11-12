@@ -147,6 +147,7 @@ public:
 	virtual void DumpCommandsVars(char *prefix);
 	virtual void GetMemoryUsage (class ICrySizer* pSizer);
 	virtual void ResetProgressBar(int nProgressRange);
+	bool IsLoadingScreen() const { return m_nProgressRange != 0; } // port: loading screen with progress bar is up
 	virtual void TickProgressBar();
 	virtual void SetLoadingImage(const char *szFilename);
 	virtual void AddConsoleVarSink( IConsoleVarSink *pSink );
