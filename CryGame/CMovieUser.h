@@ -30,6 +30,7 @@ public:
 	void EndCutScene();
 	void SendGlobalEvent(const char *pszEvent);
 	void PlaySubtitles( ISound *pSound );
+	bool IsInCutScene() const { return m_InCutSceneCounter > 0; }
 
 	// Implmenents ISoundEventListener.
 	void OnSoundEvent( ESoundCallbackEvent event,ISound *pSound );

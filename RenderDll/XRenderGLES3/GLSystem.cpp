@@ -106,14 +106,16 @@ static void GLES3_CaptureIfDue()
   }
   // FARCRY_CAPTURE_FRAMES=N: from the first capture time on, capture N consecutive frames.
   static const int s_burst = getenv("FARCRY_CAPTURE_FRAMES") ? atoi(getenv("FARCRY_CAPTURE_FRAMES")) : 0;
-  if (s_burst > 0 && s_next > 0 && s_next < (size_t)s_burst) { if (s_times.size() < (size_t)s_burst) s_times.resize(s_burst, 0.f); }
-  else if (s_next >= s_times.size()) return;
-  else if (PortBenchRelative())
+  const bool bInBurst = s_burst > 0 && s_next > 0 && s_next < (size_t)s_burst;
+  if (!bInBurst)
   {
-    if (g_PortGameplayStartMs == 0 || (PortNowMs() - g_PortGameplayStartMs) / 1000.0 < s_times[s_next]) return;
+    if (s_next >= s_times.size()) return;
+    if (PortBenchRelative())
+    {
+      if (g_PortGameplayStartMs == 0 || (PortNowMs() - g_PortGameplayStartMs) / 1000.0 < s_times[s_next]) return;
+    }
+    else if ((SDL_GetTicks() - s_start) / 1000.0f < s_times[s_next]) return;
   }
-  else if ((SDL_GetTicks() - s_start) / 1000.0f < s_times[s_next]) return;
-  if (s_next >= s_times.size() && !(s_burst > 0 && s_next < (size_t)s_burst)) return;
   const char* dir = getenv("FARCRY_CAPTURE_DIR");
   int w = 0, h = 0; GLES3_ReadSize(w, h);
   std::vector<unsigned char> px((size_t)w * h * 4);

@@ -1046,6 +1046,18 @@ bool CXGame::Update()
 			}
 		}
 	}
+	// Port: skip movies and cutscenes with the pad (A, B or Start), as Esc,
+	// Space and F7 do on a keyboard. In-engine cutscenes run SkipCutScene;
+	// the Bink movie player (CutScenePlayer.lua, patched in memory by the
+	// script system) reads g_PortPadSkip and keeps its own "can skip" rules.
+	{
+		extern bool g_PortPadSkip; // CryInput: pad A/B/Start pressed this frame
+		const bool bSkip = g_PortPadSkip;
+		if (IScriptSystem* pSS = m_pSystem->GetIScriptSystem())
+			pSS->SetGlobalValue("g_PortPadSkip", bSkip ? 1 : 0);
+		if (bSkip && m_pMovieUser && m_pMovieUser->IsInCutScene())
+			m_pSystem->GetIConsole()->ExecuteString("SkipCutScene");
+	}
 	if (const char* szBench = getenv("FARCRY_BENCH_POS"))
 	{
 		static int s_nBench = 0; static double s_fBenchT = 0;

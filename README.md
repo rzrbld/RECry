@@ -130,7 +130,8 @@ shooters"; gptokeyb2 has no tap-vs-hold, so its hold actions are on an LB layer)
 | Look speed / Pointer speed | Right stick turning speed and the menu pointer speed, 5-200 % (30 % = default) |
 | Controls | Classic or Modern shooter (see Controls) |
 
-In the menus either stick moves the pointer and A clicks.
+In the menus either stick moves the pointer and A clicks. A, B or Start skips movies and
+cutscenes (the ones Far Cry lets you skip).
 
 ## Building
 

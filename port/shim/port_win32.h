@@ -150,15 +150,17 @@ inline int port_resolve_path_nocase(const char* in, char* out, size_t outsz)
     struct stat st;
     if (stat(next, &st) == 0) {
       snprintf(cur, sizeof(cur), "%s", next);
-    } else if (cur[0] && stat(cur, &st) == 0 && S_ISDIR(st.st_mode)) {
-      // search directory entries case-insensitively
-      DIR* d = opendir(cur);
+    } else if (!cur[0] || (stat(cur, &st) == 0 && S_ISDIR(st.st_mode))) {
+      // search directory entries case-insensitively (the working directory
+      // for the first component of a relative path, e.g. "Profiles/...")
+      DIR* d = opendir(cur[0] ? cur : ".");
       bool found = false;
       if (d) {
         struct dirent* de;
         while ((de = readdir(d))) {
           if (strcasecmp(de->d_name, comp) == 0) {
-            snprintf(next, sizeof(next), "%s/%s", cur, de->d_name);
+            if (cur[0]) snprintf(next, sizeof(next), "%s/%s", cur, de->d_name);
+            else snprintf(next, sizeof(next), "%s", de->d_name);
             if (stat(next, &st) == 0) { snprintf(cur, sizeof(cur), "%s", next); found = true; }
             break;
           }

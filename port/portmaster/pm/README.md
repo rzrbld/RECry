@@ -48,7 +48,8 @@ the launcher's Auto settings.
 
 ## Controls
 
-In the menus either stick moves the pointer and A clicks.
+In the menus either stick moves the pointer and A clicks. A, B or Start skips movies and
+cutscenes (the ones Far Cry lets you skip).
 
 Two presets, chosen in the launcher (Controls). Both go through PortMaster's gptokeyb2, so
 they work with each handheld's own controls. Classic: gptokeyb2 presents a virtual Xbox pad

@@ -932,6 +932,22 @@ bool CScriptSystem::_ExecuteFile(const char *sFileName, bool bRaiseError)
 				memcpy(pBuffer, text.data(), nSize); pBuffer[nSize] = 0;
 			}
 		}
+		// CutScenePlayer.lua: movies skip on Esc/Space/F7 only; also accept the
+		// pad (g_PortPadSkip, set by the game each frame a pad A/B/Start is pressed).
+		if (!stricmp(base, "CutScenePlayer.lua"))
+		{
+			std::string text(pBuffer, nSize);
+			const std::string from = "(szKeyName == \"f7\"))", to = "(szKeyName == \"f7\") or (g_PortPadSkip == 1))";
+			size_t at = text.find(from);
+			if (at != std::string::npos)
+			{
+				text.replace(at, from.size(), to);
+				delete [] pBuffer;
+				nSize = (int)text.size();
+				pBuffer = new char[nSize + 1];
+				memcpy(pBuffer, text.data(), nSize); pBuffer[nSize] = 0;
+			}
+		}
 		if (!stricmp(base, "SoundExclusivePreset.lua") || !stricmp(base, "RandomAmbientSoundPreset.lua"))
 		{
 			std::string text(pBuffer, nSize);

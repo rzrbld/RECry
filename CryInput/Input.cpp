@@ -424,6 +424,11 @@ void CInput::Update(bool bFocus)
 		m_Gamepad.BeginFrame();
 		PortPollSDLEvents(m_Keyboard, m_Mouse, m_Gamepad, m_Joystick);
 		UpdateController();
+		// Pad A/B/Start pressed this frame: the game skips movies and cutscenes with it.
+		{
+			extern bool g_PortPadSkip;
+			g_PortPadSkip = m_Gamepad.KeyPressed(XKEY_GP_A) || m_Gamepad.KeyPressed(XKEY_GP_B) || m_Gamepad.KeyPressed(XKEY_GP_START);
+		}
 #elif !defined(_XBOX)
     m_Keyboard.Update();
 	  m_Mouse.Update(m_bPreviousFocus); // m_bPreviousFocus used to skip first mouse read after getting focus
@@ -663,6 +668,7 @@ void CInput::ApplyControllerBindings()
 
 extern bool g_PortMenuActive;
 bool g_PortFocusLoadTab = false;
+bool g_PortPadSkip = false;
 
 bool CInput::IsMenuOrConsoleActive()
 {
