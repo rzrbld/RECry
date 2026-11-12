@@ -4386,7 +4386,25 @@ void CGLRenderer::EF_DrawFogOverlayPasses()
   {
     if (m_RP.m_pShader->m_eSort == eS_Water && m_RP.m_pFogVolume)
       m_RP.m_pFogVolume->m_Dist += 0.1f;
+    // Port: the fog pass must only tint pixels the object itself drew. With
+    // LEQUAL it also covered the see-through parts of alpha-tested cards, so
+    // underwater seaweed showed its two crossed quads as boxes. When the
+    // object wrote depth, the pass is locked to EQUAL.
+    // (Blended passes such as the seaweed's do not set RBSI_WASDEPTHWRITE, so
+    // an alpha-tested pass just drawn counts too.)
+    static const bool s_fogPassLequal = getenv("FARCRY_FOG_PASS_LEQUAL") != NULL; // diagnostic: old behaviour
+    const bool bLockEqual = ((m_RP.m_FlagsPerFlush & RBSI_WASDEPTHWRITE) || (m_CurState & (GS_DEPTHWRITE | GS_ALPHATEST_MASK))) && !(m_RP.m_FlagsPerFlush & RBSI_DEPTHFUNC) && !s_fogPassLequal;
+    if (bLockEqual)
+    {
+      EF_SetState(m_CurState | GS_DEPTHFUNC_EQUAL);
+      m_RP.m_FlagsPerFlush |= RBSI_DEPTHFUNC;
+    }
     EF_DrawGeneralPasses(sh->m_HWTechniques[0], sh, true, 0, sh->m_HWTechniques[0]->m_Passes.Num()-1);
+    if (bLockEqual)
+    {
+      m_RP.m_FlagsPerFlush &= ~RBSI_DEPTHFUNC;
+      EF_SetState(m_CurState & ~GS_DEPTHFUNC_EQUAL);
+    }
     if (m_RP.m_pShader->m_eSort == eS_Water && m_RP.m_pFogVolume)
       m_RP.m_pFogVolume->m_Dist -= 0.1f;
   }

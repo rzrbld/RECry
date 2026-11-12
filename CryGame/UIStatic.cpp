@@ -306,7 +306,14 @@ int CUIStatic::Draw(int iPass)
 		pRenderer->GetViewport(&iViewportX, &iViewportY, &iViewportW, &iViewportH);
 
 		// set new viewport
+#if defined(LINUX)
+		// Port: the GL renderer's viewport origin is the bottom-left corner
+		// (the menu layout is top-down, as in Direct3D); without the flip the
+		// Game Options player model was drawn mirrored into the upper half.
+		pRenderer->SetViewport(iX, pRenderer->GetHeight() - iY - iH, iW, iH);
+#else
 		pRenderer->SetViewport(iX, iY, iW, iH);
+#endif
 
 		// update angle
 		m_fAngle += m_fModelRotationAcc * m_pUISystem->GetISystem()->GetITimer()->GetFrameTime() * m_fModelRotation * 360.0f;

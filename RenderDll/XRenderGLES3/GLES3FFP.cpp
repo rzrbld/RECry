@@ -1970,11 +1970,39 @@ static std::unordered_map<GLuint, uint32_t> s_texGen;
 static std::vector<uint8_t> s_placeholder;
 static double s_uploadBudgetMs = 2.0;
 
+// The engine uploads every DXT1 texture as RGB (the PC GL path), but Far Cry's
+// DXT1 art uses DXT1's 1-bit alpha for cut-outs (bushes, grass, distant huts
+// and ladders; 9 of the 2,598 DXT1 textures),
+// which Direct3D always honours. Treating them as RGB made those texels
+// opaque: sprites drew as rectangles. A texture whose level 0 has any
+// transparent texel (a 3-colour block using index 3) is kept as DXT1 RGBA for
+// all its levels; opaque ones stay RGB (same ETC2 size and cache entries).
+static bool Dxt1HasAlpha(const void* data, size_t size)
+{
+  const uint8_t* b = (const uint8_t*)data;
+  for (size_t o = 0; o + 8 <= size; o += 8, b += 8)
+  {
+    const unsigned c0 = b[0] | (b[1] << 8), c1 = b[2] | (b[3] << 8);
+    if (c0 > c1) continue;
+    const uint32_t idx = b[4] | (b[5] << 8) | (b[6] << 16) | ((uint32_t)b[7] << 24);
+    for (int i = 0; i < 32; i += 2) if (((idx >> i) & 3) == 3) return true;
+  }
+  return false;
+}
+static std::unordered_map<GLuint, bool> s_dxt1Alpha;
+
 static void APIENTRY f_glCompressedTexImage2D(GLenum target, GLint level, GLenum internal, GLsizei w, GLsizei h, GLint border, GLsizei size, const void* data)
 {
   NoteTexUpload();
   SUpScope upScope((uint64_t)w * h * 4);
   target = TexTarget(target);
+  static const bool s_keepDxt1Rgb = getenv("FARCRY_GLES3_DXT1_OPAQUE") != NULL; // diagnostic: old behaviour
+  if (internal == D_DXT1_RGB && target == GL_TEXTURE_2D && !s_keepDxt1Rgb)
+  {
+    bool& alpha = s_dxt1Alpha[BoundTexture(GL_TEXTURE_2D)];
+    if (level == 0) alpha = data && Dxt1HasAlpha(data, (size_t)size);
+    if (alpha) internal = D_DXT1_RGBA;
+  }
   if (target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z && getenv("FARCRY_GLES3_TRACE_CUBE"))
     fprintf(stderr, "CUBEUP compressed tex=%u face=%d level=%d %dx%d fmt=0x%x data=%p\n", BoundTexture(GL_TEXTURE_CUBE_MAP), target - GL_TEXTURE_CUBE_MAP_POSITIVE_X, level, w, h, internal, data);
   if (s_decodeDXT && IsDXT(internal) && data && target == GL_TEXTURE_2D && TexConv_Running())
