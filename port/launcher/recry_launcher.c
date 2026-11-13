@@ -178,7 +178,7 @@ static void frame_begin(const char *title) {
         fill(x, y, 1 + (k % 3 == 0), 2 + (int)((s >> 4) % 5u), (SDL_Color){ 30, 26, 20, 255 }, 150);
     }
     fill(W / 2 - 120, 72, 240, 2, C_AMBER, 255);
-    text_c(F_SMALL, 74, "Far Cry for PortMaster", C_AMBER);
+    text_c(F_SMALL, 74, "RECry for PortMaster", C_AMBER);
     /* panel */
     PW = W - 96 > 600 ? 600 : W - 96; PX = (W - PW) / 2; PY = 98; PH = H - PY - 30;
     fill(PX, PY, PW, PH, (SDL_Color){ 8, 18, 20, 255 }, 205);
@@ -195,6 +195,17 @@ static void present(void) {
         SDL_SaveBMP(sf, shot); exit(0);
     }
     SDL_RenderPresent(R);
+}
+
+/* Shown when the game is being started: the game takes a while to show its
+   first frame (data links, engine start), so say so instead of a frozen menu. */
+static void show_starting(void) {
+    for (int i = 0; i < 2; i++) {   /* both buffers, so it stays on screen */
+        frame_begin("STARTING");
+        text_c(F_TITLE, PY + PH / 2 - 34, "Please wait, RECry is starting...", C_TEXT);
+        text_c(F_SMALL, PY + PH / 2 + 6, "The first start of a level takes longer (shaders and textures are prepared once)", C_DIM);
+        present();
+    }
 }
 
 /* ------------------------------------------------------------ input */
@@ -422,7 +433,7 @@ static int page_settings(void) {
             sel == S_CTRL ? (g_controls ? "Modern shooter: B crouch, RB grenade, LB layer. A shows the layout" : "Classic: the port's original layout. A shows the layout") :
             sel == S_LOOK ? "Right stick turning speed in the game (30 % = default)" :
             sel == S_POINTER ? "Menu pointer speed with the sticks (30 % = default)" :
-            "Save these settings and start Far Cry. B leaves without starting";
+            "Save these settings and start the game. B leaves without starting";
         fill(PX + 20, PY + PH - 30, PW - 40, 1, C_AMBER_DK, 255);
         text_c(F_SMALL, PY + PH - 24, h, C_DIM);
         hint("Up/Down select    Left/Right change    A confirm    B exit");
@@ -586,7 +597,7 @@ static int unpack(const char *setup) {
 static int page_done(const setup_info *si) {
     for (;;) {
         frame_begin("GAME UNPACKED");
-        text(F_BODY, PX + 24, PY + 54, "Far Cry is ready to play.", C_OK);
+        text(F_BODY, PX + 24, PY + 54, "RECry is ready to play.", C_OK);
         char l[160]; snprintf(l, sizeof l, "The installer in ports/recry/installer/ is no longer needed (%.1f GB).", si->bytes / 1073741824.0);
         text(F_SMALL, PX + 24, PY + 92, l, C_TEXT);
         text(F_SMALL, PX + 24, PY + 114, "Keep it as a backup, or delete it to free the space.", C_DIM);
@@ -699,6 +710,13 @@ int main(int argc, char **argv) {
     else if (access(marker, F_OK) != 0) rc = page_import();
     else if (getenv("RECRY_AUTOSTART")) rc = cfg_save() == 0 ? EXIT_RUN : EXIT_ERR;
     if (rc < 0) rc = page_settings();
+    if (rc == EXIT_RUN) {
+        /* Leave the message on screen: no window teardown (which would
+           switch the display back to the frontend's picture). */
+        show_starting();
+        fflush(NULL);
+        _exit(rc);
+    }
     SDL_DestroyRenderer(R); SDL_DestroyWindow(win); SDL_Quit();
     return rc;
 }
