@@ -34,7 +34,7 @@ uint CGLRenderer::Make3DSprite(int nTexSize, float fAngleStep, IStatObj * pStatO
 
   int bFog=0; // remember fog value
   glGetIntegerv(GL_FOG,&bFog);
-  glDisable(GL_FOG);
+  GLR_Disable(GL_FOG);
 
   int nTexCount = int(360.f/fAngleStep);
   uchar * pMemBuffer = new uchar [nTexSize*nTexSize*nTexCount*4];
@@ -45,8 +45,8 @@ uint CGLRenderer::Make3DSprite(int nTexSize, float fAngleStep, IStatObj * pStatO
     ClearColorBuffer(Vec3d(0.15f, 0.15f, 0.15f));
     ClearDepthBuffer();
 
-    glReadBuffer(GL_BACK);
-    glDrawBuffer(GL_BACK);
+    GLR_ReadBuffer(GL_BACK);
+    GLR_DrawBuffer(GL_BACK);
 
     // cals vertical/horisontal radiuses
     float dxh = (float)max( fabs(pStatObj->GetBoxMax().x), fabs(pStatObj->GetBoxMin().x));
@@ -56,23 +56,23 @@ uint CGLRenderer::Make3DSprite(int nTexSize, float fAngleStep, IStatObj * pStatO
 
     float fDrawDist = fRadiusVert*25.f*8.f;
 
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
+    GLR_MatrixMode(GL_PROJECTION);
+    GLR_LoadIdentity();
     gluPerspective( 0.58f, fRadiusHors/fRadiusVert, fDrawDist-fRadiusHors*2, fDrawDist+fRadiusHors*2);
-    glMatrixMode(GL_MODELVIEW);
+    GLR_MatrixMode(GL_MODELVIEW);
 
-    glViewport(0, 0, nTexSize, nTexSize);
-    glLoadIdentity();
+    GLR_Viewport(0, 0, nTexSize, nTexSize);
+    GLR_LoadIdentity();
 
     Vec3d vCenter = (pStatObj->GetBoxMax()+pStatObj->GetBoxMin())*0.5f;
 
     gluLookAt( 0,0,0, -1,0,0, 0,0,1 );
 
-    glColor4f(1,1,1,1);
-    glPushMatrix();
-    glTranslatef(-fDrawDist,0,0);
-    glRotatef(fAngleStep*i, 0,0,1);
-    glTranslatef(-vCenter.x,-vCenter.y,-vCenter.z);  
+    GLR_Color4f(1,1,1,1);
+    GLR_PushMatrix();
+    GLR_Translatef(-fDrawDist,0,0);
+    GLR_Rotatef(fAngleStep*i, 0,0,1);
+    GLR_Translatef(-vCenter.x,-vCenter.y,-vCenter.z);  
     
     ResetToDefault();
     EF_SetWorldColor(0.5,0.5,0.5);
@@ -82,12 +82,12 @@ uint CGLRenderer::Make3DSprite(int nTexSize, float fAngleStep, IStatObj * pStatO
     pStatObj->Render(rParms,Vec3(zero),0);
     EF_EndEf3D(true);
 
-    glPopMatrix();    
+    GLR_PopMatrix();    
 
     // read into buffer and make texture
     assert(nTexSize<=1024);//just warning
 
-    glReadPixels(0, 0, nTexSize, nTexSize, GL_RGBA, GL_UNSIGNED_BYTE, &pMemBuffer[nTexSize*nTexSize*i*4]);
+    GLR_ReadPixels(0, 0, nTexSize, nTexSize, GL_RGBA, GL_UNSIGNED_BYTE, &pMemBuffer[nTexSize*nTexSize*i*4]);
   		
     SetTextureAlphaChannelFromRGB(&pMemBuffer[nTexSize*nTexSize*i*4], nTexSize);
 /*
@@ -111,24 +111,24 @@ uint CGLRenderer::Make3DSprite(int nTexSize, float fAngleStep, IStatObj * pStatO
   // make 3d texture
   /*glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
   uint nTexId=0;
-  glGenTextures(1,&nTexId);
+  GLR_GenTextures(1,&nTexId);
   SetTexture3D(nTexId);
   glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-  glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_R_EXT, GL_REPEAT);
+  GLR_TexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  GLR_TexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  GLR_TexParameteri(GL_TEXTURE_3D_EXT, GL_TEXTURE_WRAP_R_EXT, GL_REPEAT);
   glTexImage3DEXT(GL_TEXTURE_3D_EXT, 0, GL_RGBA8, nTexSize, nTexSize, nTexCount, 0, GL_RGBA, GL_UNSIGNED_BYTE, pMemBuffer);*/
 
   STexPic *tp = m_TexMan->CreateTexture(name, nTexSize, nTexSize, nTexCount, flags, flags2, pMemBuffer, eTT_3D, -1.0f, -1.0f, 0, NULL, 0, eTF_8888, pStatObj->GetFileName());
 
   delete [] pMemBuffer;
 
-  glMatrixMode(GL_PROJECTION);
-  glLoadIdentity();
-  glMatrixMode(GL_MODELVIEW);
-  glLoadIdentity();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_LoadIdentity();
+  GLR_MatrixMode(GL_MODELVIEW);
+  GLR_LoadIdentity();
   SetViewport();
 
   m_TexMan->SetTexture(0, eTT_Base);
@@ -136,7 +136,7 @@ uint CGLRenderer::Make3DSprite(int nTexSize, float fAngleStep, IStatObj * pStatO
   ResetToDefault();
 
   if(bFog)
-    glEnable(GL_FOG);
+    GLR_Enable(GL_FOG);
 
   return tp->m_Bind;
 }

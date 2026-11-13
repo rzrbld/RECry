@@ -14,6 +14,9 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "StdAfx.h"
+#ifndef WIN32
+#include "../port/platform/PortTiming.h"
+#endif
 #include "TimeDemoRecorder.h"
 #include <CryFile.h>
 #include "Game.h"
@@ -423,6 +426,9 @@ void CTimeDemoRecorder::PlayFrame()
 	}
 	//////////////////////////////////////////////////////////////////////////
 
+#ifndef WIN32
+	g_PortDemoFrame = m_currentFrame; g_PortDemoLoop = m_numLoops;   // the frame now being rendered (captures)
+#endif
 	m_currFrameIter++;
 	m_currentFrame++;
 
@@ -585,8 +591,12 @@ void CTimeDemoRecorder::StopSession()
 //////////////////////////////////////////////////////////////////////////
 void CTimeDemoRecorder::LogInfo( const char *format,... )
 {
+#ifdef WIN32
 	if (m_demo_noinfo != 0)
 		return;
+#endif
+	// Linux port: demo_noinfo hides the on-screen info only; results are
+	// always logged (benchmark scripts read them).
 
 	va_list	ArgList;
 	char szBuffer[1024];
@@ -605,6 +615,12 @@ void CTimeDemoRecorder::LogInfo( const char *format,... )
 
 	_splitpath( m_file.c_str(), drive, dir, fname, ext );
 	_makepath( path_buffer, drive, dir,fname,"log" );
+#ifndef WIN32
+	// Linux port: level folders are lowercase on disk (Levels/Pier -> levels/pier);
+	// results also go to stderr for benchmark scripts.
+	for (char *c = path_buffer; *c; ++c) { *c = (char)tolower((unsigned char)*c); if (*c == '\\') *c = '/'; }
+	fprintf(stderr, "TIMEDEMO %s\n", szBuffer);
+#endif
 	FILE *hFile = fopen( path_buffer,"at" );
 	if (hFile)
 	{

@@ -270,7 +270,7 @@ public:
     else
     if (m_CGProfileType == CG_PROFILE_ARBFP1)
     {
-      glBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, m_Insts[m_CurInst].m_dwHandle);
+      GLR_BindProgramARB(GL_FRAGMENT_PROGRAM_ARB, m_Insts[m_CurInst].m_dwHandle);
       if (m_Insts[m_CurInst].m_BindConstants)
       {
         int i;
@@ -284,7 +284,7 @@ public:
             m_CurParamsARB[n][1] = p->m_Val[1];
             m_CurParamsARB[n][2] = p->m_Val[2];
             m_CurParamsARB[n][3] = p->m_Val[3];
-            glProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, p->m_dwBind, &p->m_Val[0]);
+            GLR_ProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, p->m_dwBind, &p->m_Val[0]);
           }
         }
       }
@@ -497,12 +497,12 @@ public:
   {
     if (m_CGProfileType == CG_PROFILE_ARBFP1)
     {
-      glGenProgramsARB(1, &m_Insts[m_CurInst].m_dwHandle);
-      glBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, m_Insts[m_CurInst].m_dwHandle);
+      GLR_GenProgramsARB(1, &m_Insts[m_CurInst].m_dwHandle);
+      GLR_BindProgramARB(GL_FRAGMENT_PROGRAM_ARB, m_Insts[m_CurInst].m_dwHandle);
       int size = strlen(prog_text);
-      glProgramStringARB(GL_FRAGMENT_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, size, (const GLubyte *)prog_text);
-      GLint errpos;
-      glGetIntegerv(GL_PROGRAM_ERROR_POSITION_ARB, &errpos);
+      GLR_ProgramStringARB(GL_FRAGMENT_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, size, (const GLubyte *)prog_text);
+      GLint errpos = -1;   // port: ES has no program error position (query leaves it unset)
+      if (!GLR::Active()) glGetIntegerv(GL_PROGRAM_ERROR_POSITION_ARB, &errpos);
       if(errpos != -1)
       {
         const GLubyte *pError = glGetString(GL_PROGRAM_ERROR_STRING_ARB);
@@ -705,9 +705,9 @@ public:
               pr[2] *= fScrHeight;
               pr[3] *= fScrHeight;
             }
-            glActiveTextureARB(GL_TEXTURE0_ARB+nComb);
+            GLR_ActiveTexture(GL_TEXTURE0_ARB+nComb);
             glTexEnvfv(GL_TEXTURE_SHADER_NV, reg, pr);
-            glActiveTextureARB(GL_TEXTURE0_ARB+CTexMan::m_CurStage);
+            GLR_ActiveTexture(GL_TEXTURE0_ARB+CTexMan::m_CurStage);
           }
           else
           {
@@ -755,7 +755,7 @@ public:
           m_CurParamsARB[n][1] = vData[1];
           m_CurParamsARB[n][2] = vData[2];
           m_CurParamsARB[n][3] = vData[3];
-          glProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, n, vData);
+          GLR_ProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, n, vData);
         }
         vData += 4;
       }
@@ -792,19 +792,19 @@ public:
     {
       if (m_Insts[m_CurInst].m_dwHandleExt)
       {
-        glEnable(GL_TEXTURE_SHADER_NV);
+        GLR_Enable(GL_TEXTURE_SHADER_NV);
         gRenDev->m_RP.m_PersFlags |= RBPF_TSWASSET;
       }
       if (m_Insts[m_CurInst].m_dwHandle)
       {
-        glEnable(GL_REGISTER_COMBINERS_NV);
+        GLR_Enable(GL_REGISTER_COMBINERS_NV);
         gRenDev->m_RP.m_PersFlags |= RBPF_PS1WASSET;
       }
     }
     else
     if (m_CGProfileType == CG_PROFILE_ARBFP1)
     {
-      glEnable(GL_FRAGMENT_PROGRAM_ARB);
+      GLR_Enable(GL_FRAGMENT_PROGRAM_ARB);
       gRenDev->m_RP.m_PersFlags |= RBPF_PS2WASSET;
     }
   }
@@ -814,19 +814,19 @@ public:
     {
       if (m_Insts[m_CurInst].m_dwHandleExt)
       {
-        glDisable(GL_TEXTURE_SHADER_NV);
+        GLR_Disable(GL_TEXTURE_SHADER_NV);
         gRenDev->m_RP.m_PersFlags &= ~RBPF_TSWASSET;
       }
       if (m_Insts[m_CurInst].m_dwHandle)
       {
-        glDisable(GL_REGISTER_COMBINERS_NV);
+        GLR_Disable(GL_REGISTER_COMBINERS_NV);
         gRenDev->m_RP.m_PersFlags &= ~RBPF_PS1WASSET;
       }
     }
     else
     if (m_CGProfileType == CG_PROFILE_ARBFP1)
     {
-      glDisable(GL_FRAGMENT_PROGRAM_ARB);
+      GLR_Disable(GL_FRAGMENT_PROGRAM_ARB);
       gRenDev->m_RP.m_PersFlags &= ~RBPF_PS2WASSET;
     }
   }
@@ -847,7 +847,7 @@ public:
         glDeleteLists(m_Insts[m_CurInst].m_dwHandle, 1);
       else
       if (m_CGProfileType == CG_PROFILE_ARBFP1)
-        glDeleteProgramsARB(1, &m_Insts[m_CurInst].m_dwHandle);
+        GLR_DeleteProgramsARB(1, &m_Insts[m_CurInst].m_dwHandle);
       m_Insts[m_CurInst].m_dwHandle = 0;
     }
     if(m_Insts[m_CurInst].m_dwHandleExt && m_Insts[m_CurInst].m_dwHandleExt != -1)

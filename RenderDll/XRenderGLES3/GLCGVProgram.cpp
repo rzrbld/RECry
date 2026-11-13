@@ -1483,6 +1483,7 @@ create:
 
       if (code)
       {
+        GLES3PrepareCachePath(namedst);   // port: lowercase (as the pak reads it back), directories created
         FILE *fp = fopen(namedst, "wb");
         if (fp)
         {
@@ -1725,11 +1726,11 @@ create:
       {
 	      for(i=0; i<64; i++) 
 	      {
-          glProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, 30+i, &c[i][0]);
+          GLR_ProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, 30+i, &c[i][0]);
 	      }
-        glProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, 30+i,   &c[0][0]);
-        glProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, 30+i+1, &c[1][0]);
-        glProgramEnvParameter4fARB(GL_VERTEX_PROGRAM_ARB, VSCONST_0_025_05_1, 0, 0.25f, 0.5f, 1.0f);
+        GLR_ProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, 30+i,   &c[0][0]);
+        GLR_ProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, 30+i+1, &c[1][0]);
+        GLR_ProgramEnvParameter4fARB(GL_VERTEX_PROGRAM_ARB, VSCONST_0_025_05_1, 0, 0.25f, 0.5f, 1.0f);
       }
       else
       {
@@ -1766,7 +1767,7 @@ void CCGVProgram_GL::mfSetGlobalParams()
     m_CurParams[n][2] = v[2];
     m_CurParams[n][3] = v[3];
     if (SUPPORTS_GL_ARB_vertex_program)
-      glProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, n, m_CurParams[n]);
+      GLR_ProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, n, m_CurParams[n]);
     else
       glProgramParameter4fvNV(GL_VERTEX_PROGRAM_NV, n, m_CurParams[n]);
   }
@@ -1781,7 +1782,7 @@ void CCGVProgram_GL::mfSetGlobalParams()
       m_CurParams[n][2] = r->m_FS.m_FogColor[2];
       m_CurParams[n][3] = r->m_FS.m_FogColor[3];
       if (SUPPORTS_GL_ARB_fragment_program)
-        glProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, n, m_CurParams[n]);
+        GLR_ProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, n, m_CurParams[n]);
     }
   }
 }

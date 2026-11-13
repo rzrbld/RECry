@@ -7,6 +7,8 @@
     
 =============================================================================*/
 
+#include "GLNative.h"
+#include "GLNMesh.h"
 #include "RenderPCH.h"
 #include "GL_Renderer.h"
 #include <ICryAnimation.h>
@@ -393,9 +395,9 @@ void CGLRenderer::EF_PipelineInit()
       CVertexBuffer *pBuf = new CVertexBuffer;
       pBuf->m_bDynamic = true;
       int size = m_VertexSize[VERTEX_FORMAT_P3F_N_COL4UB_TEX2F]*nVerts*4;
-      glGenBuffersARB(1, &pBuf->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
-      glBindBufferARB(GL_ARRAY_BUFFER_ARB, pBuf->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
-      glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, NULL, GL_STREAM_DRAW_ARB);
+      GLR_GenBuffersARB(1, &pBuf->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+      GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, pBuf->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+      GLR_BufferDataARB(GL_ARRAY_BUFFER_ARB, size, NULL, GL_STREAM_DRAW_ARB);
       m_CurVertBufferSize += size;
       pBuf->m_vertexformat = VERTEX_FORMAT_P3F_N_COL4UB_TEX2F;
       pBuf->m_NumVerts = nVerts;
@@ -405,13 +407,13 @@ void CGLRenderer::EF_PipelineInit()
 
     int nInds = m_RP.m_MaxTris*3;
     ReleaseIndexBuffer(&m_RP.m_IBDyn);
-    glGenBuffersARB(1, &m_RP.m_IBDyn.m_VertBuf.m_nID);
-    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, m_RP.m_IBDyn.m_VertBuf.m_nID);
-    glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, nInds*sizeof(ushort), NULL, GL_STREAM_DRAW_ARB);
+    GLR_GenBuffersARB(1, &m_RP.m_IBDyn.m_VertBuf.m_nID);
+    GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, m_RP.m_IBDyn.m_VertBuf.m_nID);
+    GLR_BufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, nInds*sizeof(ushort), NULL, GL_STREAM_DRAW_ARB);
     m_RP.m_IBDyn.m_nItems = nInds;
   }
 
-  glEnableClientState(GL_VERTEX_ARRAY);
+  GLR_EnableClientState(GL_VERTEX_ARRAY);
 
   m_Features |= RFT_ZLOCKABLE;
 
@@ -509,20 +511,20 @@ void CGLRenderer::EF_ClearBuffers(bool bForce, bool bOnlyDepth, float *Colors)
 
   m_bWasCleared = true;
   if (Colors)
-    glClearColor(Colors[0],Colors[1], Colors[2], Colors[3]);
+    GLR_ClearColor(Colors[0],Colors[1], Colors[2], Colors[3]);
   else
   if(m_polygon_mode==R_WIREFRAME_MODE)
-    glClearColor(0.25f,0.5f,1.0f,0); // blue to see something in whireframe mode
+    GLR_ClearColor(0.25f,0.5f,1.0f,0); // blue to see something in whireframe mode
   else
-    glClearColor(m_vClearColor.x,m_vClearColor.y,m_vClearColor.z,0);
+    GLR_ClearColor(m_vClearColor.x,m_vClearColor.y,m_vClearColor.z,0);
 
   if (m_sbpp && m_cbpp > 16)
   {
-    glClearStencil(0);
+    GLR_ClearStencil(0);
     if (bOnlyDepth)
-      glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);   
+      GLR_Clear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);   
     else
-      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);   
+      GLR_Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);   
 
     if (CV_r_measureoverdraw)
     {
@@ -549,7 +551,7 @@ void CGLRenderer::EF_ClearBuffers(bool bForce, bool bOnlyDepth, float *Colors)
   }
   else
   {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);         
+    GLR_Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);         
   }
 }
 
@@ -585,11 +587,11 @@ void CGLRenderer::EF_SetClipPlane (bool bEnable, float *pPlane, bool bRefract)
       p[1] = pPlane[1];
       p[2] = pPlane[2];
       p[3] = pPlane[3];
-      glPushMatrix();
-      glLoadMatrixf(m_CameraMatrix.GetData());
+      GLR_PushMatrix();
+      GLR_LoadMatrixf(m_CameraMatrix.GetData());
       glClipPlane(GL_CLIP_PLANE0, p);
-      glEnable(GL_CLIP_PLANE0);
-      glPopMatrix();
+      GLR_Enable(GL_CLIP_PLANE0);
+      GLR_PopMatrix();
     }
     else
     {
@@ -602,12 +604,12 @@ void CGLRenderer::EF_SetClipPlane (bool bEnable, float *pPlane, bool bRefract)
 
       // Set the tex-gen clipping plane for fixed pipeline.
       // Special set for terrain detail textures (fixed pipe)
-      glLoadMatrixf(m_CameraMatrix.GetData());
+      GLR_LoadMatrixf(m_CameraMatrix.GetData());
       EF_SelectTMU(3);
-      glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-      glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-      glTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-      glTexGeni(GL_Q, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
+      GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
+      GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
+      GLR_TexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
+      GLR_TexGeni(GL_Q, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
       if (bRefract)
       {
         float plane[4];
@@ -615,22 +617,22 @@ void CGLRenderer::EF_SetClipPlane (bool bEnable, float *pPlane, bool bRefract)
         plane[1] = pPlane[1];
         plane[2] = pPlane[2];
         plane[3] = pPlane[3];
-        glTexGenfv(GL_S, GL_EYE_PLANE, plane);
-        glTexGenfv(GL_T, GL_EYE_PLANE, plane);
-        glTexGenfv(GL_R, GL_EYE_PLANE, plane);
-        glTexGenfv(GL_Q, GL_EYE_PLANE, plane);
+        GLR_TexGenfv(GL_S, GL_EYE_PLANE, plane);
+        GLR_TexGenfv(GL_T, GL_EYE_PLANE, plane);
+        GLR_TexGenfv(GL_R, GL_EYE_PLANE, plane);
+        GLR_TexGenfv(GL_Q, GL_EYE_PLANE, plane);
       }
       else
       {
-        glTexGenfv(GL_S, GL_EYE_PLANE, pPlane);
-        glTexGenfv(GL_T, GL_EYE_PLANE, pPlane);
-        glTexGenfv(GL_R, GL_EYE_PLANE, pPlane);
-        glTexGenfv(GL_Q, GL_EYE_PLANE, pPlane);
+        GLR_TexGenfv(GL_S, GL_EYE_PLANE, pPlane);
+        GLR_TexGenfv(GL_T, GL_EYE_PLANE, pPlane);
+        GLR_TexGenfv(GL_R, GL_EYE_PLANE, pPlane);
+        GLR_TexGenfv(GL_Q, GL_EYE_PLANE, pPlane);
       }
-      glEnable(GL_TEXTURE_GEN_S);
-      glEnable(GL_TEXTURE_GEN_T);
-      glEnable(GL_TEXTURE_GEN_R);
-      glEnable(GL_TEXTURE_GEN_Q);
+      GLR_Enable(GL_TEXTURE_GEN_S);
+      GLR_Enable(GL_TEXTURE_GEN_T);
+      GLR_Enable(GL_TEXTURE_GEN_R);
+      GLR_Enable(GL_TEXTURE_GEN_Q);
       if (SUPPORTS_GL_NV_texture_shader)
       {
         for (int i=0; i<m_MaxActiveTexturesARBFixed; i++)
@@ -638,18 +640,18 @@ void CGLRenderer::EF_SetClipPlane (bool bEnable, float *pPlane, bool bRefract)
           EF_SelectTMU(i);
           if (i == 3)
           {
-            glTexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, GL_CULL_FRAGMENT_NV);
+            GLR_TexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, GL_CULL_FRAGMENT_NV);
             float args[4];
             args[0] = args[1] = args[2] = args[3] = GL_GEQUAL;
             glTexEnvfv(GL_TEXTURE_SHADER_NV, GL_CULL_MODES_NV, &args[0]);
           }
           else
-            glTexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target);
+            GLR_TexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target);
         }
       }
       EF_SelectTMU(0);
       if (SUPPORTS_GL_NV_texture_shader)
-        glEnable(GL_TEXTURE_SHADER_NV);
+        GLR_Enable(GL_TEXTURE_SHADER_NV);
     }
   }
   else
@@ -662,17 +664,17 @@ void CGLRenderer::EF_SetClipPlane (bool bEnable, float *pPlane, bool bRefract)
 
     if (m_RP.m_ClipPlaneEnabled == 2)
     {
-      glDisable(GL_CLIP_PLANE0);
+      GLR_Disable(GL_CLIP_PLANE0);
     }
     else
     {
       if (SUPPORTS_GL_NV_texture_shader)
-        glDisable(GL_TEXTURE_SHADER_NV);
+        GLR_Disable(GL_TEXTURE_SHADER_NV);
       EF_SelectTMU(3);
-      glDisable(GL_TEXTURE_GEN_S);
-      glDisable(GL_TEXTURE_GEN_T);
-      glDisable(GL_TEXTURE_GEN_R);
-      glDisable(GL_TEXTURE_GEN_Q);
+      GLR_Disable(GL_TEXTURE_GEN_S);
+      GLR_Disable(GL_TEXTURE_GEN_T);
+      GLR_Disable(GL_TEXTURE_GEN_R);
+      GLR_Disable(GL_TEXTURE_GEN_Q);
       EF_SelectTMU(0);
     }
     m_RP.m_ClipPlaneEnabled = 0;
@@ -714,10 +716,10 @@ void CGLRenderer::EF_PipelineShutdown()
 
   uint tID;
   tID = TO_LIGHT_CUBE_MAP;
-  glDeleteTextures(1, &tID);
+  GLR_DeleteTextures(1, &tID);
 
   tID = TO_NORMALIZE_CUBE_MAP;
-  glDeleteTextures(1, &tID);
+  GLR_DeleteTextures(1, &tID);
 
   EF_Release(EFRF_VSHADERS);
   CCGVProgram_GL::mfDeleteSharedScripts();
@@ -787,7 +789,7 @@ void CGLRenderer::EF_PreRender(int Stage)
     if (!m_RP.m_bStartPipeline && !m_bWasCleared && !(m_RP.m_PersFlags & RBPF_NOCLEARBUF))
     {
       m_RP.m_bStartPipeline = true;
-      glDepthRange(0, 1);
+      GLR_DepthRange(0, 1);
       EF_ClearBuffers(false, false);
     }
 
@@ -814,7 +816,7 @@ void CGLRenderer::EF_PreRender(int Stage)
         m_RP.m_fMaxDepthRange = strt+delta;
       }
     }
-    glDepthRange(m_RP.m_fMinDepthRange, m_RP.m_fMaxDepthRange);
+    GLR_DepthRange(m_RP.m_fMinDepthRange, m_RP.m_fMaxDepthRange);
   }
 }
 
@@ -1468,7 +1470,7 @@ void CGLRenderer::GLSetCull(ECull eCull)
   //eCull = eCULL_Front;
   if (m_RP.m_Flags & RBF_2D)
   {
-    glDisable(GL_CULL_FACE);
+    GLR_Disable(GL_CULL_FACE);
     m_RP.m_eCull = eCULL_None;
     return;
   }
@@ -1476,15 +1478,15 @@ void CGLRenderer::GLSetCull(ECull eCull)
     return;
 
   if (eCull == eCULL_None)
-    glDisable(GL_CULL_FACE);
+    GLR_Disable(GL_CULL_FACE);
   else
   {
-    glEnable(GL_CULL_FACE);
+    GLR_Enable(GL_CULL_FACE);
 
     if ((eCull == eCULL_Back && !(m_RP.m_PersFlags & RBPF_DRAWMIRROR)) || (eCull != eCULL_Back && (m_RP.m_PersFlags & RBPF_DRAWMIRROR)))
-      glCullFace(GL_BACK);
+      GLR_CullFace(GL_BACK);
     else
-      glCullFace(GL_FRONT);
+      GLR_CullFace(GL_FRONT);
   }
   m_RP.m_eCull = eCull;
 }
@@ -1767,9 +1769,9 @@ void CRenderer::EF_SetStencilState(int st, uint nStencRef, uint nStencMask)
     if (SUPPORTS_GL_EXT_stencil_two_side)
     {
       if (st & FSS_STENCIL_TWOSIDED)
-        glEnable(GL_STENCIL_TEST_TWO_SIDE_EXT);
+        GLR_Enable(GL_STENCIL_TEST_TWO_SIDE_EXT);
       else
-        glDisable(GL_STENCIL_TEST_TWO_SIDE_EXT);
+        GLR_Disable(GL_STENCIL_TEST_TWO_SIDE_EXT);
     }
   }
   if ((Changed & FSS_STENCFUNC_MASK) || bChanged)
@@ -2079,12 +2081,12 @@ void CRenderer::EF_SetState(int st)
       if (st & (GS_DEPTHFUNC_EQUAL|GS_DEPTHFUNC_GREAT))
       {
         if (st & GS_DEPTHFUNC_EQUAL)
-          glDepthFunc(GL_EQUAL);
+          GLR_DepthFunc(GL_EQUAL);
         else
-          glDepthFunc(GL_GREATER);
+          GLR_DepthFunc(GL_GREATER);
       }
       else
-        glDepthFunc(GL_LEQUAL);
+        GLR_DepthFunc(GL_LEQUAL);
     }
     else
     {
@@ -2098,16 +2100,16 @@ void CRenderer::EF_SetState(int st)
     if (st & (GS_NOCOLMASK|GS_COLMASKONLYALPHA|GS_COLMASKONLYRGB))
     {
       if (st & GS_NOCOLMASK)
-        glColorMask(0, 0, 0, 0);
+        GLR_ColorMask(0, 0, 0, 0);
       else
       if (st & GS_COLMASKONLYALPHA)
-        glColorMask(0, 0, 0, 1);
+        GLR_ColorMask(0, 0, 0, 1);
       else
       if (st & GS_COLMASKONLYRGB)
-        glColorMask(1, 1, 1, 0);
+        GLR_ColorMask(1, 1, 1, 0);
     }
     else
-      glColorMask(1, 1, 1, 1);
+      GLR_ColorMask(1, 1, 1, 1);
   }
   
   if ((Changed & GS_BLEND_MASK))
@@ -2209,11 +2211,11 @@ void CRenderer::EF_SetState(int st)
             break;
         }
         if (!(m_CurState & GS_BLEND_MASK))
-          glEnable(GL_BLEND);
-        glBlendFunc(src, dst);
+          GLR_Enable(GL_BLEND);
+        GLR_BlendFunc(src, dst);
       }
       else
-        glDisable(GL_BLEND);
+        GLR_Disable(GL_BLEND);
     }
     else
     {
@@ -2228,9 +2230,9 @@ skip:
     if (!(m_RP.m_FlagsPerFlush & RBSI_DEPTHWRITE))
     {
       if (st & GS_DEPTHWRITE)
-        glDepthMask(GL_TRUE);
+        GLR_DepthMask(GL_TRUE);
       else
-        glDepthMask(GL_FALSE);
+        GLR_DepthMask(GL_FALSE);
     }
     else
     {
@@ -2244,9 +2246,9 @@ skip:
     if (m_polygon_mode == R_SOLID_MODE)
     {
       if (st & GS_POLYLINE)
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        GLR_PolygonMode(GL_FRONT_AND_BACK, GL_LINE);
       else
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        GLR_PolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
   }
   
@@ -2255,9 +2257,9 @@ skip:
     if (!(m_RP.m_FlagsPerFlush & RBSI_DEPTHTEST))
     {
       if (st & GS_NODEPTHTEST)
-        glDisable(GL_DEPTH_TEST);
+        GLR_Disable(GL_DEPTH_TEST);
       else
-        glEnable(GL_DEPTH_TEST);
+        GLR_Enable(GL_DEPTH_TEST);
     }
     else
     {
@@ -2271,9 +2273,9 @@ skip:
     if (!(m_RP.m_FlagsPerFlush & RBSI_STENCIL) && !(m_RP.m_PersFlags & RBPF_MEASUREOVERDRAW))
     {
       if (st & GS_STENCIL)
-      	glEnable(GL_STENCIL_TEST);
+      	GLR_Enable(GL_STENCIL_TEST);
       else
-      	glDisable(GL_STENCIL_TEST);
+      	GLR_Disable(GL_STENCIL_TEST);
     }
     else
     {
@@ -2289,28 +2291,28 @@ skip:
       if (st & GS_ALPHATEST_MASK)
       {
         if (!(m_CurState & GS_ALPHATEST_MASK))
-          glEnable(GL_ALPHA_TEST);
+          GLR_Enable(GL_ALPHA_TEST);
         switch (st & GS_ALPHATEST_MASK)
         {
           case GS_ALPHATEST_GREATER0:
-            glAlphaFunc(GL_GREATER, 0);
+            GLR_AlphaFunc(GL_GREATER, 0);
             break;
 
           case GS_ALPHATEST_LESS128:
-            glAlphaFunc(GL_LESS, 0.5f);
+            GLR_AlphaFunc(GL_LESS, 0.5f);
             break;
 
           case GS_ALPHATEST_GEQUAL128:
-            glAlphaFunc(GL_GEQUAL, 0.5f);
+            GLR_AlphaFunc(GL_GEQUAL, 0.5f);
             break;
 
           case GS_ALPHATEST_GEQUAL64:
-            glAlphaFunc(GL_GEQUAL, 0.25f);
+            GLR_AlphaFunc(GL_GEQUAL, 0.25f);
             break;
         }
       }
       else
-        glDisable(GL_ALPHA_TEST);
+        GLR_Disable(GL_ALPHA_TEST);
     }
     else
     {
@@ -2331,6 +2333,35 @@ void CGLRenderer::SetColorOp(byte eCo, byte eAo, byte eCa, byte eAa)
 void CGLRenderer::EF_SetColorOp(byte eCo, byte eAo, byte eCa, byte eAa)
 {
   int stage = m_TexMan->m_CurStage;
+#ifdef GLES3_RENDERER
+  // Native backend: the same bookkeeping, then the stage's combiner, scale
+  // and constant colour go to the native stage state (no glTexEnv).
+  if (GLR::Active())
+  {
+    CGLTexMan::m_TUState[stage].m_Color.dcolor = m_RP.m_CurGlobalColor.dcolor;
+    const CFColor fCol = CFColor(m_RP.m_CurGlobalColor.bcolor);
+    GLR::SetStageColor(stage, &fCol[0]);
+    if (eCo != 255 && eCo != m_eCurColorOp[stage])
+    {
+      float fScale = 1.0f;
+      if (eCo == eCO_MODULATE2X) fScale = 2.0f;
+      else if (eCo == eCO_MODULATE4X)
+      {
+        fScale = 4.0f;   // see the layer path below for the lightmap 4X rule
+        static const bool s_lm4x = !(getenv("FARCRY_GLES3_GPU") && !stricmp(getenv("FARCRY_GLES3_GPU"), "other"));
+        if (!s_lm4x && stage > 0 && m_eCurColorOp[stage-1] == eCO_ADD) fScale = 1.0f;
+      }
+      m_fCurRGBScale[stage] = fScale;
+      m_eCurColorOp[stage] = eCo;
+    }
+    if (eAo != 255) m_eCurAlphaOp[stage] = eAo;
+    if (eCa != 255) m_eCurColorArg[stage] = eCa;
+    if (eAa != 255) m_eCurAlphaArg[stage] = eAa;
+    GLR::SetStageScale(stage, m_fCurRGBScale[stage] > 0 ? m_fCurRGBScale[stage] : 1.0f, 1.0f);
+    GLR::SetStageOps(stage, m_eCurColorOp[stage], m_eCurAlphaOp[stage], m_eCurColorArg[stage], m_eCurAlphaArg[stage]);
+    return;
+  }
+#endif
 
   if (CGLTexMan::m_TUState[stage].m_Color.dcolor != m_RP.m_CurGlobalColor.dcolor)
   {
@@ -2370,40 +2401,40 @@ void CGLRenderer::EF_SetColorOp(byte eCo, byte eAo, byte eCa, byte eAa)
     {
       case eCO_MODULATE:
       default:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
         break;
       case eCO_REPLACE:
       case eCO_DECAL:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_REPLACE);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_REPLACE);
         break;
       case eCO_MODULATE2X:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
         break;
       case eCO_MODULATE4X:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
         break;
       case eCO_ADD:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_ADD);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_ADD);
         break;
       case eCO_ADDSIGNED:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_ADD_SIGNED_EXT);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_ADD_SIGNED_EXT);
         break;
       case eCO_BLENDDIFFUSEALPHA:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_INTERPOLATE_EXT);
-        glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_PRIMARY_COLOR_EXT);
-        glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_ALPHA);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_INTERPOLATE_EXT);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_PRIMARY_COLOR_EXT);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_ALPHA);
         break;
       case eCO_BLENDTEXTUREALPHA:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_INTERPOLATE_EXT);
-        glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_TEXTURE);
-        glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_ALPHA);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_INTERPOLATE_EXT);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_TEXTURE);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_ALPHA);
         break;
       case eCO_MULTIPLYADD:
         break;
       case eCO_BUMPENVMAP:
         break;
       case eCO_DISABLE:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_REPLACE);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_REPLACE);
         break;
     }
     m_eCurColorOp[stage] = eCo;
@@ -2417,28 +2448,28 @@ void CGLRenderer::EF_SetColorOp(byte eCo, byte eAo, byte eCa, byte eAa)
       case eCO_MODULATE2X:
       case eCO_MODULATE4X:
       default:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_MODULATE);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_MODULATE);
         break;
       case eCO_BLENDDIFFUSEALPHA:
         break;
       case eCO_BLENDTEXTUREALPHA:
         break;
       case eCO_ADD:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_ADD);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_ADD);
         break;
       case eCO_ADDSIGNED:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_ADD_SIGNED_EXT);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_ADD_SIGNED_EXT);
         break;
       case eCO_MULTIPLYADD:
         break;
       case eCO_REPLACE:
       case eCO_DECAL:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_REPLACE);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_REPLACE);
         break;
       case eCO_BUMPENVMAP:
         break;
       case eCO_DISABLE:
-        glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_REPLACE);
+        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_REPLACE);
         break;
     }
     m_eCurAlphaOp[stage] = eAo;
@@ -2452,22 +2483,22 @@ void CGLRenderer::EF_SetColorOp(byte eCo, byte eAo, byte eCa, byte eAa)
       {
         case eCA_Texture:
         default:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_TEXTURE);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_TEXTURE);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
           break;
         case eCA_Diffuse:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_PRIMARY_COLOR_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_PRIMARY_COLOR_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
           break;
         case eCA_Specular:
           break;
         case eCA_Previous:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_PREVIOUS_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_PREVIOUS_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
           break;
         case eCA_Constant:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_CONSTANT_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_CONSTANT_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
           break;
       }
     }
@@ -2477,22 +2508,22 @@ void CGLRenderer::EF_SetColorOp(byte eCo, byte eAo, byte eCa, byte eAa)
       {
         case eCA_Texture:
         default:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_TEXTURE);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_TEXTURE);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
           break;
         case eCA_Diffuse:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PRIMARY_COLOR_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PRIMARY_COLOR_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
           break;
         case eCA_Specular:
           break;
         case eCA_Previous:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PREVIOUS_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PREVIOUS_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
           break;
         case eCA_Constant:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_CONSTANT_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_CONSTANT_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
           break;
       }
     }
@@ -2502,22 +2533,22 @@ void CGLRenderer::EF_SetColorOp(byte eCo, byte eAo, byte eCa, byte eAa)
       {
         case eCA_Texture:
         default:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_TEXTURE);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_COLOR);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_TEXTURE);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_COLOR);
           break;
         case eCA_Diffuse:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_PRIMARY_COLOR_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_COLOR);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_PRIMARY_COLOR_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_COLOR);
           break;
         case eCA_Specular:
           break;
         case eCA_Previous:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_PREVIOUS_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_COLOR);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_PREVIOUS_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_COLOR);
           break;
         case eCA_Constant:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_CONSTANT_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_COLOR);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_CONSTANT_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_COLOR);
           break;
       }
     }
@@ -2532,22 +2563,22 @@ void CGLRenderer::EF_SetColorOp(byte eCo, byte eAo, byte eCa, byte eAa)
       {
         case eCA_Texture:
         default:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_TEXTURE);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_TEXTURE);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
           break;
         case eCA_Diffuse:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_PRIMARY_COLOR_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_PRIMARY_COLOR_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
           break;
         case eCA_Specular:
           break;
         case eCA_Previous:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_PREVIOUS_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_PREVIOUS_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
           break;
         case eCA_Constant:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_CONSTANT_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_CONSTANT_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
           break;
       }
     }
@@ -2557,22 +2588,22 @@ void CGLRenderer::EF_SetColorOp(byte eCo, byte eAo, byte eCa, byte eAa)
       {
         case eCA_Texture:
         default:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_TEXTURE);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_TEXTURE);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
           break;
         case eCA_Diffuse:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_PRIMARY_COLOR_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_PRIMARY_COLOR_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
           break;
         case eCA_Specular:
           break;
         case eCA_Previous:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_PREVIOUS_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_PREVIOUS_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
           break;
         case eCA_Constant:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_CONSTANT_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_CONSTANT_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
           break;
       }
     }
@@ -2582,22 +2613,22 @@ void CGLRenderer::EF_SetColorOp(byte eCo, byte eAo, byte eCa, byte eAa)
       {
         case eCA_Texture:
         default:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_ALPHA_EXT, GL_TEXTURE);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_ALPHA_EXT, GL_SRC_ALPHA);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_ALPHA_EXT, GL_TEXTURE);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_ALPHA_EXT, GL_SRC_ALPHA);
           break;
         case eCA_Diffuse:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_ALPHA_EXT, GL_PRIMARY_COLOR_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_ALPHA_EXT, GL_SRC_ALPHA);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_ALPHA_EXT, GL_PRIMARY_COLOR_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_ALPHA_EXT, GL_SRC_ALPHA);
           break;
         case eCA_Specular:
           break;
         case eCA_Previous:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_ALPHA_EXT, GL_PREVIOUS_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_ALPHA_EXT, GL_SRC_ALPHA);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_ALPHA_EXT, GL_PREVIOUS_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_ALPHA_EXT, GL_SRC_ALPHA);
           break;
         case eCA_Constant:
-          glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_ALPHA_EXT, GL_CONSTANT_EXT);
-          glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_ALPHA_EXT, GL_SRC_ALPHA);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_ALPHA_EXT, GL_CONSTANT_EXT);
+          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_ALPHA_EXT, GL_SRC_ALPHA);
           break;
       }
     }
@@ -2697,8 +2728,8 @@ bool CGLRenderer::EF_ObjectChange(SShader *Shader, SRenderShaderResources *Res, 
     {
       if (flags & RBF_NEAREST)
       {
-        glDepthRange(0, 0.1);
-        //glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+        GLR_DepthRange(0, 0.1);
+        //GLR_Clear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
         CCamera Cam = GetCamera();
         m_RP.m_PrevCamera = Cam;
         Cam.SetZMin(0.01f);
@@ -2712,7 +2743,7 @@ bool CGLRenderer::EF_ObjectChange(SShader *Shader, SRenderShaderResources *Res, 
       }
       else
       {
-        glDepthRange(m_RP.m_fMinDepthRange, m_RP.m_fMaxDepthRange);
+        GLR_DepthRange(m_RP.m_fMinDepthRange, m_RP.m_fMaxDepthRange);
         SetCamera(m_RP.m_PrevCamera);
         m_RP.m_Flags &= ~RBF_NEAREST;
       }
@@ -2725,7 +2756,7 @@ bool CGLRenderer::EF_ObjectChange(SShader *Shader, SRenderShaderResources *Res, 
   {
     if (m_RP.m_Flags & RBF_NEAREST)
     {
-      glDepthRange(m_RP.m_fMinDepthRange, m_RP.m_fMaxDepthRange);
+      GLR_DepthRange(m_RP.m_fMinDepthRange, m_RP.m_fMaxDepthRange);
       SetCamera(m_RP.m_PrevCamera);
       m_RP.m_Flags &= ~RBF_NEAREST;
     }
@@ -2734,7 +2765,7 @@ bool CGLRenderer::EF_ObjectChange(SShader *Shader, SRenderShaderResources *Res, 
     if (!Shader || !(Shader->m_Flags & EF_HASVSHADER))
     {
       m_RP.m_PersFlags &= ~RBPF_MATRIXNOTLOADED;
-      glLoadMatrixf(&m_ViewMatrix[0][0]);
+      GLR_LoadMatrixf(&m_ViewMatrix[0][0]);
     }
     else
       m_RP.m_PersFlags |= RBPF_MATRIXNOTLOADED;
@@ -2943,7 +2974,7 @@ void CGLRenderer::EF_SetObjectTransform(CCObject *obj, SShader *pSH, int nTransF
     m_ViewMatrix = m_CameraMatrix;
   if (!pSH || !(pSH->m_Flags & EF_HASVSHADER))
   {
-    glLoadMatrixf(m_ViewMatrix.GetData());
+    GLR_LoadMatrixf(m_ViewMatrix.GetData());
     m_RP.m_PersFlags &= ~RBPF_MATRIXNOTLOADED;
   }
   else
@@ -2956,7 +2987,7 @@ void CGLRenderer::EF_SetCameraInfo()
   m_RP.m_ViewOrg = m_cam.GetPos();
 
   float fm[16];
-  glGetFloatv(GL_MODELVIEW_MATRIX, fm);
+  GLR_GetFloatv(GL_MODELVIEW_MATRIX, fm);
   m_ViewMatrix = (Matrix44&)fm;
   m_CameraMatrix = m_ViewMatrix;
   Matrix44 m = m_CameraMatrix;
@@ -2981,7 +3012,7 @@ void CGLRenderer::EF_SetCameraInfo()
   m_RP.m_TransformFrame++;
   m_RP.m_FrameObject++;
 
-  glGetFloatv(GL_PROJECTION_MATRIX, &m_ProjMatrix(0,0));
+  GLR_GetFloatv(GL_PROJECTION_MATRIX, &m_ProjMatrix(0,0));
   mathMatrixMultiply(m_CameraProjMatrix.GetData(), m_ProjMatrix.GetData(), m_CameraMatrix.GetData(), g_CpuFlags);
   mathMatrixInverse(m_InvCameraProjMatrix.GetData(), m_CameraProjMatrix.GetData(), g_CpuFlags);
 
@@ -3076,13 +3107,13 @@ static void GLES3TexGenFromParams(SShaderPassHW *slw, bool bHasVP)
       // work). Stage 0's map is DSDT bump data, not colour: output the tint
       // itself (rgb and alpha from the constant); stage 1 modulates by the
       // ripple map.
-      glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
-      glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_REPLACE);
-      glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_CONSTANT_EXT);
-      glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
-      glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_REPLACE);
-      glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_CONSTANT_EXT);
-      glTexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
+      GLR_TexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
+      GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_REPLACE);
+      GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_CONSTANT_EXT);
+      GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
+      GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_REPLACE);
+      GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_CONSTANT_EXT);
+      GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
       gcpOGL->m_eCurColorOp[0] = 255; // make the engine re-apply its own op on the next pass
       GLES3FFPForceEnvAlpha0(0.35f * (water[3] > 0 ? water[3] : 1.0f)); // mostly see-through, like the original
       s_bGLES3WaterAlpha = true;
@@ -3097,12 +3128,12 @@ static void GLES3TexGenFromParams(SShaderPassHW *slw, bool bHasVP)
   {
     if (planes[c])
     {
-      glTexGeni(GL_S + c, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-      glTexGenfv(GL_S + c, GL_OBJECT_PLANE, planes[c]);
-      glEnable(GL_TEXTURE_GEN_S + c);
+      GLR_TexGeni(GL_S + c, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+      GLR_TexGenfv(GL_S + c, GL_OBJECT_PLANE, planes[c]);
+      GLR_Enable(GL_TEXTURE_GEN_S + c);
     }
     else
-      glDisable(GL_TEXTURE_GEN_S + c);
+      GLR_Disable(GL_TEXTURE_GEN_S + c);
   }
   s_bGLES3ParamTexGen = planes[0] || planes[1];
   gcpOGL->EF_SelectTMU(nPrevStage);
@@ -3131,8 +3162,8 @@ static void GLES3TexGenParamsOff()
     return;
   const int nPrevStage = CTexMan::m_CurStage;
   gcpOGL->EF_SelectTMU(0);
-  glDisable(GL_TEXTURE_GEN_S);
-  glDisable(GL_TEXTURE_GEN_T);
+  GLR_Disable(GL_TEXTURE_GEN_S);
+  GLR_Disable(GL_TEXTURE_GEN_T);
   s_bGLES3ParamTexGen = false;
   gcpOGL->EF_SelectTMU(nPrevStage);
 }
@@ -3254,14 +3285,14 @@ void CGLRenderer::EF_SetHWLight(int Num, vec4_t Pos, CFColor& Diffuse, CFColor& 
 
   Num += GL_LIGHT0;
 
-  glLightfv(Num, GL_POSITION, &Pos[0]);
-  glLightfv(Num, GL_AMBIENT, &fAmbientLight[0]);
-  glLightfv(Num, GL_DIFFUSE, &Diffuse[0]);
-  glLightfv(Num, GL_SPECULAR, &Specular[0]);
+  GLR_Lightfv(Num, GL_POSITION, &Pos[0]);
+  GLR_Lightfv(Num, GL_AMBIENT, &fAmbientLight[0]);
+  GLR_Lightfv(Num, GL_DIFFUSE, &Diffuse[0]);
+  GLR_Lightfv(Num, GL_SPECULAR, &Specular[0]);
 
-  glLightf(Num, GL_CONSTANT_ATTENUATION, ca);
-  glLightf(Num, GL_LINEAR_ATTENUATION, la);       
-  glLightf(Num, GL_QUADRATIC_ATTENUATION, qa);
+  GLR_Lightf(Num, GL_CONSTANT_ATTENUATION, ca);
+  GLR_Lightf(Num, GL_LINEAR_ATTENUATION, la);       
+  GLR_Lightf(Num, GL_QUADRATIC_ATTENUATION, qa);
 
   m_RP.m_CurrentVLights |= 1<<Num;
 }
@@ -3441,10 +3472,10 @@ void CGLRenderer::EF_LightMaterial(SLightMaterial *lm, int Flags)
       colSpec = Col_Black;
     }
 
-    glMaterialfv(GL_FRONT, GL_AMBIENT, &colAmb[0]);
-    glMaterialfv(GL_FRONT, GL_DIFFUSE, &colDif[0]);
-    glMaterialfv(GL_FRONT, GL_SPECULAR, &colSpec[0]);
-    glMaterialf(GL_FRONT, GL_SHININESS, fPow);
+    GLR_Materialfv(GL_FRONT, GL_AMBIENT, &colAmb[0]);
+    GLR_Materialfv(GL_FRONT, GL_DIFFUSE, &colDif[0]);
+    GLR_Materialfv(GL_FRONT, GL_SPECULAR, &colSpec[0]);
+    GLR_Materialf(GL_FRONT, GL_SHININESS, fPow);
   }
   m_RP.m_TexStages[0].m_CA = eCA_Texture | (eCA_Diffuse<<3);
   m_RP.m_TexStages[0].m_AA = eCA_Texture | (eCA_Diffuse<<3);
@@ -3474,9 +3505,9 @@ void CGLRenderer::EF_ApplyMatrixOps(TArray<SMatrixTransform>* MatrixOps, bool bE
     }
     if (mt->m_Matrix != CurMatrix)
     {
-      glMatrixMode(mt->m_Matrix);
+      GLR_MatrixMode(mt->m_Matrix);
       if (!bEnable && mt->m_Matrix != GL_PROJECTION && mt->m_Matrix != GL_MODELVIEW)
-        glLoadIdentity();
+        GLR_LoadIdentity();
       CurMatrix = mt->m_Matrix;
     }
     if (mt->m_Stage != PrevStage)
@@ -3484,13 +3515,13 @@ void CGLRenderer::EF_ApplyMatrixOps(TArray<SMatrixTransform>* MatrixOps, bool bE
       PrevStage = mt->m_Stage;
       EF_SelectTMU(mt->m_Stage);
       if (!bEnable && mt->m_Matrix != GL_PROJECTION && mt->m_Matrix != GL_MODELVIEW)
-        glLoadIdentity();
+        GLR_LoadIdentity();
     }
     mt->mfSet(bEnable);
   }
   EF_SelectTMU(PrevStage1);
   if (CurMatrix != GL_MODELVIEW)
-    glMatrixMode(GL_MODELVIEW);
+    GLR_MatrixMode(GL_MODELVIEW);
 }
 
 // Set/Restore shader resources overrided states
@@ -3510,8 +3541,8 @@ bool CGLRenderer::EF_SetResourcesState(bool bSet)
     if (m_RP.m_pShaderResources->m_AlphaRef)
     {
       if (!(m_CurState & GS_ALPHATEST_MASK))
-        glEnable(GL_ALPHA_TEST);
-      glAlphaFunc(GL_GEQUAL, m_RP.m_pShaderResources->m_AlphaRef);
+        GLR_Enable(GL_ALPHA_TEST);
+      GLR_AlphaFunc(GL_GEQUAL, m_RP.m_pShaderResources->m_AlphaRef);
       m_RP.m_FlagsPerFlush |= RBSI_ALPHATEST;
     }
     else
@@ -3551,22 +3582,22 @@ bool CGLRenderer::EF_SetResourcesState(bool bSet)
       switch (m_CurState & GS_ALPHATEST_MASK)
       {
         case GS_ALPHATEST_GREATER0:
-          glEnable(GL_ALPHA_TEST);
-          glAlphaFunc(GL_GREATER, 0);
+          GLR_Enable(GL_ALPHA_TEST);
+          GLR_AlphaFunc(GL_GREATER, 0);
           break;
 
         case GS_ALPHATEST_LESS128:
-          glEnable(GL_ALPHA_TEST);
-          glAlphaFunc(GL_LESS, 0.5f);
+          GLR_Enable(GL_ALPHA_TEST);
+          GLR_AlphaFunc(GL_LESS, 0.5f);
           break;
 
         case GS_ALPHATEST_GEQUAL128:
-          glEnable(GL_ALPHA_TEST);
-          glAlphaFunc(GL_GEQUAL, 0.5f);
+          GLR_Enable(GL_ALPHA_TEST);
+          GLR_AlphaFunc(GL_GEQUAL, 0.5f);
           break;
 
         default:
-          glDisable(GL_ALPHA_TEST);
+          GLR_Disable(GL_ALPHA_TEST);
           break;
       }
     }
@@ -3587,15 +3618,15 @@ void CGLRenderer::EF_SetStateShaderState()
       iLog->Log("Stencil shadows and overdraw measurement are mutually exclusive\n");
       CV_r_measureoverdraw = 0;
     }
-    glClearStencil(0);
-    glClear(GL_STENCIL_BUFFER_BIT);
+    GLR_ClearStencil(0);
+    GLR_Clear(GL_STENCIL_BUFFER_BIT);
   }
   if (st->m_Stencil)
   {
     st->m_Stencil->mfSet();
   }
   if (st->m_Flags & ESF_POLYLINE)
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    GLR_PolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
   if (st->m_Flags & ESF_NOCULL)
   {
@@ -3653,7 +3684,7 @@ void CGLRenderer::EF_SetStateShaderState()
   if (st->m_Flags & ESF_COLORMASK)
   {
     m_RP.m_FlagsPerFlush |= RBSI_COLORMASK;
-    glColorMask(st->m_ColorMask[0], st->m_ColorMask[1], st->m_ColorMask[2], st->m_ColorMask[3]);
+    GLR_ColorMask(st->m_ColorMask[0], st->m_ColorMask[1], st->m_ColorMask[2], st->m_ColorMask[3]);
   }
 }
 
@@ -3664,16 +3695,68 @@ void CGLRenderer::EF_ResetStateShaderState()
   SEfState *st = ef->m_State;
 
   if (st->m_Flags & ESF_COLORMASK)
-    glColorMask(1, 1, 1, 1);
+    GLR_ColorMask(1, 1, 1, 1);
 
   if (st->m_Flags & ESF_POLYLINE)
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    GLR_PolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 
 #include "../Common/NvTriStrip/NvTriStrip.h"
 
 // Used for HW effectors for rendering of tri mesh (vertex array)
+#ifdef GLES3_RENDERER
+// Native mesh stage (FARCRY_NATIVE=mesh): the engine's streams (recorded by
+// SArrayPointer_*::mfSet), its bound index buffer, texture-stage combiner
+// state, alpha test and fog, drawn with a GLSL program and VAO. False: the
+// draw stays on the translation layer (the reason is counted).
+const char* GLNMeshCurrentShader() { return gcpOGL->m_RP.m_pShader ? gcpOGL->m_RP.m_pShader->GetName() : "?"; }
+static bool GLNTryIndexed(CGLRenderer* r, unsigned glPrim, int count, size_t byteOffset)
+{
+  if (!GLN::Enabled(GLN_STAGE_MESH)) return false;
+  if (!(r->m_RP.m_FlagsPerFlush & RBSI_INDEXSTREAM) || !g_GLNIndexBuffer) { GLNMesh_Fallback("client-memory indices"); return false; }
+  const int en = SArrayPointer::m_CurEnabled;
+  if (!(en & PFE_POINTER_VERT) || !g_GLNPosStream.buffer) { GLNMesh_Fallback("client-memory vertices"); return false; }
+  GLNMeshDraw d; memset(&d, 0, sizeof(d));
+  d.pos = g_GLNPosStream;
+  if ((en & PFE_POINTER_NORMAL) && g_GLNNormalStream.buffer) d.normal = g_GLNNormalStream;
+  if (en & PFE_POINTER_COLOR)
+  {
+    if (!g_GLNColorStream.buffer) { GLNMesh_Fallback("client-memory vertices"); return false; }
+    d.color = g_GLNColorStream; d.colorSemantic = g_GLNColorSemantic;
+  }
+  d.numStages = CTexMan::m_nCurStages < 4 ? CTexMan::m_nCurStages : 4;
+  for (int u = 0; u < d.numStages; ++u)
+  {
+    GLNMeshStage& st = d.stage[u];
+    st.texture = CGLTexMan::m_TUState[u].m_Bind; st.target = CGLTexMan::m_TUState[u].m_Target;
+    st.colorOp = r->m_eCurColorOp[u]; st.alphaOp = r->m_eCurAlphaOp[u]; st.colorArg = r->m_eCurColorArg[u]; st.alphaArg = r->m_eCurAlphaArg[u];
+    st.rgbScale = r->m_fCurRGBScale[u] > 0 ? r->m_fCurRGBScale[u] : 1.0f;
+    memcpy(st.constant, CGLTexMan::m_TUState[u].m_Color.bcolor, 4);
+    if (en & (PFE_POINTER_TEX0 << u)) d.tex[u] = g_GLNTexStream[u];
+  }
+  switch (r->m_CurState & GS_ALPHATEST_MASK)
+  {
+    case GS_ALPHATEST_GREATER0: d.alphaTestMode = 1; d.alphaRef = 0.0f; break;
+    case GS_ALPHATEST_LESS128: d.alphaTestMode = 2; d.alphaRef = 0.5f; break;
+    case GS_ALPHATEST_GEQUAL128: d.alphaTestMode = 3; d.alphaRef = 0.5f; break;
+    case GS_ALPHATEST_GEQUAL64: d.alphaTestMode = 3; d.alphaRef = 0.25f; break;
+  }
+  if (r->m_FS.m_bEnable)
+  {
+    float scale = 1.0f;   // CREOcLeaf scales the fog range per element (glFogf, not m_FS)
+    if (r->m_RP.m_pRE && r->m_RP.m_pRE->mfGetType() == eDATA_OcLeaf && ((CREOcLeaf*)r->m_RP.m_pRE)->m_fFogScale)
+      scale = ((CREOcLeaf*)r->m_RP.m_pRE)->m_fFogScale;
+    d.fogMode = r->m_FS.m_nCurFogMode == GL_EXP ? 2 : (r->m_FS.m_nCurFogMode == GL_EXP2 ? 3 : 1);
+    d.fogStart = r->m_FS.m_FogStart * scale; d.fogEnd = r->m_FS.m_FogEnd * scale; d.fogDensity = r->m_FS.m_FogDensity;
+    d.fogColor[0] = r->m_FS.m_FogColor[0]; d.fogColor[1] = r->m_FS.m_FogColor[1]; d.fogColor[2] = r->m_FS.m_FogColor[2];
+  }
+  d.indexBuffer = g_GLNIndexBuffer;
+  d.primitive = glPrim;
+  return GLNMesh_Draw(d, count, (unsigned)byteOffset);
+}
+#endif
+
 void CGLRenderer::EF_DrawIndexedMesh (int nPrimType)
 {
   //PROFILE_FRAME(Draw_IndexMesh);
@@ -3710,7 +3793,10 @@ void CGLRenderer::EF_DrawIndexedMesh (int nPrimType)
           //assert(m_RP.m_RendIndices[0]<60000);
           for (int i=0; i<mats->Count(); i++, m++)
           {
-            glDrawElements(GL_TRIANGLE_STRIP, m->nNumIndices, GL_UNSIGNED_SHORT, &m_RP.m_RendIndices[m->nFirstIndexId]);
+#ifdef GLES3_RENDERER
+            if (!GLNTryIndexed(this, GL_TRIANGLE_STRIP, m->nNumIndices, (size_t)&m_RP.m_RendIndices[m->nFirstIndexId]))
+#endif
+            GLR_DrawElements(GL_TRIANGLE_STRIP, m->nNumIndices, GL_UNSIGNED_SHORT, &m_RP.m_RendIndices[m->nFirstIndexId]);
             m_nPolygons += (m->nNumIndices - 2);
           }
         }
@@ -3725,18 +3811,26 @@ void CGLRenderer::EF_DrawIndexedMesh (int nPrimType)
           for (int i=0; i<mi->m_dwNumSections; i++)
           {
             SPrimitiveGroup *g = &mi->m_pPrimitiveGroups[i];
+#ifdef GLES3_RENDERER
+            if (GLNTryIndexed(this, g->type == PT_STRIP ? GL_TRIANGLE_STRIP : (g->type == PT_FAN ? GL_TRIANGLE_FAN : GL_TRIANGLES),
+                              g->numIndices, (size_t)&m_RP.m_RendIndices[g->offsIndex]))
+            {
+              m_nPolygons += g->numTris;
+              continue;
+            }
+#endif
             switch (g->type)
             {
               case PT_STRIP:
-                glDrawElements(GL_TRIANGLE_STRIP, g->numIndices, GL_UNSIGNED_SHORT, &m_RP.m_RendIndices[g->offsIndex]);
+                GLR_DrawElements(GL_TRIANGLE_STRIP, g->numIndices, GL_UNSIGNED_SHORT, &m_RP.m_RendIndices[g->offsIndex]);
                 break;
 
               case PT_LIST:
-                glDrawElements(GL_TRIANGLES, g->numIndices, GL_UNSIGNED_SHORT, &m_RP.m_RendIndices[g->offsIndex]);
+                GLR_DrawElements(GL_TRIANGLES, g->numIndices, GL_UNSIGNED_SHORT, &m_RP.m_RendIndices[g->offsIndex]);
                 break;
 
               case PT_FAN:
-                glDrawElements(GL_TRIANGLE_FAN, g->numIndices, GL_UNSIGNED_SHORT, &m_RP.m_RendIndices[g->offsIndex]);
+                GLR_DrawElements(GL_TRIANGLE_FAN, g->numIndices, GL_UNSIGNED_SHORT, &m_RP.m_RendIndices[g->offsIndex]);
                 break;
             }
             m_nPolygons += g->numTris;
@@ -3754,7 +3848,13 @@ void CGLRenderer::EF_DrawIndexedMesh (int nPrimType)
   if (nType >= 0)
   {
     if(m_RP.m_RendNumIndices)
-      glDrawElements(nType, m_RP.m_RendNumIndices, GL_UNSIGNED_SHORT, m_RP.m_RendIndices);
+    {
+#ifdef GLES3_RENDERER
+      if (nType != GL_QUADS && GLNTryIndexed(this, (unsigned)nType, m_RP.m_RendNumIndices, (size_t)m_RP.m_RendIndices))
+        return;
+#endif
+      GLR_DrawElements(nType, m_RP.m_RendNumIndices, GL_UNSIGNED_SHORT, m_RP.m_RendIndices);
+    }
     else
     {
       static int tic=10; // variable will be removed when this problem will be fixed
@@ -3811,8 +3911,11 @@ bool CGLRenderer::EF_PreDraw(SShaderPass *slw)
         }
         {
           PROFILE_FRAME(Mesh_UpdateIBuffersDynMerge);
-          glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, m_RP.m_IBDyn.m_VertBuf.m_nID);
-          glBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, nOffsetI, sizeI, m_RP.m_SysRendIndices);
+          GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, m_RP.m_IBDyn.m_VertBuf.m_nID);
+          GLR_BufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, nOffsetI, sizeI, m_RP.m_SysRendIndices);
+#ifdef GLES3_RENDERER
+          g_GLNIndexBuffer = m_RP.m_IBDyn.m_VertBuf.m_nID;
+#endif
         }
         m_RP.m_RendIndices = (ushort *)(nOffsetI);
         m_RP.m_FlagsPerFlush |= RBSI_INDEXSTREAM;
@@ -4036,7 +4139,7 @@ void CGLRenderer::EF_DrawDetailOverlayPasses()
     }
     if (fDistToCam > fDist+1.0f)
       return;
-    glPushMatrix();
+    GLR_PushMatrix();
 #endif
   }
   else
@@ -4094,24 +4197,24 @@ void CGLRenderer::EF_DrawDetailOverlayPasses()
     {
       fg.m_fMaxDist = fDist;
 
-      glMatrixMode(GL_TEXTURE);
-      glLoadIdentity();
-      glScalef(fUScale, fVScale, 1.0f);
-      glMatrixMode(GL_MODELVIEW);
+      GLR_MatrixMode(GL_TEXTURE);
+      GLR_LoadIdentity();
+      GLR_Scalef(fUScale, fVScale, 1.0f);
+      GLR_MatrixMode(GL_MODELVIEW);
 
 #ifndef PIPE_USE_INSTANCING
       EF_SelectTMU(1);
       FM.m_Offs = 0;
       FM.mfGet4f(Vals);
-      glTexGenfv(GL_S, GL_OBJECT_PLANE, Vals);
+      GLR_TexGenfv(GL_S, GL_OBJECT_PLANE, Vals);
       FM.m_Offs = 1;
       FM.mfGet4f(Vals);
-      glTexGenfv(GL_T, GL_OBJECT_PLANE, Vals);
+      GLR_TexGenfv(GL_T, GL_OBJECT_PLANE, Vals);
 
-      glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-      glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-      glEnable(GL_TEXTURE_GEN_S);
-      glEnable(GL_TEXTURE_GEN_T);
+      GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+      GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+      GLR_Enable(GL_TEXTURE_GEN_S);
+      GLR_Enable(GL_TEXTURE_GEN_T);
 
       EF_SelectTMU(0);
 
@@ -4162,15 +4265,15 @@ void CGLRenderer::EF_DrawDetailOverlayPasses()
           EF_SelectTMU(1);
           FM.m_Offs = 0;
           FM.mfGet4f(Vals);
-          glTexGenfv(GL_S, GL_OBJECT_PLANE, Vals);
+          GLR_TexGenfv(GL_S, GL_OBJECT_PLANE, Vals);
           FM.m_Offs = 1;
           FM.mfGet4f(Vals);
-          glTexGenfv(GL_T, GL_OBJECT_PLANE, Vals);
+          GLR_TexGenfv(GL_T, GL_OBJECT_PLANE, Vals);
 
-          glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-          glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-          glEnable(GL_TEXTURE_GEN_S);
-          glEnable(GL_TEXTURE_GEN_T);
+          GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+          GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+          GLR_Enable(GL_TEXTURE_GEN_S);
+          GLR_Enable(GL_TEXTURE_GEN_T);
 
           EF_SelectTMU(0);
 
@@ -4204,13 +4307,13 @@ void CGLRenderer::EF_DrawDetailOverlayPasses()
       fVScale *= 2.0f;
     }
 
-    glMatrixMode(GL_TEXTURE);
-    glLoadIdentity();
-    glMatrixMode(GL_MODELVIEW);
+    GLR_MatrixMode(GL_TEXTURE);
+    GLR_LoadIdentity();
+    GLR_MatrixMode(GL_MODELVIEW);
 
     EF_SelectTMU(1);
-    glDisable(GL_TEXTURE_GEN_S);
-    glDisable(GL_TEXTURE_GEN_T);
+    GLR_Disable(GL_TEXTURE_GEN_S);
+    GLR_Disable(GL_TEXTURE_GEN_T);
     EF_SelectTMU(0);
   }
   else
@@ -4325,7 +4428,7 @@ void CGLRenderer::EF_DrawDetailOverlayPasses()
   CGLTexMan::BindNULL(0);
   gRenDev->m_RP.m_pFogVolume = fb;
 #ifdef PIPE_USE_INSTANCING
-  glPopMatrix();
+  GLR_PopMatrix();
 #endif
 }
 
@@ -5616,8 +5719,8 @@ void CGLRenderer::EF_DrawShadowPasses(SShaderTechnique *hs, SShader *ef, int nSt
 
       if (slw->m_LMFlags & LMF_POLYOFFSET)
       {
-        glEnable(GL_POLYGON_OFFSET_FILL);
-        glPolygonOffset(CV_gl_offsetfactor, CV_gl_offsetunits);
+        GLR_Enable(GL_POLYGON_OFFSET_FILL);
+        GLR_PolygonOffset(CV_gl_offsetfactor, CV_gl_offsetunits);
       }
 
       m_RP.m_FlagsModificators = (m_RP.m_FlagsModificators & ~7) | (slw->m_Flags & 3);
@@ -5797,7 +5900,7 @@ void CGLRenderer::EF_DrawShadowPasses(SShaderTechnique *hs, SShader *ef, int nSt
         glSetFenceNV(m_RP.m_VidBufs[m_RP.m_MergedStreams[0]].m_Fence, GL_ALL_COMPLETED_NV);
 
       if (slw->m_LMFlags & LMF_POLYOFFSET)
-        glDisable(GL_POLYGON_OFFSET_FILL);
+        GLR_Disable(GL_POLYGON_OFFSET_FILL);
     }
   }
   m_RP.m_nCurStartCaster = 0;
@@ -5831,8 +5934,8 @@ void CGLRenderer::EF_DrawGeneralPasses(SShaderTechnique *hs, SShader *ef, bool b
 
     if (slw->m_LMFlags & LMF_POLYOFFSET)
     {
-      glEnable(GL_POLYGON_OFFSET_FILL);
-      glPolygonOffset(CV_gl_offsetfactor, CV_gl_offsetunits);
+      GLR_Enable(GL_POLYGON_OFFSET_FILL);
+      GLR_PolygonOffset(CV_gl_offsetfactor, CV_gl_offsetunits);
     }
 
     m_RP.m_StatNumPasses++;
@@ -6060,7 +6163,7 @@ void CGLRenderer::EF_DrawGeneralPasses(SShaderTechnique *hs, SShader *ef, bool b
       glSetFenceNV(m_RP.m_VidBufs[m_RP.m_MergedStreams[0]].m_Fence, GL_ALL_COMPLETED_NV);
 
     if (slw->m_LMFlags & LMF_POLYOFFSET)
-      glDisable(GL_POLYGON_OFFSET_FILL);
+      GLR_Disable(GL_POLYGON_OFFSET_FILL);
   }
 }
 
@@ -6079,8 +6182,8 @@ void CGLRenderer::EF_FlushHW()
     // Set Z-Bias
     if (ef->m_Flags & EF_POLYGONOFFSET)
     {
-      glEnable(GL_POLYGON_OFFSET_FILL);
-      glPolygonOffset(CV_gl_offsetfactor, CV_gl_offsetunits);
+      GLR_Enable(GL_POLYGON_OFFSET_FILL);
+      GLR_PolygonOffset(CV_gl_offsetfactor, CV_gl_offsetunits);
     }
 
     SShaderTechnique *hs = m_RP.m_pCurTechnique;
@@ -6160,7 +6263,7 @@ void CGLRenderer::EF_FlushHW()
 
     // Restore Z-Bias
     if (ef->m_Flags & EF_POLYGONOFFSET)
-      glDisable(GL_POLYGON_OFFSET_FILL);  
+      GLR_Disable(GL_POLYGON_OFFSET_FILL);  
 
     // Draw detail texture passes
     if (m_RP.m_pShaderResources && m_RP.m_pShaderResources->m_Textures[EFTT_DETAIL_OVERLAY] && CV_r_detailtextures)
@@ -6280,8 +6383,8 @@ void CGLRenderer::EF_FlushShader()
 
   if (ef->m_Flags & EF_POLYGONOFFSET)
   {
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(CV_gl_offsetfactor, CV_gl_offsetunits);
+    GLR_Enable(GL_POLYGON_OFFSET_FILL);
+    GLR_PolygonOffset(CV_gl_offsetfactor, CV_gl_offsetunits);
   }
 
   if (!(m_RP.m_FlagsPerFlush & RBSI_NOCULL))
@@ -6289,17 +6392,17 @@ void CGLRenderer::EF_FlushShader()
 
   if (!m_RP.m_pRE)
   {
-    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-    glTexCoordPointer(2, GL_FLOAT, m_RP.m_Stride, m_RP.m_Ptr.PtrB + m_RP.m_OffsT);
+    GLR_EnableClientState(GL_TEXTURE_COORD_ARRAY);
+    GLR_TexCoordPointer(2, GL_FLOAT, m_RP.m_Stride, m_RP.m_Ptr.PtrB + m_RP.m_OffsT);
 
-    glEnableClientState(GL_COLOR_ARRAY);
-    glColorPointer(4, GL_UNSIGNED_BYTE, m_RP.m_Stride, m_RP.m_Ptr.PtrB + m_RP.m_OffsD);
+    GLR_EnableClientState(GL_COLOR_ARRAY);
+    GLR_ColorPointer(4, GL_UNSIGNED_BYTE, m_RP.m_Stride, m_RP.m_Ptr.PtrB + m_RP.m_OffsD);
 
-    glVertexPointer(3, GL_FLOAT, m_RP.m_Stride, m_RP.m_Ptr.PtrB);
+    GLR_VertexPointer(3, GL_FLOAT, m_RP.m_Stride, m_RP.m_Ptr.PtrB);
     if (m_RP.m_FT & FLT_N)
     {
-      glNormalPointer(GL_FLOAT, m_RP.m_Stride, m_RP.m_Ptr.PtrB+m_RP.m_OffsN);
-      glEnableClientState(GL_NORMAL_ARRAY);
+      GLR_NormalPointer(GL_FLOAT, m_RP.m_Stride, m_RP.m_Ptr.PtrB+m_RP.m_OffsN);
+      GLR_EnableClientState(GL_NORMAL_ARRAY);
     }
   }
 
@@ -6420,16 +6523,16 @@ void CGLRenderer::EF_FlushShader()
   if (m_RP.m_pFogVolume && CV_r_VolumetricFog)
     EF_DrawFogOverlayPasses();
 
-  glDisableClientState(GL_COLOR_ARRAY);
-  glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+  GLR_DisableClientState(GL_COLOR_ARRAY);
+  GLR_DisableClientState(GL_TEXTURE_COORD_ARRAY);
   if ((m_RP.m_FT & FLT_N) && !m_RP.m_pRE)
-    glDisableClientState(GL_NORMAL_ARRAY);
+    GLR_DisableClientState(GL_NORMAL_ARRAY);
 
   if ((m_RP.m_FlagsPerFlush & RBSI_VERTSMERGED) && SUPPORTS_GL_NV_fence)
     glSetFenceNV(m_RP.m_VidBufs[m_RP.m_MergedStreams[0]].m_Fence, GL_ALL_COMPLETED_NV);
 
   if (ef->m_Flags & EF_POLYGONOFFSET)
-    glDisable(GL_POLYGON_OFFSET_FILL);
+    GLR_Disable(GL_POLYGON_OFFSET_FILL);
 
   if (m_RP.m_pStateShader && m_RP.m_pStateShader->m_State)
     EF_ResetStateShaderState();
@@ -6836,7 +6939,7 @@ void CGLRenderer::EF_PipeLine(int nums, int nume, int nList, void (*RenderFunc)(
 
   m_RP.m_Flags |= RBF_3D;
 
-  glPushMatrix();
+  GLR_PushMatrix();
 
   /*float plane[4];
   {
@@ -6944,12 +7047,12 @@ void CGLRenderer::EF_PipeLine(int nums, int nume, int nList, void (*RenderFunc)(
     m_RP.m_PersFlags &= ~RBPF_SETCLIPPLANE;
   }
   
-  glDepthRange(m_RP.m_fMinDepthRange, m_RP.m_fMaxDepthRange);
+  GLR_DepthRange(m_RP.m_fMinDepthRange, m_RP.m_fMaxDepthRange);
   
   EF_ObjectChange(NULL, NULL, 0, NULL);
 
   m_RP.m_PersFlags &= ~RBPF_MATRIXNOTLOADED;
-  glPopMatrix();
+  GLR_PopMatrix();
 
   //EF_SetClipPlane(false, plane, false);
 
@@ -6991,9 +7094,9 @@ void CGLRenderer::EF_DrawWire()
   gcpOGL->EF_SetObjectTransform(gcpOGL->m_RP.m_pCurObject, NULL, gcpOGL->m_RP.m_pCurObject->m_ObjFlags);
   int StrVrt;
   void *verts = (void *)gcpOGL->EF_GetPointer(eSrcPointer_Vert, &StrVrt, GL_FLOAT, eSrcPointer_Vert, 0);
-  glVertexPointer(3, GL_FLOAT, StrVrt, verts);
+  GLR_VertexPointer(3, GL_FLOAT, StrVrt, verts);
   SArrayPointer_Vertex::m_pLastPointer = verts;
-  glEnableClientState(GL_VERTEX_ARRAY);
+  GLR_EnableClientState(GL_VERTEX_ARRAY);
   gcpOGL->EF_Draw(gcpOGL->m_RP.m_pShader, NULL);
 }
 
@@ -7019,21 +7122,21 @@ void CGLRenderer::EF_DrawNormals()
     
     gRenDev->EF_SetState(GS_POLYLINE);
     
-    glBegin(GL_LINES);
+    GLR_Begin(GL_LINES);
     for (int v=0; v<numVerts; v++,verts+=StrVrt,norms+=StrNrm)
     {
       float *fverts = (float *)verts;
       float *fnorms = (float *)norms;
-      glColor3f(1, 0, 0);
-      glVertex3fv(fverts);
+      GLR_Color3f(1, 0, 0);
+      GLR_Vertex3fv(fverts);
       
       e[0] = fverts[0] + fnorms[0]*len;
       e[1] = fverts[1] + fnorms[1]*len;
       e[2] = fverts[2] + fnorms[2]*len;
-      glColor3f(1, 1, 1);
-      glVertex3fv(e);
+      GLR_Color3f(1, 1, 1);
+      GLR_Vertex3fv(e);
     }
-    glEnd();
+    GLR_End();
 
     gRenDev->EF_SetState(GS_DEPTHWRITE);
   }
@@ -7075,41 +7178,41 @@ void CGLRenderer::EF_DrawTangents()
     else
       gcpOGL->EF_SetState(0);
     
-    glBegin(GL_LINES);
+    GLR_Begin(GL_LINES);
     for (int v=0; v<numVerts; v++,verts+=StrVrt,tangs+=StrTang, binorm+=StrBinorm, tnorm+=StrTNorm)
     {
       float *fverts = (float *)verts;
       float *fv = (float *)tangs;
-      glColor3f(1, 0, 0);
-      glVertex3fv(fverts);
+      GLR_Color3f(1, 0, 0);
+      GLR_Vertex3fv(fverts);
       
       e[0] = fverts[0] + fv[0]*len/2;
       e[1] = fverts[1] + fv[1]*len/2;
       e[2] = fverts[2] + fv[2]*len/2;
-      glColor3f(1, 1, 1);
-      glVertex3fv(e);
+      GLR_Color3f(1, 1, 1);
+      GLR_Vertex3fv(e);
 
       fv = (float *)binorm;
-      glColor3f(0, 1, 0);
-      glVertex3fv(fverts);
+      GLR_Color3f(0, 1, 0);
+      GLR_Vertex3fv(fverts);
       
       e[0] = fverts[0] + fv[0]*len/2;
       e[1] = fverts[1] + fv[1]*len/2;
       e[2] = fverts[2] + fv[2]*len/2;
-      glColor3f(1, 1, 1);
-      glVertex3fv(e);
+      GLR_Color3f(1, 1, 1);
+      GLR_Vertex3fv(e);
 
       fv = (float *)tnorm;
-      glColor3f(0, 0, 1);
-      glVertex3fv(fverts);
+      GLR_Color3f(0, 0, 1);
+      GLR_Vertex3fv(fverts);
       
       e[0] = fverts[0] + fv[0]*len/2;
       e[1] = fverts[1] + fv[1]*len/2;
       e[2] = fverts[2] + fv[2]*len/2;
-      glColor3f(1, 1, 1);
-      glVertex3fv(e);
+      GLR_Color3f(1, 1, 1);
+      GLR_Vertex3fv(e);
     }
-    glEnd();
+    GLR_End();
   }
   gcpOGL->EF_SetState(GS_DEPTHWRITE);
 }
@@ -7167,57 +7270,57 @@ void CGLRenderer::EF_DrawDebugLights()
         int ctr;
         
         //fill the inside of the light
-        glDisable(GL_TEXTURE_2D);        
+        GLR_Disable(GL_TEXTURE_2D);        
         CFColor cl = Col*0.3f;
-        glColor3fv(&cl[0]);
-        glBegin(GL_TRIANGLE_FAN);
-        glVertex3fv(&org[0]);
-        glColor3fv(&Col[0]);
+        GLR_Color3fv(&cl[0]);
+        GLR_Begin(GL_TRIANGLE_FAN);
+        GLR_Vertex3fv(&org[0]);
+        GLR_Color3fv(&Col[0]);
         tmpvertex = org + vertex;
-        glVertex3fv((float*) &tmpvertex);
+        GLR_Vertex3fv((float*) &tmpvertex);
         for (ctr=0; ctr<6; ctr++)
         {
           vertex = mat * vertex;
           Vec3d tmpvertex = org + vertex;
-          glVertex3fv((float*) &tmpvertex);
+          GLR_Vertex3fv((float*) &tmpvertex);
         }
-        glEnd();
+        GLR_End();
         
         //draw the inside of the light with lines and the outside filled
-        glPolygonMode(GL_FRONT, GL_LINE);
-        glDisable(GL_CULL_FACE);
-        glColor3f(0.3f,0.3f, 0.3f);
-        glBegin(GL_TRIANGLE_FAN);
-        glVertex3fv(&org[0]);
-        glColor3f(1,1,1);
+        GLR_PolygonMode(GL_FRONT, GL_LINE);
+        GLR_Disable(GL_CULL_FACE);
+        GLR_Color3f(0.3f,0.3f, 0.3f);
+        GLR_Begin(GL_TRIANGLE_FAN);
+        GLR_Vertex3fv(&org[0]);
+        GLR_Color3f(1,1,1);
         tmpvertex = org + vertex;
-        glVertex3fv(&tmpvertex[0]);
+        GLR_Vertex3fv(&tmpvertex[0]);
         for (ctr=0; ctr<6; ctr++)
         {
           vertex = mat * vertex;
           Vec3d tmpvertex = org + vertex;
-          glVertex3fv(&tmpvertex[0]);
+          GLR_Vertex3fv(&tmpvertex[0]);
         }
-        glEnd();
-        glEnable(GL_CULL_FACE);
-        glPolygonMode(GL_FRONT, GL_FILL);
+        GLR_End();
+        GLR_Enable(GL_CULL_FACE);
+        GLR_PolygonMode(GL_FRONT, GL_FILL);
         
         //set the color to the color of the light
-        glColor3fv(&Col[0]);
+        GLR_Color3fv(&Col[0]);
         
         //draw a point at the origin of the light
-        glBegin(GL_POINTS);
-        glVertex3fv(&org[0]);
-        glEnd();
+        GLR_Begin(GL_POINTS);
+        GLR_Vertex3fv(&org[0]);
+        GLR_End();
         
         //draw a line in the center of the light
-        glBegin(GL_LINES);
-        glVertex3fv(&org[0]);
-        glVertex3fv(&(org + dir)[0]);
-        glEnd();
+        GLR_Begin(GL_LINES);
+        GLR_Vertex3fv(&org[0]);
+        GLR_Vertex3fv(&(org + dir)[0]);
+        GLR_End();
         
         glPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
-        glEnable(GL_TEXTURE_2D);
+        GLR_Enable(GL_TEXTURE_2D);
       }
       if (((CV_r_debuglights==2) || (CV_r_debuglights==3)) && !(dl->m_Flags & DLF_DIRECTIONAL))
       {
@@ -7476,7 +7579,7 @@ void CGLRenderer::EF_DrawREPreprocess(SRendItemPreprocess *ris, int Nums)
 
   EF_PreRender(3);
     
-  glPushMatrix();
+  GLR_PushMatrix();
 
   UnINT64 oldVal;
   oldVal.SortVal = -1;
@@ -7530,11 +7633,11 @@ void CGLRenderer::EF_DrawREPreprocess(SRendItemPreprocess *ris, int Nums)
   if (CurShader)
     EF_Flush();
   
-  glDepthRange(m_RP.m_fMinDepthRange, m_RP.m_fMaxDepthRange);
+  GLR_DepthRange(m_RP.m_fMinDepthRange, m_RP.m_fMaxDepthRange);
 
   //ResetToDefault();
 
-  glPopMatrix();
+  GLR_PopMatrix();
 
   m_RP.m_pCurObject = savedObj;
 }
@@ -7662,10 +7765,10 @@ bool CGLRenderer::EF_RenderWarpZone(STWarpZone *wp)
   STWarpZone *prevWarp = m_RP.m_CurWarp;
   m_RP.m_CurWarp = wp;
 
-  glMatrixMode(GL_PROJECTION);
-  glPushMatrix();
-  glMatrixMode(GL_MODELVIEW);
-  glPushMatrix();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_PushMatrix();
+  GLR_MatrixMode(GL_MODELVIEW);
+  GLR_PushMatrix();
 
   iSystem->SetViewCamera(newCam);
   SetCamera(newCam);
@@ -7684,7 +7787,7 @@ bool CGLRenderer::EF_RenderWarpZone(STWarpZone *wp)
   eng->DrawLowDetail(DLD_TERRAIN_WATER | DLD_DETAIL_TEXTURES | DLD_DETAIL_OBJECTS | DLD_FAR_SPRITES | DLD_ENTITIES | DLD_STATIC_OBJECTS);
 
   /*unsigned char *pic=new unsigned char [m_width*m_height*4];
-  glReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
+  GLR_ReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
   WriteTGA(pic, m_width, m_height,"Warp.tga");
   delete [] pic;*/
 
@@ -7703,10 +7806,10 @@ bool CGLRenderer::EF_RenderWarpZone(STWarpZone *wp)
   iSystem->SetViewCamera(prevCam);
   SetCamera(prevCam);
 
-  glPopMatrix();
-  glMatrixMode(GL_PROJECTION);
-  glPopMatrix();
-  glMatrixMode(GL_MODELVIEW);
+  GLR_PopMatrix();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_PopMatrix();
+  GLR_MatrixMode(GL_MODELVIEW);
 
   return true;
 }

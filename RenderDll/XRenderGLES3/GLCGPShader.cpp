@@ -721,6 +721,7 @@ create:
 
       if (code)
       {
+        GLES3PrepareCachePath(namedst);   // port: lowercase (as the pak reads it back), directories created
         FILE *fp = fopen(namedst, "wb");
         if (fp)
         {

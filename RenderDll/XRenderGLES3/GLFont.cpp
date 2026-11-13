@@ -97,16 +97,16 @@ void CGLRenderer::FontSetTexture(class CFBitmap* pBmp, int nFilterMode)
   {
     case FILTER_LINEAR:
     default:
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
   	  break;
     case FILTER_BILINEAR:
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
   	  break;
     case FILTER_TRILINEAR:
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
       break;
   }
   EF_SetColorOp(eCO_MODULATE, eCO_MODULATE, DEF_TEXARG0, DEF_TEXARG0);
@@ -123,32 +123,37 @@ void CGLRenderer::FontSetTexture(int nTexId, int nFilterMode)
   {
     case FILTER_LINEAR:
     default:
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
   	  break;
     case FILTER_BILINEAR:
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
   	  break;
     case FILTER_TRILINEAR:
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
       break;
   }
   //EF_SetColorOp(eCO_MODULATE, eCO_MODULATE, DEF_TEXARG0, DEF_TEXARG0);
 }
 
+// Fonts draw their glyphs through DrawDynVB in this state; the native 2D
+// stage draws them itself while it is set.
+bool g_bGLNFontState = false;
+
 void CGLRenderer::FontSetRenderingState(unsigned long nVPWidth, unsigned long nVPHeight)
 {
+  g_bGLNFontState = true;
   GLSetCull(eCULL_None);
   EnableTMU(true);
-  glMatrixMode(GL_PROJECTION);
-  glPushMatrix();
-  glLoadIdentity();
-  glOrtho(0.0, m_width, m_height, 0.0, -1.0, 1.0);
-  glMatrixMode(GL_MODELVIEW);
-  glPushMatrix();
-  glLoadIdentity();  
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_PushMatrix();
+  GLR_LoadIdentity();
+  GLR_Ortho(0.0, m_width, m_height, 0.0, -1.0, 1.0);
+  GLR_MatrixMode(GL_MODELVIEW);
+  GLR_PushMatrix();
+  GLR_LoadIdentity();  
   m_RP.m_FlagsPerFlush = 0;
 
   EF_SetState(GS_BLSRC_SRCALPHA | GS_BLDST_ONEMINUSSRCALPHA | GS_NODEPTHTEST | GS_ALPHATEST_GREATER0);
@@ -177,10 +182,11 @@ void CGLRenderer::FontSetBlending(int blendSrc, int blendDest)
 
 void CGLRenderer::FontRestoreRenderingState()
 {
-  glPopMatrix();
-  glMatrixMode(GL_PROJECTION);
-  glPopMatrix();
-  glMatrixMode(GL_MODELVIEW);
+  g_bGLNFontState = false;
+  GLR_PopMatrix();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_PopMatrix();
+  GLR_MatrixMode(GL_MODELVIEW);
   
   EF_SetColorOp(eCO_MODULATE, eCO_MODULATE, DEF_TEXARG0, DEF_TEXARG0);
   

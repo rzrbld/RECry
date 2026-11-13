@@ -19,7 +19,7 @@ void STexPic::BuildMips()
   if (!m_Mips[0])
     CreateMips();
 
-  glBindTexture(m_TargetType, m_Bind);
+  GLR_BindTexture(m_TargetType, m_Bind);
   if (m_eTT != eTT_Cubemap)
   {
     for (int i=0; i<m_nMips; i++)
@@ -80,13 +80,13 @@ void STexPic::BuildMips()
 
 bool STexPic::UploadMips(int nStartMip, int nEndMip)
 {
-  glBindTexture(m_TargetType, m_Bind);
+  GLR_BindTexture(m_TargetType, m_Bind);
   if (SUPPORTS_GL_SGIS_texture_lod/* && m_eTT != eTT_Cubemap*/)
   {
-		glTexParameteri(m_TargetType, GL_TEXTURE_BASE_LEVEL_SGIS, nStartMip);
-		//glTexParameteri(m_TargetType, GL_TEXTURE_MAX_LEVEL_SGIS, m_nMips-1);
-		//glTexParameterf(m_TargetType, GL_TEXTURE_MIN_LOD_SGIS, (float)nStartMip);
-		//glTexParameterf(m_TargetType, GL_TEXTURE_MAX_LOD_SGIS, (float)nEndMip);
+		GLR_TexParameteri(m_TargetType, GL_TEXTURE_BASE_LEVEL_SGIS, nStartMip);
+		//GLR_TexParameteri(m_TargetType, GL_TEXTURE_MAX_LEVEL_SGIS, m_nMips-1);
+		//GLR_TexParameterf(m_TargetType, GL_TEXTURE_MIN_LOD_SGIS, (float)nStartMip);
+		//GLR_TexParameterf(m_TargetType, GL_TEXTURE_MAX_LOD_SGIS, (float)nEndMip);
     if (m_eTT != eTT_Cubemap)
     {
       int tfs = CGLTexMan::GetTexSrcFormat(m_ETF);
@@ -102,14 +102,14 @@ bool STexPic::UploadMips(int nStartMip, int nEndMip)
         if (m_ETF == eTF_DXT1 || m_ETF == eTF_DXT3 || m_ETF == eTF_DXT5)
         {
           if (nLod && (!m_Mips[0][0] || !m_Mips[0][0]->m_bUploaded))
-            glTexImage2D(m_TargetType, 0, tfd, m_Width, m_Height, 0, tfs, GL_UNSIGNED_BYTE, NULL);
-          glCompressedTexImage2DARB(m_TargetType, nLod, tfd, mp->USize, mp->VSize, 0, mp->DataArray.Num(), &mp->DataArray[0]);
+            GLR_TexImage2D(m_TargetType, 0, tfd, m_Width, m_Height, 0, tfs, GL_UNSIGNED_BYTE, NULL);
+          GLR_CompressedTexImage2D(m_TargetType, nLod, tfd, mp->USize, mp->VSize, 0, mp->DataArray.Num(), &mp->DataArray[0]);
         }
         else
         {
           if (nLod && (!m_Mips[0][0] || !m_Mips[0][0]->m_bUploaded))
-            glTexImage2D(m_TargetType, 0, tfd, m_Width, m_Height, 0, tfs, GL_UNSIGNED_BYTE, NULL);
-          glTexImage2D(m_TargetType, nLod, tfd, mp->USize, mp->VSize, 0, tfs, GL_UNSIGNED_BYTE, &mp->DataArray[0]);
+            GLR_TexImage2D(m_TargetType, 0, tfd, m_Width, m_Height, 0, tfs, GL_UNSIGNED_BYTE, NULL);
+          GLR_TexImage2D(m_TargetType, nLod, tfd, mp->USize, mp->VSize, 0, tfs, GL_UNSIGNED_BYTE, &mp->DataArray[0]);
         }
         mp->m_bUploaded = true;
       }
@@ -141,14 +141,14 @@ bool STexPic::UploadMips(int nStartMip, int nEndMip)
           if (m_ETF == eTF_DXT1 || m_ETF == eTF_DXT3 || m_ETF == eTF_DXT5)
           {
             if (nLod && (!m_Mips[0][0] || !m_Mips[0][0]->m_bUploaded))
-              glTexImage2D(tgt, 0, tfd, m_Width, m_Height, 0, tfs, GL_UNSIGNED_BYTE, NULL);
-            glCompressedTexImage2DARB(tgt, nLod, tfd, mp->USize, mp->VSize, 0, mp->DataArray.Num(), &mp->DataArray[0]);
+              GLR_TexImage2D(tgt, 0, tfd, m_Width, m_Height, 0, tfs, GL_UNSIGNED_BYTE, NULL);
+            GLR_CompressedTexImage2D(tgt, nLod, tfd, mp->USize, mp->VSize, 0, mp->DataArray.Num(), &mp->DataArray[0]);
           }
           else
           {
             if (nLod && (!m_Mips[0][0] || !m_Mips[0][0]->m_bUploaded))
-              glTexImage2D(tgt, 0, tfd, m_Width, m_Height, 0, tfs, GL_UNSIGNED_BYTE, NULL);
-            glTexImage2D(tgt, nLod, tfd, mp->USize, mp->VSize, 0, tfs, GL_UNSIGNED_BYTE, &mp->DataArray[0]);
+              GLR_TexImage2D(tgt, 0, tfd, m_Width, m_Height, 0, tfs, GL_UNSIGNED_BYTE, NULL);
+            GLR_TexImage2D(tgt, nLod, tfd, mp->USize, mp->VSize, 0, tfs, GL_UNSIGNED_BYTE, &mp->DataArray[0]);
           }
           mp->m_bUploaded = true;
         }
@@ -168,9 +168,9 @@ bool STexPic::UploadMips(int nStartMip, int nEndMip)
           continue;
         int nLod = i-nStartMip;
         if (m_ETF == eTF_DXT1 || m_ETF == eTF_DXT3 || m_ETF == eTF_DXT5)
-          glCompressedTexImage2DARB(m_TargetType, nLod, tfd, mp->USize, mp->VSize, 0, mp->DataArray.Num(), &mp->DataArray[0]);
+          GLR_CompressedTexImage2D(m_TargetType, nLod, tfd, mp->USize, mp->VSize, 0, mp->DataArray.Num(), &mp->DataArray[0]);
         else
-          glTexImage2D(m_TargetType, nLod, tfd, mp->USize, mp->VSize, 0, tfs, GL_UNSIGNED_BYTE, &mp->DataArray[0]);
+          GLR_TexImage2D(m_TargetType, nLod, tfd, mp->USize, mp->VSize, 0, tfs, GL_UNSIGNED_BYTE, &mp->DataArray[0]);
         mp->m_bUploaded = true;
       }
     }
@@ -197,9 +197,9 @@ bool STexPic::UploadMips(int nStartMip, int nEndMip)
             continue;
           int nLod = i-nStartMip;
           if (m_ETF == eTF_DXT1 || m_ETF == eTF_DXT3 || m_ETF == eTF_DXT5)
-            glCompressedTexImage2DARB(tgt, nLod, tfd, mp->USize, mp->VSize, 0, mp->DataArray.Num(), &mp->DataArray[0]);
+            GLR_CompressedTexImage2D(tgt, nLod, tfd, mp->USize, mp->VSize, 0, mp->DataArray.Num(), &mp->DataArray[0]);
           else
-            glTexImage2D(tgt, nLod, tfd, mp->USize, mp->VSize, 0, tfs, GL_UNSIGNED_BYTE, &mp->DataArray[0]);
+            GLR_TexImage2D(tgt, nLod, tfd, mp->USize, mp->VSize, 0, tfs, GL_UNSIGNED_BYTE, &mp->DataArray[0]);
           mp->m_bUploaded = true;
         }
       }

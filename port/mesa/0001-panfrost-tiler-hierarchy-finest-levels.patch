@@ -1,0 +1,46 @@
+diff --git a/src/panfrost/lib/pan_util.h b/src/panfrost/lib/pan_util.h
+index a4b8deb..0cf1373 100644
+--- a/src/panfrost/lib/pan_util.h
++++ b/src/panfrost/lib/pan_util.h
+@@ -28,6 +28,9 @@
+ #ifndef PAN_UTIL_H
+ #define PAN_UTIL_H
+ 
++#include <stdlib.h>
++#include <string.h>
++
+ #include <stdbool.h>
+ #include <stdint.h>
+ #include "util/format/u_format.h"
+@@ -94,6 +97,31 @@ pan_select_tiler_hierarchy_mask(unsigned width, unsigned height,
+     * the tile being processed. On the other hand, it's hard to guess
+     * the draw pattern, so it's probably good enough for now.
+     */
++   /* RECry patch: with few hierarchy levels (Mali-G52/G31 report 2), always
++    * enabling the level that covers the whole framebuffer means every 16x16
++    * tile walks the polygon lists of 256 px bins once the framebuffer's
++    * largest side exceeds 496 px; for scenes with many primitives the walk
++    * dominates the frame (RG DS, Far Cry: 640x480 69.8 ms GPU per frame,
++    * 496x372 20.9 ms). Use the finest levels instead.
++    * RECRY_PAN_HIERARCHY_MASK=<hex> overrides the mask for testing;
++    * RECRY_PAN_HIERARCHY_MASK=upstream keeps Mesa's choice. */
++   {
++      static int override_read = 0;
++      static long override_mask = -1; /* -1 patched default, -2 upstream */
++      if (!override_read) {
++         const char *env = getenv("RECRY_PAN_HIERARCHY_MASK");
++         if (env && !strcmp(env, "upstream"))
++            override_mask = -2;
++         else if (env && *env)
++            override_mask = strtol(env, NULL, 16);
++         override_read = 1;
++      }
++      if (override_mask >= 0)
++         return (uint32_t)override_mask & BITFIELD_MASK(12);
++      if (override_mask == -1)
++         return hierarchy_mask;
++   }
++
+    if (last_hierarchy_bit > max_levels)
+       hierarchy_mask <<= last_hierarchy_bit - max_levels;
+ 

@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <map>
 /*=============================================================================
   GLES3FFP.cpp : fixed-function state core for the GLES3 renderer.
   See GLES3FFP.h for the overall contract.
@@ -19,6 +21,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "GLES3TexConvert.h"
+#include "GLTexUpload.h"
+#include "GLR.h"
 
 #ifndef APIENTRY
 #define APIENTRY
@@ -82,7 +86,7 @@ enum
   X(glGetUniformLocation) X(glUniform1i) X(glUniform1f) X(glUniform2fv) X(glUniform3fv) X(glUniform4fv) X(glUniformMatrix3fv) \
   X(glUniformMatrix4fv) X(glGenBuffers) X(glBufferData) X(glMapBufferRange) X(glGetBufferParameteriv) \
   X(glUnmapBuffer) X(glDepthRangef) X(glClearDepthf) X(glGenerateMipmap) X(glDeleteBuffers) X(glDeleteProgram) \
-  X(glBindVertexArray) X(glCompressedTexImage2D) X(glCompressedTexSubImage2D) X(glGetString) X(glPixelStorei) X(glDeleteTextures) X(glIsTexture) X(glReadPixels) X(glGetTexParameteriv) X(glProgramBinary) X(glGetProgramBinary) X(glProgramParameteri) X(glBufferSubData) X(glCopyTexSubImage2D) X(glDepthFunc) X(glHint)
+  X(glBindVertexArray) X(glCompressedTexImage2D) X(glCompressedTexSubImage2D) X(glGetString) X(glPixelStorei) X(glDeleteTextures) X(glIsTexture) X(glReadPixels) X(glGetTexParameteriv) X(glProgramBinary) X(glGetProgramBinary) X(glProgramParameteri) X(glBufferSubData) X(glCopyTexSubImage2D) X(glDepthFunc) X(glFinish) X(glHint)
 
 #define FFP_DECLARE_REAL(n) static decltype(&::n) r_##n = 0;
 FFP_REAL_LIST(FFP_DECLARE_REAL)
@@ -167,7 +171,7 @@ struct SClientArray { bool on; GLint size; GLenum type; GLsizei stride; const vo
 static int s_pendingColorSemantic = 0;
 static float s_forceEnvAlpha0 = -1.0f; // see GLES3FFPForceEnvAlpha0
 static const char* s_dumpLabel = ""; // diagnostic: shader name for frame dumps
-void GLES3FFPSetDumpLabel(const char* n) { s_dumpLabel = n ? n : ""; }
+void GLES3FFPSetDumpLabel(const char* n) { s_dumpLabel = n ? n : ""; GLR::SetDebugLabel(s_dumpLabel); }
 static SClientArray s_vertexArr, s_colorArr, s_normalArr, s_color2Arr, s_texArr[MAX_UNITS];
 static float s_curColor[4] = {1,1,1,1}, s_curNormal[3] = {0,0,1}, s_curTex[MAX_UNITS][4];
 static GLuint s_arrayBuffer = 0, s_elementBuffer = 0;
@@ -225,9 +229,14 @@ static bool s_lighting = false, s_colorMaterial = false, s_alphaTest = false, s_
 static GLenum s_alphaFunc = GL_ALWAYS; static float s_alphaRef = 0;
 static GLenum s_fogMode = D_EXP; static float s_fogStart = 0, s_fogEnd = 1, s_fogDensity = 1, s_fogColor[4] = {0,0,0,0};
 static bool s_stateDirty = true;
+// Native renderer hand-over: native draws leave the real bindings changed;
+// the layer restores them before its next draw (GLES3FFPRestoreState).
+static bool s_nativeDirty = false;
+void GLES3FFPMarkNativeDirty() { s_nativeDirty = true; }
+void GLES3FFPRestoreState();
+static inline void RestoreIfNative() { if (s_nativeDirty) GLES3FFPRestoreState(); }
 
 // Per-texture info needed at upload time.
-static std::unordered_map<GLuint, bool> s_autoMip;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Program generation
@@ -342,6 +351,10 @@ static SKey BuildKey()
   k.colorMaterial = s_lighting && s_colorMaterial;
   k.colorBrightness = s_colorArr.on ? (uint8_t)s_colorArr.semantic : 0;
   k.audit = (s_audit && s_dumpState == 1) ? 1 : 0;
+  // Diagnostic: FARCRY_GLES3_FLAT=1 draws every pixel in a constant colour
+  // (no texture sampling, no per-pixel shading, no discard): GPU cost bisection.
+  static const bool s_flat = getenv("FARCRY_GLES3_FLAT") != NULL;
+  if (s_flat) { k.audit = 1; k.alphaFunc = 0; }
   return k;
 }
 
@@ -476,15 +489,19 @@ static SProgram BuildProgram(const SKey& k)
   std::string vs = "#version 300 es\nprecision highp float;\n"
     "in vec4 aPos; in vec4 aColor; in vec3 aNormal; in vec4 aTex0; in vec4 aTex1; in vec4 aTex2; in vec4 aTex3;\n"
     "uniform mat4 uMV; uniform mat4 uP; uniform mat3 uNormalMat;\n"
-    "out vec4 vColor; out float vFogDist;\n";
-  std::string fs = "#version 300 es\nprecision highp float;\nin vec4 vColor; in float vFogDist;\nout vec4 oColor;\n";
+    "out VP vec4 vColor; out float vFogDist;\n";
+  // Diagnostic: FARCRY_GLES3_MEDIUMP_VARYINGS=1 passes colour and texture
+  // coordinates at half precision (less per-vertex data for tile-based GPUs).
+  static const char* s_vp = getenv("FARCRY_GLES3_MEDIUMP_VARYINGS") ? "#define VP mediump\n" : "#define VP highp\n";
+  vs.insert(vs.find('\n', vs.find("precision")) + 1, s_vp);
+  std::string fs = std::string("#version 300 es\nprecision highp float;\n") + s_vp + "in VP vec4 vColor; in float vFogDist;\nout vec4 oColor;\n";
   char b[256];
   bool needNormal = k.lights != 0;
   for (int u = 0; u < MAX_UNITS; ++u)
   {
     if (!k.tex[u]) continue;
-    snprintf(b, sizeof(b), "uniform mat4 uTexMat%d; uniform mat4 uGenObj%d; uniform mat4 uGenEye%d; out vec4 vTex%d;\n", u, u, u, u); vs += b;
-    snprintf(b, sizeof(b), "in vec4 vTex%d; uniform %s uTex%d; uniform vec4 uEnvColor%d; uniform vec2 uEnvScale%d;\n",
+    snprintf(b, sizeof(b), "uniform mat4 uTexMat%d; uniform mat4 uGenObj%d; uniform mat4 uGenEye%d; out VP vec4 vTex%d;\n", u, u, u, u); vs += b;
+    snprintf(b, sizeof(b), "in VP vec4 vTex%d; uniform %s uTex%d; uniform vec4 uEnvColor%d; uniform vec2 uEnvScale%d;\n",
              u, k.tex[u] == 2 ? "samplerCube" : "sampler2D", u, u, u); fs += b;
     for (int c = 0; c < 4; ++c) if (k.gen[u][c] >= 3) needNormal = true;
   }
@@ -804,9 +821,35 @@ static void (*s_auditHook)() = NULL;
 void GLES3FFPSetAuditHook(void (*hook)()) { s_auditHook = hook; }
 static bool s_dumpRequested = false; // set by the SIGUSR2 snapshot (live debugging)
 void GLES3FFPRequestDump() { s_dumpRequested = true; }
+// GPU profiler state (FARCRY_GPU_PROFILE, see SDrawTick).
+static bool s_gpuProfFrame = false;
+static Uint64 s_gpuProfLastEnd = 0;
+static std::map<std::string, std::pair<double, int> > s_gpuProf;
+static double GpuProfMs(Uint64 a, Uint64 b) { return (double)(b - a) * 1000.0 / (double)SDL_GetPerformanceFrequency(); }
 void GLES3FFPFrameBoundary()
 {
   ++s_frameCounter; ++s_diagFrame;
+  {
+    static const bool s_on = getenv("FARCRY_GPU_PROFILE") != NULL;
+    if (s_gpuProfFrame)
+    {
+      s_gpuProfFrame = false;
+      r_glFinish();
+      if (s_gpuProfLastEnd) s_gpuProf["(between draws)"].first += GpuProfMs(s_gpuProfLastEnd, SDL_GetPerformanceCounter());
+      std::vector<std::pair<double, std::string> > v; double total = 0;
+      for (auto& e : s_gpuProf) { v.push_back(std::make_pair(e.second.first, e.first + " x" + std::to_string(e.second.second))); total += e.second.first; }
+      std::sort(v.rbegin(), v.rend());
+      fprintf(stderr, "PORT gpuprof frame=%u total=%.2fms\n", s_diagFrame, total);
+      for (size_t i = 0; i < v.size() && i < 25; ++i) fprintf(stderr, "PORT gpuprof   %7.2fms %s\n", v[i].first, v[i].second.c_str());
+      s_gpuProf.clear(); s_gpuProfLastEnd = 0;
+    }
+    static Uint32 s_nextProf = 0;
+    if (s_on && SDL_GetTicks() >= s_nextProf)
+    {
+      if (s_nextProf) { s_gpuProfFrame = true; r_glFinish(); }
+      s_nextProf = SDL_GetTicks() + 10000;
+    }
+  }
   static const char* s_env = getenv("FARCRY_GLES3_DUMP_FRAME");
   if (s_dumpRequested && s_dumpState != 1)
   {
@@ -1019,12 +1062,31 @@ struct SAuditNoBlend
 struct STickScope { Uint64& acc; Uint64 t0; explicit STickScope(Uint64& a) : acc(a), t0(SDL_GetPerformanceCounter()) {} ~STickScope() { acc += SDL_GetPerformanceCounter() - t0; } };
 // Diagnostic: log draw calls that block in the driver (FARCRY_GLES3_SLOW_DRAW_MS=<ms>).
 static double SlowDrawThresholdMs() { static const double t = getenv("FARCRY_GLES3_SLOW_DRAW_MS") ? atof(getenv("FARCRY_GLES3_SLOW_DRAW_MS")) : 0.0; return t; }
+// Diagnostic: FARCRY_GPU_PROFILE=1 profiles one frame every 10 s: a
+// glFinish before and after every draw gives each draw's GPU time, summed
+// per shader (label) and logged as "PORT gpuprof ...". Work outside draws
+// (clears, copies, presents) is reported as "(between draws)".
 struct SDrawTick
 {
   Uint64& acc; Uint64 t0; const char* kind; int count;
-  SDrawTick(Uint64& a, const char* k, int n) : acc(a), t0(SDL_GetPerformanceCounter()), kind(k), count(n) {}
+  SDrawTick(Uint64& a, const char* k, int n) : acc(a), t0(0), kind(k), count(n)
+  {
+    if (s_gpuProfFrame)
+    {
+      r_glFinish();
+      const Uint64 now = SDL_GetPerformanceCounter();
+      if (s_gpuProfLastEnd) { auto& e = s_gpuProf["(between draws)"]; e.first += GpuProfMs(s_gpuProfLastEnd, now); }
+    }
+    t0 = SDL_GetPerformanceCounter();
+  }
   ~SDrawTick()
   {
+    if (s_gpuProfFrame)
+    {
+      r_glFinish();
+      s_gpuProfLastEnd = SDL_GetPerformanceCounter();
+      auto& e = s_gpuProf[s_dumpLabel[0] ? s_dumpLabel : kind]; e.first += GpuProfMs(t0, s_gpuProfLastEnd); ++e.second;
+    }
     const Uint64 d = SDL_GetPerformanceCounter() - t0; acc += d;
     // Diagnostic: FARCRY_GLES3_DRAW_TRACE=<part of a shader name> logs every such draw.
     static const char* s_trace = getenv("FARCRY_GLES3_DRAW_TRACE");
@@ -1055,8 +1117,27 @@ struct SDrawTick
   }
 };
 
+// Diagnostic: FARCRY_GLES3_SKIP_SHADER=<a,b,...> drops draws whose shader
+// label contains any of the parts (GPU cost bisection on tile-based GPUs).
+static bool SkipShaderDraw()
+{
+  static const char* s_skip = getenv("FARCRY_GLES3_SKIP_SHADER");
+  if (!s_skip || !*s_skip || !s_dumpLabel[0]) return false;
+  const char* p = s_skip;
+  while (*p)
+  {
+    const char* e = strchr(p, ',');
+    const size_t n = e ? (size_t)(e - p) : strlen(p);
+    if (n) { std::string part(p, n); if (strstr(s_dumpLabel, part.c_str())) return true; }
+    if (!e) break;
+    p = e + 1;
+  }
+  return false;
+}
 static void APIENTRY f_glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
+  RestoreIfNative();
+  if (SkipShaderDraw()) return;
   if (FFPActive()) DumpDraw("arrays", count);
   SAuditNoBlend auditNoBlend;
   ++s_statDraws; s_statVerts += (unsigned)count; CountArraySource(count);
@@ -1142,6 +1223,8 @@ static void DumpUniforms()
 
 static void APIENTRY f_glDrawElements(GLenum mode, GLsizei count, GLenum type, const void* indices)
 {
+  RestoreIfNative();
+  if (SkipShaderDraw()) return;
   if (SkipMulDraw()) return;
   ++s_statDraws; s_statVerts += (unsigned)count; CountArraySource(count);
   ValidateIndexed(mode, count, type, indices);
@@ -1157,11 +1240,23 @@ static void APIENTRY f_glDrawElements(GLenum mode, GLsizei count, GLenum type, c
     return;
   }
   SDrawTick tg(s_ticksGL, "elements", (int)count);
+  // Diagnostic: FARCRY_GLES3_SPLIT_DRAWS=1 issues triangle draws as two halves
+  // (same triangles, twice the draw calls): measures per-draw GPU cost.
+  static const bool s_split = getenv("FARCRY_GLES3_SPLIT_DRAWS") != NULL;
+  if (s_split && mode == GL_TRIANGLES && count >= 6)
+  {
+    const GLsizei a = (count / 6) * 3, isz = type == GL_UNSIGNED_INT ? 4 : (type == GL_UNSIGNED_SHORT ? 2 : 1);
+    r_glDrawElements(mode, a, type, indices);
+    r_glDrawElements(mode, count - a, type, (const char*)indices + (size_t)a * isz);
+    return;
+  }
   r_glDrawElements(mode, count, type, indices);
 }
 
 static void APIENTRY f_glDrawRangeElements(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const void* indices)
 {
+  RestoreIfNative();
+  if (SkipShaderDraw()) return;
   if (IsDesktopPrim(mode)) { f_glDrawElements(mode, count, type, indices); return; }
   ++s_statDraws; s_statVerts += (unsigned)count; CountArraySource(count);
   ValidateIndexed(mode, count, type, indices);
@@ -1169,6 +1264,14 @@ static void APIENTRY f_glDrawRangeElements(GLenum mode, GLuint start, GLuint end
   SAuditNoBlend auditNoBlend;
   if (FFPActive()) { STickScope ts(s_ticksFFP); ApplyProgram(); SetupClientArrays(); }
   SDrawTick tg(s_ticksGL, "range", (int)count);
+  static const bool s_split = getenv("FARCRY_GLES3_SPLIT_DRAWS") != NULL; // diagnostic, see f_glDrawElements
+  if (s_split && mode == GL_TRIANGLES && count >= 6)
+  {
+    const GLsizei a = (count / 6) * 3, isz = type == GL_UNSIGNED_INT ? 4 : (type == GL_UNSIGNED_SHORT ? 2 : 1);
+    r_glDrawRangeElements(mode, start, end, a, type, indices);
+    r_glDrawRangeElements(mode, start, end, count - a, type, (const char*)indices + (size_t)a * isz);
+    return;
+  }
   r_glDrawRangeElements(mode, start, end, count, type, indices);
 }
 
@@ -1193,6 +1296,7 @@ static void ImmVertex(float x, float y, float z, float w)
 
 static void APIENTRY f_glEnd()
 {
+  RestoreIfNative();
   s_inBegin = false;
   if (s_imm.empty()) return;
   ++s_statDraws; s_statVerts += (unsigned)s_imm.size(); ++s_statImmDraws;
@@ -1282,7 +1386,11 @@ static void APIENTRY f_glColorPointer(GLint size, GLenum type, GLsizei stride, c
   s_colorArr.semantic = s_pendingColorSemantic;
   s_pendingColorSemantic = 0;
 }
-void GLES3FFPMarkNextColorArray(int semantic) { s_pendingColorSemantic = semantic; }
+void GLES3FFPMarkNextColorArray(int semantic)
+{
+  s_pendingColorSemantic = semantic;
+  if (GLR::Active()) GLR::SetColorSemantic(semantic);   // native backend: same colour semantics
+}
 static void APIENTRY f_glNormalPointer(GLenum type, GLsizei stride, const void* ptr) { SetArray(s_normalArr, 3, type, stride, ptr); }
 static void APIENTRY f_glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const void* ptr)
 {
@@ -1325,6 +1433,7 @@ static GLuint s_mappedShadow[2] = { 0, 0 }; // [0] array, [1] element
 static GLuint BoundBufferFor(GLenum target) { return target == GL_ELEMENT_ARRAY_BUFFER ? s_elementBuffer : s_arrayBuffer; }
 static void* APIENTRY f_glMapBuffer(GLenum target, GLenum access)
 {
+  RestoreIfNative();
   GLint size = 0;
   r_glGetBufferParameteriv(target, GL_BUFFER_SIZE, &size);
   if (size <= 0) return NULL;
@@ -1403,6 +1512,7 @@ static void* APIENTRY f_glMapBuffer(GLenum target, GLenum access)
 }
 static GLboolean APIENTRY f_glUnmapBuffer(GLenum target)
 {
+  RestoreIfNative();
   const int slot = target == GL_ELEMENT_ARRAY_BUFFER;
   if ((target == GL_ARRAY_BUFFER || target == GL_ELEMENT_ARRAY_BUFFER) && s_mappedShadow[slot] && s_mappedShadow[slot] == BoundBufferFor(target))
   {
@@ -1414,13 +1524,138 @@ static GLboolean APIENTRY f_glUnmapBuffer(GLenum target)
   }
   return r_glUnmapBuffer(target);
 }
+void GLNForgetBuffer(unsigned buffer);   // GLNative.cpp
 static void APIENTRY f_glDeleteBuffers(GLsizei n, const GLuint* bufs)
 {
-  for (GLsizei i = 0; i < n; ++i) { s_shadowBufs.erase(bufs[i]); DropRing(bufs[i]); }
+  RestoreIfNative();
+  for (GLsizei i = 0; i < n; ++i)
+  {
+    s_shadowBufs.erase(bufs[i]);
+    auto rit = s_bufRings.find(bufs[i]);
+    if (rit != s_bufRings.end()) for (int k = 0; k < rit->second.n; ++k) GLNForgetBuffer(rit->second.ids[k]);
+    GLNForgetBuffer(bufs[i]);
+    DropRing(bufs[i]);
+  }
   r_glDeleteBuffers(n, bufs);
 }
 
 static void APIENTRY f_glUseProgram(GLuint prog) { s_userProgram = prog; s_boundProg = prog; r_glUseProgram(prog); }
+
+// Native mesh path (GLNMesh.h): current matrices until matrix setup is native.
+void GLES3FFPGetMatrices(float mv[16], float proj[16]) { memcpy(mv, Modelview(), 64); memcpy(proj, Projection(), 64); }
+bool GLES3FFPHasEnvOverride() { return s_forceEnvAlpha0 >= 0.0f; }
+// Diagnostic for the native path: the layer's texcoord array of a unit.
+void GLES3FFPTexArrayInfo(int u, int* on, unsigned* buffer, long* offset, int* stride)
+{
+  *on = s_texArr[u].on; *buffer = s_texArr[u].buffer; *offset = (long)(size_t)s_texArr[u].ptr; *stride = (int)s_texArr[u].stride;
+}
+// Native mesh path (GLNMesh.h): resolved lighting and texgen state until the
+// engine-side capture is native.
+#include "GLNMesh.h"
+void GLES3FFPGetLighting(GLNLighting* L)
+{
+  memset(L, 0, sizeof(*L));
+  L->on = s_lighting;
+  L->colorMaterial = s_colorMaterial;
+  for (int i = 0; i < MAX_LIGHTS && L->on; ++i)
+  {
+    if (!s_light[i].on) continue;
+    const int n = L->count++;
+    memcpy(L->pos[n], s_light[i].pos, 16); memcpy(L->amb[n], s_light[i].amb, 16);
+    memcpy(L->diff[n], s_light[i].diff, 16); memcpy(L->att[n], s_light[i].att, 12);
+  }
+  memcpy(L->matAmb, s_matAmb, 16); memcpy(L->matDiff, s_matDiff, 16); memcpy(L->matEmis, s_matEmis, 16); memcpy(L->sceneAmb, s_sceneAmb, 16);
+  float inv[16]; MatInverse(inv, Modelview());
+  const float n9[9] = { inv[0], inv[4], inv[8], inv[1], inv[5], inv[9], inv[2], inv[6], inv[10] };
+  memcpy(L->normalMat, n9, sizeof(n9));
+}
+// Vertex streams as the layer has them (every engine path sets them through
+// gl*Pointer), the index buffer, and the current colour / texcoords.
+static void StreamFrom(const SClientArray& a, GLNMeshStream& s, bool norm)
+{
+  memset(&s, 0, sizeof(s));
+  if (!a.on || !a.buffer) return;
+  static const int bytes[] = { 1, 1, 2, 2, 4, 4, 4 };   // GL_BYTE..GL_FLOAT
+  const int tsz = (a.type >= 0x1400 && a.type <= 0x1406) ? bytes[a.type - 0x1400] : 4;
+  const int size = a.size == 0x80E1 ? 4 : a.size;
+  s.buffer = RealBuf(a.buffer); s.offset = (unsigned)(size_t)a.ptr;
+  s.stride = a.stride ? a.stride : size * tsz; s.size = size; s.type = a.type; s.normalized = norm;
+}
+bool GLES3FFPGetArrays(GLNMeshDraw* d, float curColor[4], float curTex[4][4])
+{
+  if (s_vertexArr.on && !s_vertexArr.buffer) return false;     // client memory
+  if (s_colorArr.on && !s_colorArr.buffer) return false;
+  StreamFrom(s_vertexArr, d->pos, false);
+  StreamFrom(s_colorArr, d->color, true);
+  StreamFrom(s_normalArr, d->normal, false);
+  d->colorSemantic = s_colorArr.on ? s_colorArr.semantic : 0;
+  for (int u = 0; u < MAX_UNITS; ++u)
+  {
+    if (s_texArr[u].on && !s_texArr[u].buffer) return false;
+    StreamFrom(s_texArr[u], d->tex[u], false);
+    memcpy(curTex[u], s_curTex[u], 16);
+  }
+  if (s_normalArr.on && !s_normalArr.buffer) memset(&d->normal, 0, sizeof(d->normal));
+  d->indexBuffer = s_elementBuffer ? RealBuf(s_elementBuffer) : 0;
+  memcpy(curColor, s_curColor, 16);
+  return true;
+}
+// Fog in effect (the engine also switches it with direct glFog calls).
+void GLES3FFPGetFog(int* mode, float* start, float* end, float* density, float color[3])
+{
+  *mode = !s_fog ? 0 : (s_fogMode == D_LINEAR_FOG ? 1 : (s_fogMode == D_EXP2 ? 3 : 2));
+  *start = s_fogStart; *end = s_fogEnd; *density = s_fogDensity;
+  color[0] = s_fogColor[0]; color[1] = s_fogColor[1]; color[2] = s_fogColor[2];
+}
+void GLES3FFPGetTexGen(int u, GLNTexGen* G)
+{
+  memset(G, 0, sizeof(*G));
+  if (u < 0 || u >= MAX_UNITS) return;
+  const SUnit& U = s_unit[u];
+  G->cube = U.enCube;
+  memcpy(G->envColor, U.env.color, 16); G->scaleRGB = U.env.scaleRGB; G->scaleA = U.env.scaleA;
+  G->texture = U.enCube ? s_boundCube[u] : s_bound2D[u];   // engine paths bind directly, bypassing its own cache
+  for (int c = 0; c < 4; ++c) G->gen[c] = U.gen[c] ? GenIndex(U.genMode[c]) : 0;
+  memcpy(G->obj, U.objPlane, 64); memcpy(G->eye, U.eyePlane, 64);
+  G->texMatOn = !MatIsIdentity(TexMatrix(u));
+  memcpy(G->texMat, TexMatrix(u), 64);
+}
+// Texgen or a texture matrix on any enabled unit (not native yet).
+bool GLES3FFPUsesTexGen()
+{
+  for (int u = 0; u < MAX_UNITS; ++u)
+  {
+    const SUnit& U = s_unit[u];
+    if (!U.en2D && !U.enCube) continue;
+    if (U.gen[0] || U.gen[1] || U.gen[2] || U.gen[3]) return true;
+    if (!MatIsIdentity(TexMatrix(u))) return true;
+  }
+  return false;
+}
+
+// Native renderer hand-over (GLNative.h): native code bound its own VAOs,
+// program, textures and buffers; put back what this layer believes is bound.
+double g_GLNRestoreMs = 0;   // diagnostic (FARCRY_NATIVE_PROFILE)
+void GLES3FFPRestoreState()
+{
+  static const bool s_prof = getenv("FARCRY_NATIVE_PROFILE") != NULL;
+  struct T { bool on; timespec a; T(bool o) : on(o) { if (on) clock_gettime(CLOCK_MONOTONIC, &a); }
+    ~T() { if (on) { timespec b; clock_gettime(CLOCK_MONOTONIC, &b); g_GLNRestoreMs += (b.tv_sec - a.tv_sec) * 1e3 + (b.tv_nsec - a.tv_nsec) / 1e6; } } } t(s_prof);
+  s_nativeDirty = false;
+  r_glBindVertexArray(0);
+  r_glUseProgram(s_userProgram);   // the engine's own program, or none
+  s_boundProg = s_userProgram;
+  for (int u = 0; u < MAX_UNITS; ++u)
+  {
+    r_glActiveTexture(GL_TEXTURE0 + u);
+    r_glBindTexture(GL_TEXTURE_2D, s_bound2D[u]);
+    r_glBindTexture(D_TEXTURE_CUBE_MAP, s_boundCube[u]);
+  }
+  r_glActiveTexture(GL_TEXTURE0 + (s_activeUnit < MAX_UNITS ? s_activeUnit : 0));
+  BindReal(GL_ARRAY_BUFFER, s_arrayBuffer);
+  BindReal(GL_ELEMENT_ARRAY_BUFFER, s_elementBuffer);
+  s_stateDirty = true;
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Matrices
@@ -1500,6 +1735,10 @@ static bool PassThroughCap(GLenum cap)
 
 static void SetCap(GLenum cap, bool on)
 {
+  // Diagnostic: FARCRY_GLES3_NO_DEPTH=1 keeps the depth test (and so depth
+  // writes) off: GPU cost bisection of depth-buffer traffic.
+  static const bool s_noDepth = getenv("FARCRY_GLES3_NO_DEPTH") != NULL;
+  if (s_noDepth && cap == GL_DEPTH_TEST) on = false;
   if (PassThroughCap(cap)) { if (on) r_glEnable(cap); else r_glDisable(cap); return; }
   SUnit& U = s_unit[s_activeUnit < MAX_UNITS ? s_activeUnit : 0];
   switch (cap)
@@ -1698,483 +1937,55 @@ static void APIENTRY f_glBindTexture(GLenum target, GLuint tex)
   r_glBindTexture(target, tex);
 }
 
-static bool ValidTexParam(GLenum pname)
-{
-  switch (pname)
-  {
-    case GL_TEXTURE_MIN_FILTER: case GL_TEXTURE_MAG_FILTER: case GL_TEXTURE_WRAP_S: case GL_TEXTURE_WRAP_T: case GL_TEXTURE_WRAP_R:
-    case GL_TEXTURE_MIN_LOD: case GL_TEXTURE_MAX_LOD: case GL_TEXTURE_BASE_LEVEL: case GL_TEXTURE_MAX_LEVEL:
-    case GL_TEXTURE_COMPARE_MODE: case GL_TEXTURE_COMPARE_FUNC: case D_TEXTURE_MAX_ANISOTROPY:
-    case GL_TEXTURE_SWIZZLE_R: case GL_TEXTURE_SWIZZLE_G: case GL_TEXTURE_SWIZZLE_B: case GL_TEXTURE_SWIZZLE_A:
-      return true;
-  }
-  return false;
-}
 static GLenum TexTarget(GLenum t) { return t == D_TEXTURE_RECTANGLE ? GL_TEXTURE_2D : t; }
 
-static void APIENTRY f_glTexParameteri(GLenum target, GLenum pname, GLint v)
-{
-  target = TexTarget(target);
-  if (pname == D_GENERATE_MIPMAP) { s_autoMip[BoundTexture(target)] = v != 0; return; }
-  if (!ValidTexParam(pname)) return;
-  if (v == D_CLAMP || v == D_CLAMP_TO_BORDER) v = GL_CLAMP_TO_EDGE;
-  r_glTexParameteri(target, pname, v);
-}
-static void APIENTRY f_glTexParameterf(GLenum target, GLenum pname, GLfloat v)
-{
-  if (pname == D_TEXTURE_MAX_ANISOTROPY || pname == GL_TEXTURE_MIN_LOD || pname == GL_TEXTURE_MAX_LOD)
-  { if (ValidTexParam(pname)) r_glTexParameterf(TexTarget(target), pname, v); return; }
-  f_glTexParameteri(target, pname, (GLint)v);
-}
+static void APIENTRY f_glTexParameteri(GLenum target, GLenum pname, GLint v) { RestoreIfNative(); GLTex::Param(BoundTexture(TexTarget(target)), target, pname, v); }
+static void APIENTRY f_glTexParameterf(GLenum target, GLenum pname, GLfloat v) { RestoreIfNative(); GLTex::ParamF(BoundTexture(TexTarget(target)), target, pname, v); }
 static void APIENTRY f_glTexParameteriv(GLenum target, GLenum pname, const GLint* v) { f_glTexParameteri(target, pname, v[0]); }
 static void APIENTRY f_glTexParameterfv(GLenum target, GLenum pname, const GLfloat* v) { f_glTexParameterf(target, pname, v[0]); }
 
-static std::vector<unsigned char> s_convBuf;
-
-// Map a desktop (internalformat, format, type) upload to an ES3 one. Returns
-// the pixel pointer to upload (possibly converted into s_convBuf).
-static const void* ConvertUpload(GLint& internal, GLenum& format, GLenum& type, GLsizei w, GLsizei h, const void* pixels, bool& alphaOnly, bool& intensity)
+// GLTexUpload backend of the layer: uploads target the texture bound on the
+// active unit (re-bound around the operation, the engine's binding restored).
+static GLenum s_texOpTarget = 0;
+static void LayerTexBind(unsigned target, unsigned tex)
 {
-  alphaOnly = intensity = false;
-  switch (internal)
-  {
-    case 1: case D_LUMINANCE8: internal = D_LUMINANCE; break;
-    case 2: case D_LUMINANCE8_ALPHA8: internal = D_LUMINANCE_ALPHA; break;
-    case 3: case D_RGB4: case D_RGB5: case D_RGB8: internal = GL_RGB; break;
-    case 4: case D_RGBA2: case D_RGBA4: case D_RGB5_A1: case D_RGBA8: internal = GL_RGBA; break;
-    case D_ALPHA8: internal = D_ALPHA; break;
-    // Uncompressed data with a DXT internal format asks the driver to
-    // compress (sprites, FT2_FORCEDXT). Drivers without S3TC reject that and
-    // leave the texture incomplete (black), so store it uncompressed.
-    case 0x83F0: internal = GL_RGB; break;
-    case 0x83F1: case 0x83F2: case 0x83F3: internal = GL_RGBA; break;
-    case D_INTENSITY: case D_INTENSITY8: internal = D_LUMINANCE; intensity = true; break;
-  }
-  if (type == D_UNSIGNED_INT_8_8_8_8_REV) type = GL_UNSIGNED_BYTE;
-  // Sized formats passed as the pixel format (fonts: GL_ALPHA8) are not valid
-  // ES pixel formats; sub-image uploads then mismatch and fail.
-  if (format == D_ALPHA8) format = D_ALPHA;
-  if (format == D_LUMINANCE8) format = D_LUMINANCE;
-  if (format == D_LUMINANCE8_ALPHA8) format = D_LUMINANCE_ALPHA;
-  if (format == D_ALPHA) alphaOnly = true;
-  if ((format == D_BGRA || format == D_BGR) && type == GL_UNSIGNED_BYTE)
-  {
-    const int bpp = format == D_BGRA ? 4 : 3;
-    format = format == D_BGRA ? GL_RGBA : GL_RGB;
-    if (pixels)
-    {
-      // Engine uploads are tightly packed; the default unpack alignment of
-      // 4 is satisfied for RGBA and handled row-by-row for RGB below.
-      const size_t rowIn = ((size_t)w * bpp + 3) & ~(size_t)3;
-      s_convBuf.resize(rowIn * h);
-      for (GLsizei y = 0; y < h; ++y)
-      {
-        const unsigned char* s = (const unsigned char*)pixels + rowIn * y;
-        unsigned char* d = s_convBuf.data() + rowIn * y;
-        for (GLsizei x = 0; x < w; ++x, s += bpp, d += bpp)
-        { d[0] = s[2]; d[1] = s[1]; d[2] = s[0]; if (bpp == 4) d[3] = s[3]; }
-      }
-      pixels = s_convBuf.data();
-    }
-  }
-  // ES unsized formats require internalformat == format.
-  if (internal == GL_RGB || internal == GL_RGBA || internal == D_LUMINANCE || internal == D_LUMINANCE_ALPHA || internal == D_ALPHA)
-    internal = (GLint)format;
-  return pixels;
+  GLenum t = TexTarget(target);
+  if (t >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && t <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z) t = GL_TEXTURE_CUBE_MAP;
+  s_texOpTarget = t;
+  r_glBindTexture(t, tex);
 }
-
-static std::unordered_map<GLuint, GLenum> s_texFormat;
+static void LayerTexDone()
+{
+  if (s_texOpTarget) r_glBindTexture(s_texOpTarget, BoundTexture(s_texOpTarget));
+  s_texOpTarget = 0;
+}
+static void LayerUploadStats(double ms, uint64_t bytes) { s_ticksUp += (Uint64)(ms * SDL_GetPerformanceFrequency() / 1000.0); s_upBytes += bytes; }
+static void LayerTexLog(const char* m) { FFPLog("%s", m); }
+static GLTex::Backend LayerTexBackend()
+{
+  GLTex::Backend b; b.bind = LayerTexBind; b.done = LayerTexDone; b.uploadStats = LayerUploadStats; b.log = LayerTexLog;
+  return b;
+}
+// Uploads: shared with the native backend (GLTexUpload.cpp); the layer
+// passes the texture bound on the active unit.
 static void APIENTRY f_glTexImage2D(GLenum target, GLint level, GLint internal, GLsizei w, GLsizei h, GLint border, GLenum format, GLenum type, const void* pixels)
-{
-  NoteTexUpload();
-  SUpScope upScope((uint64_t)w * h * 4);
-  target = TexTarget(target);
-  if (target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z && getenv("FARCRY_GLES3_TRACE_CUBE"))
-    fprintf(stderr, "CUBEUP raw tex=%u face=%d level=%d %dx%d int=0x%x fmt=0x%x\n", BoundTexture(GL_TEXTURE_CUBE_MAP), target - GL_TEXTURE_CUBE_MAP_POSITIVE_X, level, w, h, internal, format);
-  bool alphaOnly, intensity;
-  pixels = ConvertUpload(internal, format, type, w, h, pixels, alphaOnly, intensity);
-  r_glTexImage2D(target, level, internal, w, h, 0, format, type, pixels);
-  if (level == 0 && target == GL_TEXTURE_2D) s_texFormat[BoundTexture(target)] = format; // for later sub-image uploads
-  if (level == 0 && target != GL_TEXTURE_CUBE_MAP)
-  {
-    GLenum t = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z ? (GLenum)GL_TEXTURE_CUBE_MAP : target;
-    // ES samples ALPHA textures as (0,0,0,a); fixed-function MODULATE expects
-    // the colour untouched, so swizzle RGB to one. INTENSITY replicates to A.
-    if (alphaOnly) { r_glTexParameteri(t, GL_TEXTURE_SWIZZLE_R, GL_ONE); r_glTexParameteri(t, GL_TEXTURE_SWIZZLE_G, GL_ONE); r_glTexParameteri(t, GL_TEXTURE_SWIZZLE_B, GL_ONE); }
-    if (intensity) r_glTexParameteri(t, GL_TEXTURE_SWIZZLE_A, GL_RED);
-    auto it = s_autoMip.find(BoundTexture(t));
-    if (it != s_autoMip.end() && it->second && t == GL_TEXTURE_2D) r_glGenerateMipmap(t);
-  }
-}
-
+{ RestoreIfNative(); NoteTexUpload(); GLTex::Image2D(BoundTexture(TexTarget(target)), target, level, internal, w, h, border, format, type, pixels); }
 static void APIENTRY f_glTexSubImage2D(GLenum target, GLint level, GLint x, GLint y, GLsizei w, GLsizei h, GLenum format, GLenum type, const void* pixels)
-{
-  NoteTexUpload();
-  SUpScope upScope((uint64_t)w * h * 4);
-  target = TexTarget(target);
-  // Fast path: 32-bit BGRA into an RGB texture (movie frames) in one pass.
-  if (target == GL_TEXTURE_2D && format == D_BGRA && (type == GL_UNSIGNED_BYTE || type == D_UNSIGNED_INT_8_8_8_8_REV) && pixels)
-  {
-    auto f = s_texFormat.find(BoundTexture(target));
-    if (f != s_texFormat.end() && f->second == GL_RGB)
-    {
-      static std::vector<unsigned char> s_rgb;
-      s_rgb.resize((size_t)w * h * 3);
-      const unsigned char* src = (const unsigned char*)pixels;
-      unsigned char* d = s_rgb.data();
-      for (size_t n = 0, cnt = (size_t)w * h; n < cnt; ++n, src += 4, d += 3) { d[0] = src[2]; d[1] = src[1]; d[2] = src[0]; }
-      r_glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-      r_glTexSubImage2D(target, level, x, y, w, h, GL_RGB, GL_UNSIGNED_BYTE, s_rgb.data());
-      r_glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-      return;
-    }
-  }
-  GLint internal = 0; bool a, i;
-  pixels = ConvertUpload(internal, format, type, w, h, pixels, a, i);
-  // ES requires the sub-image format to match the texture: the engine updates
-  // RGB textures with 32-bit data (video panel: created eTF_0888, updated
-  // eTF_8888), which ES rejects. Repack RGBA to RGB for RGB textures.
-  if (target == GL_TEXTURE_2D && format == GL_RGBA && type == GL_UNSIGNED_BYTE && pixels)
-  {
-    auto f = s_texFormat.find(BoundTexture(target));
-    if (f != s_texFormat.end() && f->second == GL_RGB)
-    {
-      static std::vector<unsigned char> s_rgb;
-      s_rgb.resize((size_t)w * h * 3);
-      const unsigned char* src = (const unsigned char*)pixels;
-      for (size_t n = 0; n < (size_t)w * h; ++n) { s_rgb[n*3] = src[n*4]; s_rgb[n*3+1] = src[n*4+1]; s_rgb[n*3+2] = src[n*4+2]; }
-      r_glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-      r_glTexSubImage2D(target, level, x, y, w, h, GL_RGB, GL_UNSIGNED_BYTE, s_rgb.data());
-      r_glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-      pixels = NULL;
-    }
-  }
-  // Alpha-only updates into a texture created RGBA (fonts: the engine
-  // converts the 8-bit atlas at creation) fail on ES: expand to (1,1,1,a).
-  if (pixels && format == D_ALPHA && type == GL_UNSIGNED_BYTE && target == GL_TEXTURE_2D)
-  {
-    auto f = s_texFormat.find(BoundTexture(target));
-    if (f != s_texFormat.end() && f->second == GL_RGBA)
-    {
-      static std::vector<unsigned char> s_rgba;
-      s_rgba.resize((size_t)w * h * 4);
-      const unsigned char* src = (const unsigned char*)pixels;
-      for (size_t n = 0; n < (size_t)w * h; ++n) { s_rgba[n*4] = s_rgba[n*4+1] = s_rgba[n*4+2] = 255; s_rgba[n*4+3] = src[n]; }
-      r_glTexSubImage2D(target, level, x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, s_rgba.data());
-      pixels = NULL;
-    }
-  }
-  if (pixels) r_glTexSubImage2D(target, level, x, y, w, h, format, type, pixels);
-  auto it = s_autoMip.find(BoundTexture(target));
-  if (level == 0 && it != s_autoMip.end() && it->second && target == GL_TEXTURE_2D) r_glGenerateMipmap(target);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// DXT (S3TC) fallback. Many GLES drivers (e.g. Mali) lack S3TC; decode the
-// blocks to RGBA8 on the CPU so the textures are correct, at a memory cost.
-// Install-time transcoding to ETC2/ASTC is the intended replacement.
-///////////////////////////////////////////////////////////////////////////////
-enum { D_DXT1_RGB = 0x83F0, D_DXT1_RGBA = 0x83F1, D_DXT3 = 0x83F2, D_DXT5 = 0x83F3 };
-static bool s_decodeDXT = false;
-static bool IsDXT(GLenum f) { return f >= D_DXT1_RGB && f <= D_DXT5; }
-
-static void Color565(uint16_t c, uint8_t* o) { o[0] = (uint8_t)(((c >> 11) & 31) * 255 / 31); o[1] = (uint8_t)(((c >> 5) & 63) * 255 / 63); o[2] = (uint8_t)((c & 31) * 255 / 31); o[3] = 255; }
-
-static void DecodeDXTBlock(GLenum fmt, const uint8_t* b, uint8_t out[16][4])
-{
-  const uint8_t* cb = (fmt == D_DXT3 || fmt == D_DXT5) ? b + 8 : b;
-  uint16_t c0 = (uint16_t)(cb[0] | (cb[1] << 8)), c1 = (uint16_t)(cb[2] | (cb[3] << 8));
-  uint8_t pal[4][4];
-  Color565(c0, pal[0]); Color565(c1, pal[1]);
-  const bool dxt1 = (fmt == D_DXT1_RGB || fmt == D_DXT1_RGBA);
-  if (!dxt1 || c0 > c1)
-    for (int i = 0; i < 3; ++i)
-    {
-      pal[2][i] = (uint8_t)((2*pal[0][i] + pal[1][i]) / 3);
-      pal[3][i] = (uint8_t)((pal[0][i] + 2*pal[1][i]) / 3);
-    }
-  else
-    for (int i = 0; i < 3; ++i)
-    {
-      pal[2][i] = (uint8_t)((pal[0][i] + pal[1][i]) / 2);
-      pal[3][i] = 0;
-    }
-  pal[2][3] = 255;
-  pal[3][3] = (dxt1 && c0 <= c1 && fmt == D_DXT1_RGBA) ? 0 : 255;
-  const uint32_t idx = (uint32_t)(cb[4] | (cb[5] << 8) | (cb[6] << 16) | ((uint32_t)cb[7] << 24));
-  for (int p = 0; p < 16; ++p) memcpy(out[p], pal[(idx >> (2*p)) & 3], 4);
-  if (fmt == D_DXT3)
-    for (int p = 0; p < 16; ++p) { uint8_t a = (b[p/2] >> ((p & 1) * 4)) & 15; out[p][3] = (uint8_t)(a * 17); }
-  else if (fmt == D_DXT5)
-  {
-    uint8_t a[8]; a[0] = b[0]; a[1] = b[1];
-    if (a[0] > a[1]) for (int i = 1; i < 7; ++i) a[i+1] = (uint8_t)(((7 - i) * a[0] + i * a[1]) / 7);
-    else { for (int i = 1; i < 5; ++i) a[i+1] = (uint8_t)(((5 - i) * a[0] + i * a[1]) / 5); a[6] = 0; a[7] = 255; }
-    uint64_t bits = 0; for (int i = 0; i < 6; ++i) bits |= (uint64_t)b[2+i] << (8*i);
-    for (int p = 0; p < 16; ++p) out[p][3] = a[(bits >> (3*p)) & 7];
-  }
-}
-
-static const void* DecodeDXT(GLenum fmt, GLsizei w, GLsizei h, const void* data)
-{
-  s_convBuf.resize((size_t)w * h * 4);
-  const uint8_t* src = (const uint8_t*)data;
-  const int bs = (fmt == D_DXT1_RGB || fmt == D_DXT1_RGBA) ? 8 : 16;
-  uint8_t blk[16][4];
-  for (GLsizei by = 0; by < (h + 3) / 4; ++by)
-    for (GLsizei bx = 0; bx < (w + 3) / 4; ++bx, src += bs)
-    {
-      DecodeDXTBlock(fmt, src, blk);
-      for (int py = 0; py < 4; ++py)
-        for (int px = 0; px < 4; ++px)
-        {
-          const GLsizei x = bx*4 + px, y = by*4 + py;
-          if (x < w && y < h) memcpy(&s_convBuf[((size_t)y * w + x) * 4], blk[py*4 + px], 4);
-        }
-    }
-  return s_convBuf.data();
-}
-
-// Pack the decoded RGBA8 block data to 16 bits per pixel to limit memory on
-// 1 GB devices: DXT1 -> RGB565, DXT1 with 1-bit alpha -> RGBA5551,
-// DXT3/5 -> RGBA4444. FARCRY_GLES3_DXT_DECODE_RGBA8=1 keeps 32-bit RGBA.
-static std::vector<uint16_t> s_pack16;
-static bool s_dxtRGBA8 = false;
-static const void* PackDecoded(GLenum fmt, GLsizei w, GLsizei h, GLenum& outFormat, GLenum& outType)
-{
-  if (s_dxtRGBA8) { outFormat = GL_RGBA; outType = GL_UNSIGNED_BYTE; return s_convBuf.data(); }
-  const size_t n = (size_t)w * h;
-  s_pack16.resize(n);
-  const uint8_t* c = s_convBuf.data();
-  if (fmt == D_DXT1_RGB)
-  {
-    outFormat = GL_RGB; outType = GL_UNSIGNED_SHORT_5_6_5;
-    for (size_t i = 0; i < n; ++i, c += 4) s_pack16[i] = (uint16_t)(((c[0] >> 3) << 11) | ((c[1] >> 2) << 5) | (c[2] >> 3));
-  }
-  else if (fmt == D_DXT1_RGBA)
-  {
-    outFormat = GL_RGBA; outType = GL_UNSIGNED_SHORT_5_5_5_1;
-    for (size_t i = 0; i < n; ++i, c += 4) s_pack16[i] = (uint16_t)(((c[0] >> 3) << 11) | ((c[1] >> 3) << 6) | ((c[2] >> 3) << 1) | (c[3] >> 7));
-  }
-  else
-  {
-    outFormat = GL_RGBA; outType = GL_UNSIGNED_SHORT_4_4_4_4;
-    for (size_t i = 0; i < n; ++i, c += 4) s_pack16[i] = (uint16_t)(((c[0] >> 4) << 12) | ((c[1] >> 4) << 8) | ((c[2] >> 4) << 4) | (c[3] >> 4));
-  }
-  return s_pack16.data();
-}
-
-// Asynchronous conversion state: generation per texture name, so results for
-// a texture that was deleted or re-specified meanwhile are dropped.
-static std::unordered_map<GLuint, uint32_t> s_texGen;
-static std::vector<uint8_t> s_placeholder;
-static double s_uploadBudgetMs = 2.0;
-
-// The engine uploads every DXT1 texture as RGB (the PC GL path), but Far Cry's
-// DXT1 art uses DXT1's 1-bit alpha for cut-outs (bushes, grass, distant huts
-// and ladders; 9 of the 2,598 DXT1 textures),
-// which Direct3D always honours. Treating them as RGB made those texels
-// opaque: sprites drew as rectangles. A texture whose level 0 has any
-// transparent texel (a 3-colour block using index 3) is kept as DXT1 RGBA for
-// all its levels; opaque ones stay RGB (same ETC2 size and cache entries).
-static bool Dxt1HasAlpha(const void* data, size_t size)
-{
-  const uint8_t* b = (const uint8_t*)data;
-  for (size_t o = 0; o + 8 <= size; o += 8, b += 8)
-  {
-    const unsigned c0 = b[0] | (b[1] << 8), c1 = b[2] | (b[3] << 8);
-    if (c0 > c1) continue;
-    const uint32_t idx = b[4] | (b[5] << 8) | (b[6] << 16) | ((uint32_t)b[7] << 24);
-    for (int i = 0; i < 32; i += 2) if (((idx >> i) & 3) == 3) return true;
-  }
-  return false;
-}
-static std::unordered_map<GLuint, bool> s_dxt1Alpha;
-
+{ RestoreIfNative(); NoteTexUpload(); GLTex::SubImage2D(BoundTexture(TexTarget(target)), target, level, x, y, w, h, format, type, pixels); }
 static void APIENTRY f_glCompressedTexImage2D(GLenum target, GLint level, GLenum internal, GLsizei w, GLsizei h, GLint border, GLsizei size, const void* data)
-{
-  NoteTexUpload();
-  SUpScope upScope((uint64_t)w * h * 4);
-  target = TexTarget(target);
-  static const bool s_keepDxt1Rgb = getenv("FARCRY_GLES3_DXT1_OPAQUE") != NULL; // diagnostic: old behaviour
-  if (internal == D_DXT1_RGB && target == GL_TEXTURE_2D && !s_keepDxt1Rgb)
-  {
-    bool& alpha = s_dxt1Alpha[BoundTexture(GL_TEXTURE_2D)];
-    if (level == 0) alpha = data && Dxt1HasAlpha(data, (size_t)size);
-    if (alpha) internal = D_DXT1_RGBA;
-  }
-  if (target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z && getenv("FARCRY_GLES3_TRACE_CUBE"))
-    fprintf(stderr, "CUBEUP compressed tex=%u face=%d level=%d %dx%d fmt=0x%x data=%p\n", BoundTexture(GL_TEXTURE_CUBE_MAP), target - GL_TEXTURE_CUBE_MAP_POSITIVE_X, level, w, h, internal, data);
-  if (s_decodeDXT && IsDXT(internal) && data && target == GL_TEXTURE_2D && TexConv_Running())
-  {
-    const GLuint tex = BoundTexture(GL_TEXTURE_2D);
-    uint32_t& gen = s_texGen[tex];
-    if (level == 0) ++gen;
-    const GLenum etc2 = TexConv_Etc2Format(internal);
-    if (TexConv_TryCached(internal, w, h, data, (size_t)size, s_placeholder))
-    {
-      r_glCompressedTexImage2D(target, level, etc2, w, h, 0, (GLsizei)s_placeholder.size(), s_placeholder.data());
-      return;
-    }
-    TexConv_Placeholder(internal, w, h, data, s_placeholder);
-    r_glCompressedTexImage2D(target, level, etc2, w, h, 0, (GLsizei)s_placeholder.size(), s_placeholder.data());
-    TexConv_Enqueue(tex, gen, target, level, internal, w, h, data, (size_t)size);
-    return;
-  }
-  if (s_decodeDXT && IsDXT(internal))
-  {
-    GLenum format = GL_RGBA, type = GL_UNSIGNED_BYTE;
-    const void* px = NULL;
-    if (data) { DecodeDXT(internal, w, h, data); px = PackDecoded(internal, w, h, format, type); }
-    else if (!s_dxtRGBA8) { format = internal == D_DXT1_RGB ? GL_RGB : GL_RGBA;
-                            type = internal == D_DXT1_RGB ? GL_UNSIGNED_SHORT_5_6_5 : (internal == D_DXT1_RGBA ? GL_UNSIGNED_SHORT_5_5_5_1 : GL_UNSIGNED_SHORT_4_4_4_4); }
-    r_glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
-    r_glTexImage2D(target, level, (GLint)format, w, h, 0, format, type, px);
-    r_glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    return;
-  }
-  r_glCompressedTexImage2D(target, level, internal, w, h, 0, size, data);
-}
+{ RestoreIfNative(); NoteTexUpload(); GLTex::CompressedImage2D(BoundTexture(TexTarget(target)), target, level, internal, w, h, border, size, data); }
 static void APIENTRY f_glCompressedTexSubImage2D(GLenum target, GLint level, GLint x, GLint y, GLsizei w, GLsizei h, GLenum fmt, GLsizei size, const void* data)
-{
-  NoteTexUpload();
-  SUpScope upScope((uint64_t)w * h * 4);
-  target = TexTarget(target);
-  if (s_decodeDXT && IsDXT(fmt))
-  {
-    GLenum format, type;
-    DecodeDXT(fmt, w, h, data);
-    const void* px = PackDecoded(fmt, w, h, format, type);
-    r_glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
-    r_glTexSubImage2D(target, level, x, y, w, h, format, type, px);
-    r_glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    return;
-  }
-  r_glCompressedTexSubImage2D(target, level, x, y, w, h, fmt, size, data);
-}
+{ RestoreIfNative(); NoteTexUpload(); GLTex::CompressedSubImage2D(BoundTexture(TexTarget(target)), target, level, x, y, w, h, fmt, size, data); }
 
-// GLES3 only guarantees RGBA/UNSIGNED_BYTE readback. The engine reads BGRA
-// (vegetation sprite generation) and BGR; read RGBA and convert in place.
-static std::vector<unsigned char> s_readBuf;
+// Read-back with desktop format conversion: shared with the native backend (GLTexUpload.cpp).
 static void APIENTRY f_glReadPixels(GLint x, GLint y, GLsizei w, GLsizei h, GLenum format, GLenum type, void* pixels)
-{
-  // GLES3 cannot read depth through glReadPixels; the engine's per-light
-  // flare/corona tests still try, which only stalls the GPU pipeline.
-  static unsigned s_depthReads = 0;
-  if (format == 0x1902 /*GL_DEPTH_COMPONENT*/)
-  {
-    ++s_depthReads;
-    if (getenv("FARCRY_GLES3_NO_DEPTH_READ"))
-    {
-      if (pixels && type == GL_FLOAT) for (GLsizei i = 0; i < w * h; ++i) ((float*)pixels)[i] = 1.0f;
-      return;
-    }
-  }
-  if (type == D_UNSIGNED_INT_8_8_8_8_REV) type = GL_UNSIGNED_BYTE;
-  const bool bgra = format == D_BGRA, bgr = format == D_BGR, rgb = format == GL_RGB;
-  if (type != GL_UNSIGNED_BYTE || (!bgra && !bgr && !rgb))
-  {
-    r_glReadPixels(x, y, w, h, format, type, pixels);
-    return;
-  }
-  const size_t n = (size_t)w * h;
-  if (bgra)
-  {
-    r_glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    unsigned char* p = (unsigned char*)pixels;
-    for (size_t i = 0; i < n; ++i, p += 4) { unsigned char t = p[0]; p[0] = p[2]; p[2] = t; }
-    return;
-  }
-  s_readBuf.resize(n * 4);
-  r_glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, s_readBuf.data());
-  unsigned char* d = (unsigned char*)pixels;
-  const unsigned char* src = s_readBuf.data();
-  for (size_t i = 0; i < n; ++i, src += 4, d += 3)
-  {
-    d[0] = bgr ? src[2] : src[0]; d[1] = src[1]; d[2] = bgr ? src[0] : src[2];
-  }
-}
+{ RestoreIfNative(); GLTex::ReadPixels(x, y, w, h, format, type, pixels); }
 
-// Texture names. The engine's texture manager binds names it chooses itself
-// (TX_FIRSTBIND 0x1000 .. TX_LASTBIND 0x4000) without glGenTextures, while
-// other code (terrain sectors, sprites, render targets) uses glGenTextures.
-// Mali returns generated names inside that range (e.g. 5896), so two textures
-// shared one name. Generated names are allocated here, outside the range.
-static GLuint s_nextTexName = 1;
-static std::vector<GLuint> s_freeTexNames;
-static std::unordered_set<GLuint> s_ownTexNames;
-static void APIENTRY f_glGenTextures(GLsizei n, GLuint* out)
-{
-  for (GLsizei i = 0; i < n; ++i)
-  {
-    GLuint name = 0;
-    while (!name)
-    {
-      if (!s_freeTexNames.empty()) { name = s_freeTexNames.back(); s_freeTexNames.pop_back(); }
-      else
-      {
-        if (s_nextTexName >= 0x1000 && s_nextTexName < 0x4000) s_nextTexName = 0x4000;
-        name = s_nextTexName++;
-      }
-      if (r_glIsTexture(name)) name = 0; // already created by a direct bind
-    }
-    s_ownTexNames.insert(name);
-    out[i] = name;
-  }
-}
+// Texture names: allocated by GLTexUpload.cpp (outside the engine's own range).
+static void APIENTRY f_glGenTextures(GLsizei n, GLuint* out) { GLTex::GenNames(n, out); }
+static void APIENTRY f_glDeleteTextures(GLsizei n, const GLuint* tex) { RestoreIfNative(); GLTex::DeleteNames(n, tex); }
+static void PumpTextures(bool block) { GLTex::Pump(block); }
 
-static void APIENTRY f_glDeleteTextures(GLsizei n, const GLuint* tex)
-{
-  for (GLsizei i = 0; i < n; ++i)
-  {
-    if (tex[i] && s_ownTexNames.erase(tex[i])) s_freeTexNames.push_back(tex[i]);
-    auto it = s_texGen.find(tex[i]);
-    if (it != s_texGen.end()) ++it->second;
-    s_autoMip.erase(tex[i]);
-  }
-  r_glDeleteTextures(n, tex);
-}
-
-// Upload finished conversions. With block=true, wait until every queued level
-// is converted and uploaded (used at the end of level loading, so gameplay
-// never shows placeholders); otherwise stop after the per-frame budget.
-static void PumpTextures(bool block)
-{
-  if (!TexConv_Running()) return;
-  const Uint64 t0 = SDL_GetPerformanceCounter();
-  const double freq = (double)SDL_GetPerformanceFrequency();
-  STexConvResult r;
-  int uploaded = 0;
-  const size_t pendingAtStart = TexConv_Pending();
-  bool rebound = false;
-  const GLuint prevTex = s_bound2D[0];
-  const int prevUnit = s_activeUnit;
-  for (;;)
-  {
-    if (!TexConv_Pop(r))
-    {
-      if (!block || TexConv_Pending() == 0) break;
-      SDL_Delay(1);
-      continue;
-    }
-    auto it = s_texGen.find(r.tex);
-    if (it == s_texGen.end() || it->second != r.gen) continue; // deleted or re-specified
-    if (!rebound) { if (prevUnit != 0) r_glActiveTexture(GL_TEXTURE0); rebound = true; }
-    r_glBindTexture(GL_TEXTURE_2D, r.tex);
-    r_glCompressedTexSubImage2D(GL_TEXTURE_2D, r.level, 0, 0, r.w, r.h, r.glFormat, (GLsizei)r.data.size(), r.data.data());
-    ++uploaded;
-    if (!block && (SDL_GetPerformanceCounter() - t0) * 1000.0 / freq >= s_uploadBudgetMs) break;
-  }
-  if (rebound)
-  {
-    r_glBindTexture(GL_TEXTURE_2D, prevTex);
-    if (prevUnit != 0) r_glActiveTexture(GL_TEXTURE0 + prevUnit);
-  }
-  const double ms = (SDL_GetPerformanceCounter() - t0) * 1000.0 / freq;
-  if (block)
-    FFPLog("GLES3FFP: texture conversions finished before drawing: %d level(s) uploaded, %d pending at start, waited %.0f ms",
-           uploaded, (int)pendingAtStart, ms);
-}
 
 static Uint32 s_loadEndTicks = 0;
 
@@ -2289,6 +2100,7 @@ static void APIENTRY f_glDepthFunc(GLenum f)
 }
 static void APIENTRY f_glBufferData(GLenum t, GLsizeiptr n, const void* d, GLenum u)
 {
+  RestoreIfNative();
   SUpScope sc((uint64_t)n);
   if (!s_bufRings.empty() && (t == GL_ARRAY_BUFFER || t == GL_ELEMENT_ARRAY_BUFFER))
   {
@@ -2301,12 +2113,14 @@ static void APIENTRY f_glBufferData(GLenum t, GLsizeiptr n, const void* d, GLenu
 }
 static void APIENTRY f_glBufferSubData(GLenum t, GLintptr o, GLsizeiptr n, const void* d)
 {
+  RestoreIfNative();
   SUpScope sc((uint64_t)n);
   auto it = s_shadowBufs.find(BoundBufferFor(t));
   if (it != s_shadowBufs.end() && d && (size_t)(o + n) <= it->second.data.size()) memcpy(it->second.data.data() + o, d, n);
   r_glBufferSubData(t, o, n, d);
 }
-static void APIENTRY f_glCopyTexSubImage2D(GLenum t, GLint l, GLint xo, GLint yo, GLint x, GLint y, GLsizei w, GLsizei h) { SUpScope sc((uint64_t)w * h * 4); r_glCopyTexSubImage2D(TexTarget(t), l, xo, yo, x, y, w, h); }
+static void APIENTRY f_glCopyTexSubImage2D(GLenum t, GLint l, GLint xo, GLint yo, GLint x, GLint y, GLsizei w, GLsizei h) {
+  RestoreIfNative(); SUpScope sc((uint64_t)w * h * 4); r_glCopyTexSubImage2D(TexTarget(t), l, xo, yo, x, y, w, h); }
 
 static const SOverride s_overrides[] =
 {
@@ -2398,8 +2212,9 @@ bool GLES3FFPInit(void (*log)(const char*))
   {
     const char* ext = r_glGetString ? (const char*)r_glGetString(GL_EXTENSIONS) : NULL;
     const bool s3tc = ext && (strstr(ext, "GL_EXT_texture_compression_s3tc") || strstr(ext, "GL_EXT_texture_compression_dxt1"));
-    s_decodeDXT = !s3tc || getenv("FARCRY_GLES3_FORCE_DXT_DECODE");
-    s_dxtRGBA8 = getenv("FARCRY_GLES3_DXT_DECODE_RGBA8") != NULL;
+    const bool s_decodeDXT = !s3tc || getenv("FARCRY_GLES3_FORCE_DXT_DECODE");
+    const bool dxtRGBA8 = getenv("FARCRY_GLES3_DXT_DECODE_RGBA8") != NULL;
+    double s_uploadBudgetMs = 2.0;
     const char* conv = getenv("FARCRY_GLES3_TEXCONV");
     if (s_decodeDXT && (!conv || atoi(conv) != 0))
     {
@@ -2407,6 +2222,7 @@ bool GLES3FFPInit(void (*log)(const char*))
       if (const char* b = getenv("FARCRY_TEXCONV_UPLOAD_MS")) s_uploadBudgetMs = atof(b);
       TexConv_Start(th ? atoi(th) : 1, getenv("FARCRY_TEXCACHE"), s_log);
     }
+    GLTex::Init(LayerTexBackend(), s_decodeDXT, dxtRGBA8, s_uploadBudgetMs);
     FFPLog("GLES3FFP: S3TC/DXT %s by the driver%s", s3tc ? "supported" : "NOT supported",
            s_decodeDXT ? "; DXT textures are converted (ETC2 in background, 16-bit fallback)" : "");
   }

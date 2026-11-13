@@ -8,6 +8,7 @@
 =============================================================================*/
 
 #ifdef GLES3_RENDERER
+#include "GLNMesh.h"
 #include "GLES3FFP.h"
 #endif
 #include "RenderPCH.h"
@@ -836,19 +837,19 @@ bool SGenTC_NormalMap::mfSet(bool bEnable)
 {
   if (bEnable)
   {
-    glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_NORMAL_MAP_NV);
-    glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_NORMAL_MAP_NV);
-    glTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_NORMAL_MAP_NV);
+    GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_NORMAL_MAP_NV);
+    GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_NORMAL_MAP_NV);
+    GLR_TexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_NORMAL_MAP_NV);
 
-    glEnable(GL_TEXTURE_GEN_S);
-    glEnable(GL_TEXTURE_GEN_T);
-    glEnable(GL_TEXTURE_GEN_R);
+    GLR_Enable(GL_TEXTURE_GEN_S);
+    GLR_Enable(GL_TEXTURE_GEN_T);
+    GLR_Enable(GL_TEXTURE_GEN_R);
   }
   else
   {
-    glDisable(GL_TEXTURE_GEN_S);
-    glDisable(GL_TEXTURE_GEN_T);
-    glDisable(GL_TEXTURE_GEN_R);
+    GLR_Disable(GL_TEXTURE_GEN_S);
+    GLR_Disable(GL_TEXTURE_GEN_T);
+    GLR_Disable(GL_TEXTURE_GEN_R);
   }
   return true;
 }
@@ -869,20 +870,20 @@ bool SGenTC_ReflectionMap::mfSet(bool bEnable)
 {
   if (bEnable)
   {
-    glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP_NV);
-    glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP_NV);
-    glTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP_NV);
+    GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP_NV);
+    GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP_NV);
+    GLR_TexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP_NV);
 
-    glEnable(GL_TEXTURE_GEN_S);
-    glEnable(GL_TEXTURE_GEN_T);
-    glEnable(GL_TEXTURE_GEN_R);
+    GLR_Enable(GL_TEXTURE_GEN_S);
+    GLR_Enable(GL_TEXTURE_GEN_T);
+    GLR_Enable(GL_TEXTURE_GEN_R);
 
   }
   else
   {
-    glDisable(GL_TEXTURE_GEN_S);
-    glDisable(GL_TEXTURE_GEN_T);
-    glDisable(GL_TEXTURE_GEN_R);
+    GLR_Disable(GL_TEXTURE_GEN_S);
+    GLR_Disable(GL_TEXTURE_GEN_T);
+    GLR_Disable(GL_TEXTURE_GEN_R);
   }
   return true;
 }
@@ -922,9 +923,9 @@ bool SGenTC_ObjectLinear::mfSet(bool bEnable)
         {
           float *Vals = m_Params[i].mfGet();					
 					
-          glTexGenf(GL_S+i, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-          glTexGenfv(GL_S+i, GL_OBJECT_PLANE, Vals);
-          glEnable(GL_TEXTURE_GEN_S+i);
+          GLR_TexGenf(GL_S+i, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+          GLR_TexGenfv(GL_S+i, GL_OBJECT_PLANE, Vals);
+          GLR_Enable(GL_TEXTURE_GEN_S+i);
         }
       }
     }
@@ -934,7 +935,7 @@ bool SGenTC_ObjectLinear::mfSet(bool bEnable)
     for (int i=0; i<4; i++)
     {
       if (m_Mask & (1<<i))
-        glDisable(GL_TEXTURE_GEN_S+i);
+        GLR_Disable(GL_TEXTURE_GEN_S+i);
     }
   }
   return true;
@@ -1041,9 +1042,9 @@ bool SGenTC_EyeLinear::mfSet(bool bEnable)
         if (m_Params.Num()>i && m_Params[i].mfIsValid())
         {
           float *Vals = m_Params[i].mfGet();
-          glTexGenf(GL_S+i, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-          glTexGenfv(GL_S+i, GL_EYE_PLANE, Vals);
-          glEnable(GL_TEXTURE_GEN_S+i);
+          GLR_TexGenf(GL_S+i, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
+          GLR_TexGenfv(GL_S+i, GL_EYE_PLANE, Vals);
+          GLR_Enable(GL_TEXTURE_GEN_S+i);
         }
       }
     }
@@ -1053,7 +1054,7 @@ bool SGenTC_EyeLinear::mfSet(bool bEnable)
     for (int i=0; i<4; i++)
     {
       if (m_Mask & (1<<i))
-        glDisable(GL_TEXTURE_GEN_S+i);
+        GLR_Disable(GL_TEXTURE_GEN_S+i);
     }
   }
   return true;
@@ -1125,16 +1126,16 @@ bool SGenTC_SphereMap::mfSet(bool bEnable)
 {
   if (bEnable)
   {
-    glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
-    glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
+    GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
+    GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
 
-    glEnable(GL_TEXTURE_GEN_S);
-    glEnable(GL_TEXTURE_GEN_T);
+    GLR_Enable(GL_TEXTURE_GEN_S);
+    GLR_Enable(GL_TEXTURE_GEN_T);
   }
   else
   {
-    glDisable(GL_TEXTURE_GEN_S);
-    glDisable(GL_TEXTURE_GEN_T);
+    GLR_Disable(GL_TEXTURE_GEN_S);
+    GLR_Disable(GL_TEXTURE_GEN_T);
   }
   return true;
 }
@@ -1156,19 +1157,19 @@ bool SGenTC_EmbossMap::mfSet(bool bEnable)
 {
   if (bEnable)
   {
-    glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_EMBOSS_MAP_NV);
-    glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_EMBOSS_MAP_NV);
-    glTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_EMBOSS_MAP_NV);
+    GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_EMBOSS_MAP_NV);
+    GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_EMBOSS_MAP_NV);
+    GLR_TexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_EMBOSS_MAP_NV);
 
-    glEnable(GL_TEXTURE_GEN_S);
-    glEnable(GL_TEXTURE_GEN_T);
-    glEnable(GL_TEXTURE_GEN_R);
+    GLR_Enable(GL_TEXTURE_GEN_S);
+    GLR_Enable(GL_TEXTURE_GEN_T);
+    GLR_Enable(GL_TEXTURE_GEN_R);
   }
   else
   {
-    glDisable(GL_TEXTURE_GEN_S);
-    glDisable(GL_TEXTURE_GEN_T);
-    glDisable(GL_TEXTURE_GEN_R);
+    GLR_Disable(GL_TEXTURE_GEN_S);
+    GLR_Disable(GL_TEXTURE_GEN_T);
+    GLR_Disable(GL_TEXTURE_GEN_R);
   }
   return true;
 }
@@ -1500,23 +1501,23 @@ void SMatrixTransform_LightCMProject::mfSet(bool bSet)
       CDLight *dl = gRenDev->m_RP.m_pCurLight;
       if (dl && dl->m_pLightImage!=0)
       {
-        glLoadIdentity();
+        GLR_LoadIdentity();
 
         //scale the cubemap to adjust the default 45 degree 1/2 angle fustrum to 
         //the desired angle (0 to 90 degrees)
         float scaleFactor = cry_tanf((90.0f-dl->m_fLightFrustumAngle)*M_PI/180.0f);
-        glScalef(1, scaleFactor, scaleFactor);
+        GLR_Scalef(1, scaleFactor, scaleFactor);
 
         //we need to rotate the cubemap to account for the spotlights orientation
         //convert the orienations ortho normal basis (ONB) into XYZ space, and then
         //into the base direction space (using ONB prevents having to calculate angles)
         Matrix44 m = dl->m_Orientation.matrixBasisToXYZ();
         m.Transpose();
-        glMultMatrixf(&m(0,0));
+        GLR_MultMatrixf(&m(0,0));
 
         //translate the vertex relative to the light position
         Vec3d vObjPos = gRenDev->m_RP.m_pCurObject->GetTranslation();
-        glTranslatef(-(dl->m_Origin.x-vObjPos.x), -(dl->m_Origin.y-vObjPos.y), -(dl->m_Origin.z-vObjPos.z));
+        GLR_Translatef(-(dl->m_Origin.x-vObjPos.x), -(dl->m_Origin.y-vObjPos.y), -(dl->m_Origin.z-vObjPos.z));
       }
     }
   }
@@ -1544,7 +1545,7 @@ void SMatrixTransform_LightCMProject::mfSet(Matrix44& matr)
 
       //translate the vertex relative to the light position
       Vec3d vObjPos = gRenDev->m_RP.m_pCurObject->GetTranslation();
-      glTranslatef(-(dl->m_Origin.x-vObjPos.x), -(dl->m_Origin.y-vObjPos.y), -(dl->m_Origin.z-vObjPos.z));
+      GLR_Translatef(-(dl->m_Origin.x-vObjPos.x), -(dl->m_Origin.y-vObjPos.y), -(dl->m_Origin.z-vObjPos.z));
     }
   }
 }
@@ -1553,7 +1554,7 @@ void SMatrixTransform_LightCMProject::mfSet(Matrix44& matr)
 void SMatrixTransform_Identity::mfSet(bool bSet)
 {
   if (bSet)
-    glLoadIdentity();
+    GLR_LoadIdentity();
 }
 void SMatrixTransform_Identity::mfSet(Matrix44& matr)
 {
@@ -1566,7 +1567,7 @@ void SMatrixTransform_Translate::mfSet(bool bSet)
   if (bSet)
   {
     p = m_Params[0].mfGet();
-    glTranslatef(p[0], p[1], p[2]);
+    GLR_Translatef(p[0], p[1], p[2]);
   }
 }
 void SMatrixTransform_Translate::mfSet(Matrix44& matr)
@@ -1582,7 +1583,7 @@ void SMatrixTransform_Scale::mfSet(bool bSet)
   if (bSet)
   {
     p = m_Params[0].mfGet();
-    glScalef(p[0], p[1], p[2]);
+    GLR_Scalef(p[0], p[1], p[2]);
   }
 }
 void SMatrixTransform_Scale::mfSet(Matrix44& matr)
@@ -1605,7 +1606,7 @@ void SMatrixTransform_Matrix::mfSet(bool bSet)
       p = m_Params[i].mfGet();
       memcpy(&matr[i][0], p, 4*4);
     }
-    glLoadMatrixf(&matr[0][0]);
+    GLR_LoadMatrixf(&matr[0][0]);
   }
 }
 void SMatrixTransform_Matrix::mfSet(Matrix44& matr)
@@ -1627,25 +1628,25 @@ void SMatrixTransform_Rotate::mfSet(bool bSet)
     switch (m_Offs)
     {
       case 1:
-        glRotatef(p[0], 1, 0, 0);
+        GLR_Rotatef(p[0], 1, 0, 0);
         break;
       case 2:
-        glRotatef(p[0], 0, 1, 0);
+        GLR_Rotatef(p[0], 0, 1, 0);
         break;
       case 4:
-        glRotatef(p[0], 0, 0, 1);
+        GLR_Rotatef(p[0], 0, 0, 1);
         break;
       case 3:
-        glRotatef(p[0], 1, 1, 0);
+        GLR_Rotatef(p[0], 1, 1, 0);
         break;
       case 5:
-        glRotatef(p[0], 1, 0, 1);
+        GLR_Rotatef(p[0], 1, 0, 1);
         break;
       case 6:
-        glRotatef(p[0], 1, 1, 0);
+        GLR_Rotatef(p[0], 1, 1, 0);
         break;
       case 7:
-        glRotatef(p[0], 1, 1, 1);
+        GLR_Rotatef(p[0], 1, 1, 1);
         break;
     }
   }
@@ -1695,15 +1696,20 @@ void SArrayPointer_Vertex::mfSet(int Id)
 		  iLog->Log("Error: SArrayPointer_Vertex::mfSet: EF_GetPointer returns zero");
 		  return;
 	  }
+#ifdef GLES3_RENDERER
+    g_GLNPosStream.buffer = SUPPORTS_GL_ARB_vertex_buffer_object ? (unsigned)gRenDev->m_RP.m_nCurBufferID : 0;
+    g_GLNPosStream.offset = (unsigned)gRenDev->m_RP.m_nCurBufferOffset;
+    g_GLNPosStream.stride = Stride; g_GLNPosStream.size = NumComponents; g_GLNPosStream.type = Type; g_GLNPosStream.normalized = false;
+#endif
 
     if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
-      glBindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);
+      GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);
       if (gRenDev->m_RP.m_nCurBufferID != (INT_PTR)m_pLastPointer || m_nFrameCreateBuf != gcpOGL->m_nFrameCreateBuf)	//AMD Port
       {
         m_nFrameCreateBuf = gcpOGL->m_nFrameCreateBuf;
         m_pLastPointer = (void *)gRenDev->m_RP.m_nCurBufferID;
-        glVertexPointer(NumComponents, Type, Stride, BUFFER_OFFSET(gRenDev->m_RP.m_nCurBufferOffset));
+        GLR_VertexPointer(NumComponents, Type, Stride, BUFFER_OFFSET(gRenDev->m_RP.m_nCurBufferOffset));
       }
     }
     else
@@ -1711,7 +1717,7 @@ void SArrayPointer_Vertex::mfSet(int Id)
     {
       m_nFrameCreateBuf = gcpOGL->m_nFrameCreateBuf;
       m_pLastPointer = p;
-      glVertexPointer(NumComponents, Type, Stride, p);
+      GLR_VertexPointer(NumComponents, Type, Stride, p);
     }
   }
   m_CurEnabled |= PFE_POINTER_VERT;
@@ -1727,14 +1733,19 @@ void SArrayPointer_Normal::mfSet(int Id)
   if (gRenDev->m_RP.m_pRE)
   {
     void *p = gRenDev->EF_GetPointer(ePT, &Stride, Type, ePT, 0);
+#ifdef GLES3_RENDERER
+    g_GLNNormalStream.buffer = (p && SUPPORTS_GL_ARB_vertex_buffer_object) ? (unsigned)gRenDev->m_RP.m_nCurBufferID : 0;
+    g_GLNNormalStream.offset = (unsigned)gRenDev->m_RP.m_nCurBufferOffset;
+    g_GLNNormalStream.stride = Stride; g_GLNNormalStream.size = 3; g_GLNNormalStream.type = Type; g_GLNNormalStream.normalized = false;
+#endif
     if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
-      glBindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);
+      GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);
       if (p && (gRenDev->m_RP.m_nCurBufferID != (INT_PTR)m_pLastPointer || m_nFrameCreateBuf != gcpOGL->m_nFrameCreateBuf))	//AMD Port
       {
         m_nFrameCreateBuf = gcpOGL->m_nFrameCreateBuf;
         m_pLastPointer = (void *)gRenDev->m_RP.m_nCurBufferID;
-        glNormalPointer(Type, Stride, BUFFER_OFFSET(gRenDev->m_RP.m_nCurBufferOffset));
+        GLR_NormalPointer(Type, Stride, BUFFER_OFFSET(gRenDev->m_RP.m_nCurBufferOffset));
       }
     }
     else
@@ -1742,7 +1753,7 @@ void SArrayPointer_Normal::mfSet(int Id)
     {
       m_nFrameCreateBuf = gcpOGL->m_nFrameCreateBuf;
       m_pLastPointer = p;
-      glNormalPointer(Type, Stride, p);
+      GLR_NormalPointer(Type, Stride, p);
     }
   }
   m_CurEnabled |= PFE_POINTER_NORMAL;
@@ -1760,15 +1771,25 @@ void SArrayPointer_Texture::mfSet(int Id)
     void *p = gRenDev->EF_GetPointer(ePT, &Stride, Type, (ESrcPointer)(ePT+Stage), Stage << FGP_STAGE_SHIFT);
     if (ePT == eSrcPointer_TexLM)
       gRenDev->m_RP.m_nLMStage = Stage;
+#ifdef GLES3_RENDERER
+    if (Stage < 4)
+    {
+      // Native mesh draws read the stream from here (GLNMesh.h).
+      GLNMeshStream& ns = g_GLNTexStream[Stage];
+      ns.buffer = SUPPORTS_GL_ARB_vertex_buffer_object ? (unsigned)gRenDev->m_RP.m_nCurBufferID : 0;
+      ns.offset = (unsigned)gRenDev->m_RP.m_nCurBufferOffset;
+      ns.stride = Stride; ns.size = NumComponents; ns.type = Type; ns.normalized = false;
+    }
+#endif
     if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
-      glBindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);
+      GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);
       if (gRenDev->m_RP.m_nCurBufferID != (INT_PTR)m_pLastPointer[Stage] || m_nFrameCreateBuf[Stage] != gcpOGL->m_nFrameCreateBuf)	//AMD Port
       {
         m_nFrameCreateBuf[Stage] = gcpOGL->m_nFrameCreateBuf;
         m_pLastPointer[Stage] = (void *)gRenDev->m_RP.m_nCurBufferID;
         gcpOGL->EF_SelectTMU(Stage);
-        glTexCoordPointer(NumComponents, Type, Stride, BUFFER_OFFSET(gRenDev->m_RP.m_nCurBufferOffset));
+        GLR_TexCoordPointer(NumComponents, Type, Stride, BUFFER_OFFSET(gRenDev->m_RP.m_nCurBufferOffset));
       }
     }
     else
@@ -1777,7 +1798,7 @@ void SArrayPointer_Texture::mfSet(int Id)
       m_nFrameCreateBuf[Stage] = gcpOGL->m_nFrameCreateBuf;
       m_pLastPointer[Stage] = p;
       gcpOGL->EF_SelectTMU(Stage);
-      glTexCoordPointer(NumComponents, Type, Stride, p);
+      GLR_TexCoordPointer(NumComponents, Type, Stride, p);
     }
   }
   if (Id)
@@ -1816,9 +1837,15 @@ void SArrayPointer_Color::mfSet(int Id)
     {
       int Stride;
       void *p = gRenDev->EF_GetPointer(ePT, &Stride, Type, ePT, 0);
+#ifdef GLES3_RENDERER
+      g_GLNColorStream.buffer = SUPPORTS_GL_ARB_vertex_buffer_object ? (unsigned)gRenDev->m_RP.m_nCurBufferID : 0;
+      g_GLNColorStream.offset = (unsigned)gRenDev->m_RP.m_nCurBufferOffset;
+      g_GLNColorStream.stride = Stride; g_GLNColorStream.size = NumComponents; g_GLNColorStream.type = Type; g_GLNColorStream.normalized = true;
+      g_GLNColorSemantic = GLES3ColorSemanticForCurrentRE();
+#endif
       if (SUPPORTS_GL_ARB_vertex_buffer_object)
       {
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);
+        GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);
         if (gRenDev->m_RP.m_nCurBufferID != (INT_PTR)m_pLastPointer || m_nFrameCreateBuf != gcpOGL->m_nFrameCreateBuf)	//AMD Port
         {
           m_nFrameCreateBuf = gcpOGL->m_nFrameCreateBuf;
@@ -1826,7 +1853,7 @@ void SArrayPointer_Color::mfSet(int Id)
 #ifdef GLES3_RENDERER
           GLES3FFPMarkNextColorArray(GLES3ColorSemanticForCurrentRE());
 #endif
-          glColorPointer(NumComponents, Type, Stride, BUFFER_OFFSET(gRenDev->m_RP.m_nCurBufferOffset));
+          GLR_ColorPointer(NumComponents, Type, Stride, BUFFER_OFFSET(gRenDev->m_RP.m_nCurBufferOffset));
         }
       }
       else
@@ -1837,7 +1864,7 @@ void SArrayPointer_Color::mfSet(int Id)
 #ifdef GLES3_RENDERER
         GLES3FFPMarkNextColorArray(GLES3ColorSemanticForCurrentRE());
 #endif
-        glColorPointer(NumComponents, Type, Stride, p);
+        GLR_ColorPointer(NumComponents, Type, Stride, p);
       }
     }
     m_CurEnabled |= PFE_POINTER_COLOR;
@@ -1855,12 +1882,12 @@ void SArrayPointer_SecColor::mfSet(int Id)
     void *p = gRenDev->EF_GetPointer(ePT, &Stride, Type, ePT, 0);
     if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
-      glBindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);
+      GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);
       if (gRenDev->m_RP.m_nCurBufferID != (INT_PTR)m_pLastPointer || m_nFrameCreateBuf != gcpOGL->m_nFrameCreateBuf)	//AMD Port
       {
         m_nFrameCreateBuf = gcpOGL->m_nFrameCreateBuf;
         m_pLastPointer = (void *)gRenDev->m_RP.m_nCurBufferID;
-        glSecondaryColorPointerEXT(NumComponents, Type, Stride, BUFFER_OFFSET(gRenDev->m_RP.m_nCurBufferOffset));
+        GLR_SecondaryColorPointer(NumComponents, Type, Stride, BUFFER_OFFSET(gRenDev->m_RP.m_nCurBufferOffset));
       }
     }
     else
@@ -1868,7 +1895,7 @@ void SArrayPointer_SecColor::mfSet(int Id)
     {
       m_nFrameCreateBuf = gcpOGL->m_nFrameCreateBuf;
       m_pLastPointer = p;
-      glSecondaryColorPointerEXT(NumComponents, Type, Stride, p);
+      GLR_SecondaryColorPointer(NumComponents, Type, Stride, p);
     }
   }
   if (Id)

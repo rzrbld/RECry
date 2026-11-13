@@ -89,11 +89,11 @@ void CGLTexMan::MakeNormalizeVectorCubeMap(int size, STexPic *tp)
 
   pixels = new GLubyte [size*size*3];
 
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
   tp->m_Width = size;
   tp->m_Height = size;
@@ -110,7 +110,7 @@ void CGLTexMan::MakeNormalizeVectorCubeMap(int size, STexPic *tp)
         pixels[3*(y*size+x) + 2] = (byte)(128.0f + 127.0f*vector[2]);
       }
     }
-    glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_EXT+i, 0, GL_RGB8, size, size, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+    GLR_TexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_EXT+i, 0, GL_RGB8, size, size, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels);
   }
   CGLTexMan::CalcMipsAndSize(tp);
   tp->m_Size *= 6;
@@ -155,14 +155,14 @@ void CGLTexMan::MakePhongLookupTexture(float shininess, STexPic *ti)
   ti->Link(&STexPic::m_Root);
   gRenDev->m_TexMan->m_StatsCurTexMem += ti->m_Size;
 
-  glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
 
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexImage2D(GL_TEXTURE_2D, 0, mode, diffuse_size, specular_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, img);
-  //glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexImage2D(GL_TEXTURE_2D, 0, mode, diffuse_size, specular_size, 0, GL_RGBA, GL_UNSIGNED_BYTE, img);
+  //GLR_TexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
 
   delete [] img;
 }
@@ -385,7 +385,7 @@ byte *STexPic::GetData32()
   byte *pDst = NULL;
   if (m_eTT == eTT_Cubemap)
   {
-    glBindTexture(GL_TEXTURE_CUBE_MAP_EXT, m_Bind);
+    GLR_BindTexture(GL_TEXTURE_CUBE_MAP_EXT, m_Bind);
     for (int CubeSide=0; CubeSide<6; CubeSide++)
     {
       int tgt = cubefaces[CubeSide];
@@ -403,7 +403,7 @@ byte *STexPic::GetData32()
   }
   else
   {
-    glBindTexture(GL_TEXTURE_2D, m_Bind);
+    GLR_BindTexture(GL_TEXTURE_2D, m_Bind);
     int tgt = GL_TEXTURE_2D;
     int w, h;
     glGetTexLevelParameteriv(tgt, 0, GL_TEXTURE_WIDTH,  &w);
@@ -446,7 +446,7 @@ void STexPic::ReleaseDriverTexture()
     }
     m_LoadedSize = 0;
     Unlink();
-    glDeleteTextures(1, &m_Bind);
+    GLR_DeleteTextures(1, &m_Bind);
   }
 }
 
@@ -455,23 +455,23 @@ void STexPic::SetWrapping()
   int tgt = m_TargetType;
   if (m_eTT != eTT_Cubemap)
   {
-    glTexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_REPEAT);
     if (m_Flags & FT_CLAMP)
     {
-      glTexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-      glTexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+      GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+      GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     }
     if (m_Flags2 & FT2_UCLAMP)
-      glTexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+      GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     if (m_Flags2 & FT2_VCLAMP)
-      glTexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+      GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   }
   else
   {
-    glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
   }
 }
 
@@ -481,16 +481,16 @@ bool STexPic::SetFilter(int nFilter)
   switch(nFilter)
   {
     case FILTER_LINEAR:
-      glTexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
+      GLR_TexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      GLR_TexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
   	  break;
     case FILTER_BILINEAR:
-      glTexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
-      glTexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
+      GLR_TexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+      GLR_TexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
   	  break;
     case FILTER_TRILINEAR:
-      glTexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-      glTexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
+      GLR_TexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+      GLR_TexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);      
       break;
     default:
       return false;
@@ -504,35 +504,35 @@ void STexPic::SetFilter()
   {
     if (!(m_Flags2 & FT2_FILTER))
     {
-      glTexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, gcpOGL->m_TexMan->GetMinFilter());
-      glTexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, gcpOGL->m_TexMan->GetMagFilter());
+      GLR_TexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, gcpOGL->m_TexMan->GetMinFilter());
+      GLR_TexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, gcpOGL->m_TexMan->GetMagFilter());
       if (int anf = gcpOGL->GetAnisotropicLevel())
-        glTexParameterf(m_TargetType, GL_TEXTURE_MAX_ANISOTROPY_EXT, (float)anf);
+        GLR_TexParameterf(m_TargetType, GL_TEXTURE_MAX_ANISOTROPY_EXT, (float)anf);
     }
     else
     {
       switch(m_Flags2 & FT2_FILTER)
       {
         case FT2_FILTER_NEAREST:
-          glTexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-          glTexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+          GLR_TexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+          GLR_TexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
           break;
 
         case FT2_FILTER_BILINEAR:
-          glTexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
-          glTexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+          GLR_TexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+          GLR_TexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
           break;
 
         case FT2_FILTER_TRILINEAR:
-          glTexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-          glTexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+          GLR_TexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+          GLR_TexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
           break;
 
         case FT2_FILTER_ANISOTROPIC:
-          glTexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-          glTexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+          GLR_TexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+          GLR_TexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
           if (int anf = gcpOGL->GetAnisotropicLevel())
-            glTexParameterf(m_TargetType, GL_TEXTURE_MAX_ANISOTROPY_EXT, (float)anf);
+            GLR_TexParameterf(m_TargetType, GL_TEXTURE_MAX_ANISOTROPY_EXT, (float)anf);
           break;
       }
     }
@@ -541,21 +541,21 @@ void STexPic::SetFilter()
   {
     if (!(m_Flags2 & FT2_FILTER))
     {
-      glTexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      GLR_TexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      GLR_TexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     }
     else
     {
       switch(m_Flags2 & FT2_FILTER)
       {
         case FT2_FILTER_NEAREST:
-          glTexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-          glTexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+          GLR_TexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+          GLR_TexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
           break;
 
         case FT2_FILTER_BILINEAR:
-          glTexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-          glTexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+          GLR_TexParameteri(m_TargetType, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+          GLR_TexParameteri(m_TargetType, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
           break;
       }
     }
@@ -612,17 +612,17 @@ void STexPic::SetClamp(bool bEnable)
 
   if (bEnable)
   {
-    glTexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     if (tgt == GL_TEXTURE_CUBE_MAP_EXT)
-      glTexParameteri(tgt, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+      GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
   }
   else
   {
-    glTexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_REPEAT);
     if (tgt == GL_TEXTURE_CUBE_MAP_EXT)
-      glTexParameteri(tgt, GL_TEXTURE_WRAP_R, GL_REPEAT);
+      GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_R, GL_REPEAT);
   }
   gRenDev->m_TexMan->SetTexture(0, eTT_Base);
 }
@@ -677,7 +677,7 @@ void CGLTexMan::SetTexture(int Id, ETexType eTT)
       SetTextureTarget(i, tgt);
     else
       ResetTextureTarget(i);
-    glBindTexture(tgt, Id);
+    GLR_BindTexture(tgt, Id);
   }
 }
 
@@ -754,7 +754,7 @@ void STexPic::Set(int nTexSlot)
     CGLTexMan::m_TUState[i].m_Bind = m_Bind;
     int tgt = m_TargetType;
     CGLTexMan::SetTextureTarget(i, tgt);
-    glBindTexture(tgt, m_Bind);
+    GLR_BindTexture(tgt, m_Bind);
   }
 }
 
@@ -990,7 +990,7 @@ int SShaderTexUnit::mfSetTexture(int nt)
   else
   if (CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target)
   {
-    glDisable(CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target);
+    GLR_EnableTexture(CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target, false);
     CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target = 0;
     CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Bind = 0;
   }
@@ -1123,10 +1123,10 @@ bool CGLTexMan::SetFilter(char *tex)
         if (m_Textures[i] && m_Textures[i]->m_bBusy && !(m_Textures[i]->m_Flags & FT_NOMIPS))
         {
           gRenDev->SetTexture(m_Textures[i]->m_Bind);
-          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GetMinFilter());
-          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GetMagFilter());
+          GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GetMinFilter());
+          GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GetMagFilter());
           if (int anf = gcpOGL->GetAnisotropicLevel())
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, (float)anf);
+            GLR_TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, (float)anf);
         }
       }
       return true;
@@ -1494,7 +1494,7 @@ void CGLTexMan::GenerateMips_SW(GLenum tgt, byte* src, int wdt, int hgt, int mod
   byte *src1, *dst1;
   int num;
 
-  glTexImage2D(tgt, 0, mode, wdt, hgt, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, src);
+  GLR_TexImage2D(tgt, 0, mode, wdt, hgt, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, src);
   num = 1;
   while (wdt!=1 && hgt!=1)
   {
@@ -1526,7 +1526,7 @@ void CGLTexMan::GenerateMips_SW(GLenum tgt, byte* src, int wdt, int hgt, int mod
 #endif
         src1 += wd<<1;
       }
-      glTexImage2D(tgt, num, mode, wdt, hgt, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, src);
+      GLR_TexImage2D(tgt, num, mode, wdt, hgt, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, src);
     }
     else
     {
@@ -1540,7 +1540,7 @@ void CGLTexMan::GenerateMips_SW(GLenum tgt, byte* src, int wdt, int hgt, int mod
           *ds++ = filter3x3((uint *)src, j<<1, i<<1, wdt<<1, hgt<<1);
         }
       }
-      glTexImage2D(tgt, num, mode, wdt, hgt, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, ds1);
+      GLR_TexImage2D(tgt, num, mode, wdt, hgt, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, ds1);
       memcpy(src, ds1, wdt*hgt*4);
       delete [] ds1;
     }
@@ -1582,7 +1582,7 @@ void CGLTexMan::BuildMips(GLenum tgt, byte* src, int wdt, int hgt, int depth, ST
           fd[i*3+1] = data[i*4+1]/127.0f;
           fd[i*3+2] = data[i*4+2]/127.0f;
         }
-        glTexImage2D(GL_TEXTURE_2D, l, GL_DSDT_MAG_NV, w, h, 0, GL_DSDT_MAG_NV, GL_FLOAT, fd);
+        GLR_TexImage2D(GL_TEXTURE_2D, l, GL_DSDT_MAG_NV, w, h, 0, GL_DSDT_MAG_NV, GL_FLOAT, fd);
         delete [] fd;
         data += w*h*4;
         ti->m_Size += w*h*3;
@@ -1599,7 +1599,7 @@ void CGLTexMan::BuildMips(GLenum tgt, byte* src, int wdt, int hgt, int depth, ST
           w = 1;
         if (!h)
           h = 1;
-        glTexImage2D(tgt, l, dstFormat, w, h, 0, GL_COLOR_INDEX, GL_UNSIGNED_BYTE, data );
+        GLR_TexImage2D(tgt, l, dstFormat, w, h, 0, GL_COLOR_INDEX, GL_UNSIGNED_BYTE, data );
         data += w*h;
         ti->m_Size += w*h;
         w >>= 1;
@@ -1616,7 +1616,7 @@ void CGLTexMan::BuildMips(GLenum tgt, byte* src, int wdt, int hgt, int depth, ST
             w = 1;
           if (!h)
             h = 1;
-          glTexImage2D(tgt, l, dstFormat, w, h, 0, GL_HILO_NV, GL_BYTE, data);
+          GLR_TexImage2D(tgt, l, dstFormat, w, h, 0, GL_HILO_NV, GL_BYTE, data);
           data += w*h*2;
           ti->m_Size += w*h*2;
           w >>= 1;
@@ -1637,7 +1637,7 @@ void CGLTexMan::BuildMips(GLenum tgt, byte* src, int wdt, int hgt, int depth, ST
           {
             Exchange(data[i*4+2], data[i*4+0]);
           }*/
-          glTexImage2D(tgt, l, dstFormat, w, h, 0, srcFormat, GL_BYTE, data);
+          GLR_TexImage2D(tgt, l, dstFormat, w, h, 0, srcFormat, GL_BYTE, data);
           data += w*h*4;
           ti->m_Size += w*h*3;
           w >>= 1;
@@ -1662,7 +1662,7 @@ void CGLTexMan::BuildMips(GLenum tgt, byte* src, int wdt, int hgt, int depth, ST
           size = ((w+3)/4)*((h+3)/4)*blockSize;
 
           ti->m_Size += size;
-          glCompressedTexImage2DARB(tgt, l, dstFormat, w, h, 0, size, src + offset);
+          GLR_CompressedTexImage2D(tgt, l, dstFormat, w, h, 0, size, src + offset);
           
           l++;
           offset += size;
@@ -1685,7 +1685,7 @@ void CGLTexMan::BuildMips(GLenum tgt, byte* src, int wdt, int hgt, int depth, ST
                 h = 1;
 
               ti->m_Size += size;
-              glCompressedTexImage2DARB(tgt, l, dstFormat, w, h, 0, size, src + offset);
+              GLR_CompressedTexImage2D(tgt, l, dstFormat, w, h, 0, size, src + offset);
 
               l++;
               offset += size;
@@ -1706,7 +1706,7 @@ void CGLTexMan::BuildMips(GLenum tgt, byte* src, int wdt, int hgt, int depth, ST
             w = 1;
           if (!h)
             h = 1;
-          glTexImage2D(tgt, l, dstFormat, w, h, 0, srcFormat, GL_UNSIGNED_BYTE, data);
+          GLR_TexImage2D(tgt, l, dstFormat, w, h, 0, srcFormat, GL_UNSIGNED_BYTE, data);
           data += TexSize(w, h, depth, srcFormat);
           ti->m_Size += TexSize(w, h, depth, dstFormat);
           w >>= 1;
@@ -1719,14 +1719,14 @@ void CGLTexMan::BuildMips(GLenum tgt, byte* src, int wdt, int hgt, int depth, ST
   if (CRenderer::CV_r_texhwmipsgeneration && SUPPORTS_GL_SGIS_generate_mipmap)
   {
     if (tgt >= GL_TEXTURE_CUBE_MAP_POSITIVE_X_EXT && tgt <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_EXT)
-      glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+      GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
     else
-      glTexParameteri(tgt, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+      GLR_TexParameteri(tgt, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
 
     if (tgt == GL_TEXTURE_3D_EXT)
       glTexImage3DEXT(tgt, 0, dstFormat, wdt, hgt, depth, 0, srcFormat, GL_UNSIGNED_BYTE, src);  
     else
-      glTexImage2D(tgt, 0, dstFormat, wdt, hgt, 0, srcFormat, GL_UNSIGNED_BYTE, src);  
+      GLR_TexImage2D(tgt, 0, dstFormat, wdt, hgt, 0, srcFormat, GL_UNSIGNED_BYTE, src);  
   }
   else
   {
@@ -1744,10 +1744,10 @@ void CGLTexMan::BuildMips8(GLenum tgt, STexPic *ti, byte *data, bool bSub)
 
   ti->m_Size = 0;
   if (bSub)
-    glTexSubImage2D(tgt, 0, 0, 0, width, height, SourceFormat, GL_UNSIGNED_BYTE, data);
+    GLR_TexSubImage2D(tgt, 0, 0, 0, width, height, SourceFormat, GL_UNSIGNED_BYTE, data);
   else
   {
-    glTexImage2D(tgt, 0, InternalFormat, width, height, 0, SourceFormat, GL_UNSIGNED_BYTE, data);
+    GLR_TexImage2D(tgt, 0, InternalFormat, width, height, 0, SourceFormat, GL_UNSIGNED_BYTE, data);
     ti->m_Size += TexSize(width, height, 1, InternalFormat);
   }
 
@@ -1769,10 +1769,10 @@ void CGLTexMan::BuildMips8(GLenum tgt, STexPic *ti, byte *data, bool bSub)
       height = 1;
     miplevel++;
     if (bSub)
-      glTexSubImage2D(tgt, miplevel, 0, 0, width, height, SourceFormat, GL_UNSIGNED_BYTE, out);
+      GLR_TexSubImage2D(tgt, miplevel, 0, 0, width, height, SourceFormat, GL_UNSIGNED_BYTE, out);
     else
     {
-      glTexImage2D(tgt, miplevel, InternalFormat, width, height, 0, SourceFormat, GL_UNSIGNED_BYTE, out);
+      GLR_TexImage2D(tgt, miplevel, InternalFormat, width, height, 0, SourceFormat, GL_UNSIGNED_BYTE, out);
       ti->m_Size += TexSize(width, height, 1, InternalFormat);
     }
     Exchange(out, data);
@@ -1785,7 +1785,7 @@ byte *CGLTexMan::GenerateDXT_HW(STexPic *ti, EImFormat eF, byte *dst, int *numMi
   int mode = 0;
 
   uint tnum = 0;
-  glGenTextures(1, &tnum);	
+  GLR_GenTextures(1, &tnum);	
   assert(tnum<14000);
   SetTexture(tnum, eTT_Base);
 
@@ -1802,11 +1802,11 @@ byte *CGLTexMan::GenerateDXT_HW(STexPic *ti, EImFormat eF, byte *dst, int *numMi
   int hgt = ti->m_Height;
   int Size = TexSize(wdt,hgt,1,mode);
   if (SUPPORTS_GL_SGIS_generate_mipmap)
-    glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
   else
     return NULL;
   
-  glTexImage2D(GL_TEXTURE_2D, 0, mode, wdt, hgt, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, dst);
+  GLR_TexImage2D(GL_TEXTURE_2D, 0, mode, wdt, hgt, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, dst);
   int nMips = 1;
   while (wdt>1 || hgt>1)
   {
@@ -1836,8 +1836,8 @@ byte *CGLTexMan::GenerateDXT_HW(STexPic *ti, EImFormat eF, byte *dst, int *numMi
     glGetTexLevelParameteriv(GL_TEXTURE_2D, level, GL_TEXTURE_HEIGHT, &h);
     if (!w || !h)
     {
-      glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
-      glDeleteTextures(1, &tnum);
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
+      GLR_DeleteTextures(1, &tnum);
       delete [] data;
       return NULL;
     }
@@ -1854,8 +1854,8 @@ byte *CGLTexMan::GenerateDXT_HW(STexPic *ti, EImFormat eF, byte *dst, int *numMi
   }
   while((w!=1 || h!=1));
 
-  glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
-  glDeleteTextures(1, &tnum);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
+  GLR_DeleteTextures(1, &tnum);
   SetTexture(0, eTT_Base);
 
   return data;
@@ -1910,7 +1910,7 @@ STexPic *CGLTexMan::CopyTexture(const char *name, STexPic *tiSrc, int CubeSide)
         byte *data = new byte[mip_size];
         glGetCompressedTexImageARB(tgt, i, data);
         tgt = cubefaces[ti->m_CubeSide];
-        glCompressedTexImage2DARB(tgt, i, ti->m_DstFormat, w, h, 0, mip_size, data);
+        GLR_CompressedTexImage2D(tgt, i, ti->m_DstFormat, w, h, 0, mip_size, data);
         delete [] data;
       }
       else
@@ -1918,7 +1918,7 @@ STexPic *CGLTexMan::CopyTexture(const char *name, STexPic *tiSrc, int CubeSide)
         byte *data = new byte[w*h*4];
         glGetTexImage(tgt, i, GL_RGBA, GL_UNSIGNED_BYTE, data);
         tgt = cubefaces[ti->m_CubeSide];
-        glTexImage2D(tgt, i, tiSrc->m_DstFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        GLR_TexImage2D(tgt, i, tiSrc->m_DstFormat, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
         delete [] data;
       }
     }
@@ -2137,7 +2137,7 @@ STexPic *CGLTexMan::CreateTexture(const char *name, int wdt, int hgt, int depth,
             eTF = eTF_Index;
             if (!m_bPaletteWasLoaded)
             {
-              glEnable( GL_SHARED_TEXTURE_PALETTE_EXT );
+              GLR_Enable( GL_SHARED_TEXTURE_PALETTE_EXT );
               glColorTableEXT(GL_SHARED_TEXTURE_PALETTE_EXT, GL_RGB, 256, GL_RGBA, GL_UNSIGNED_BYTE, (void *)&m_NMPalette[0][0]);
               m_bPaletteWasLoaded = true;
             }
@@ -2287,8 +2287,8 @@ STexPic *CGLTexMan::CreateTexture(const char *name, int wdt, int hgt, int depth,
       if (getenv("FARCRY_GLES3_TRACE_CUBE"))
         fprintf(stderr, "CUBETEX name='%s' bind=%d side=%d first=%d mips=%d %dx%d\n", ti->m_SearchName.c_str(), bind, ti->m_CubeSide, (int)bFirstCube, ti->m_nMips, ti->m_Width, ti->m_Height);
       if (tgt == GL_TEXTURE_CUBE_MAP_POSITIVE_X_EXT)
-        glBindTexture(GL_TEXTURE_CUBE_MAP_EXT, m_CurCubemapBind);
-      glEnable(GL_TEXTURE_CUBE_MAP_EXT);
+        GLR_BindTexture(GL_TEXTURE_CUBE_MAP_EXT, m_CurCubemapBind);
+      GLR_EnableTexture(GL_TEXTURE_CUBE_MAP_EXT, true);
       CGLTexMan::m_TUState[m_CurStage].m_Target = GL_TEXTURE_CUBE_MAP_EXT;
     }
     else
@@ -2302,11 +2302,11 @@ STexPic *CGLTexMan::CreateTexture(const char *name, int wdt, int hgt, int depth,
         ti->m_TargetType = GL_TEXTURE_2D;
 
       if (CGLTexMan::m_TUState[m_CurStage].m_Target && CGLTexMan::m_TUState[m_CurStage].m_Target != ti->m_TargetType)
-        glDisable(CGLTexMan::m_TUState[m_CurStage].m_Target);
+        GLR_EnableTexture(CGLTexMan::m_TUState[m_CurStage].m_Target, false);
 
       CGLTexMan::m_TUState[m_CurStage].m_Target = ti->m_TargetType;
-      glBindTexture(ti->m_TargetType, ti->m_Bind);
-      glEnable(ti->m_TargetType);
+      GLR_BindTexture(ti->m_TargetType, ti->m_Bind);
+      GLR_EnableTexture(ti->m_TargetType, true);
 
       tgt = ti->m_TargetType;
     }
@@ -2401,7 +2401,7 @@ STexPic *CGLTexMan::CreateTexture(const char *name, int wdt, int hgt, int depth,
         else
         {
           ti->m_Flags |= FT_NOMIPS;
-          glTexImage2D(tgt, 0, InternalFormat, ti->m_Width, ti->m_Height, 0, SourceFormat, GL_UNSIGNED_BYTE, src);
+          GLR_TexImage2D(tgt, 0, InternalFormat, ti->m_Width, ti->m_Height, 0, SourceFormat, GL_UNSIGNED_BYTE, src);
           ti->m_Size = TexSize(ti->m_Width, ti->m_Height, ti->m_Depth, InternalFormat);
         }
       }
@@ -2495,7 +2495,7 @@ void CGLTexMan::BuildMipsSub(byte* src, int wdt, int hgt)
   byte *src1, *dst1;
   int num;
 
-  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, wdt, hgt, GL_BGRA_EXT, GL_UNSIGNED_BYTE, src);
+  GLR_TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, wdt, hgt, GL_BGRA_EXT, GL_UNSIGNED_BYTE, src);
   num = 1;
   while (wdt!=1 && hgt!=1)
   {
@@ -2525,7 +2525,7 @@ void CGLTexMan::BuildMipsSub(byte* src, int wdt, int hgt)
       }
       src1 += wd<<1;
     }
-    glTexSubImage2D(GL_TEXTURE_2D, num, 0, 0, wdt, hgt, GL_BGRA_EXT, GL_UNSIGNED_BYTE, src);
+    GLR_TexSubImage2D(GL_TEXTURE_2D, num, 0, 0, wdt, hgt, GL_BGRA_EXT, GL_UNSIGNED_BYTE, src);
     num++;
   }
 }
@@ -2537,7 +2537,7 @@ void CGLTexMan::BuildMipsSub_DSDT(byte* src, int wdt, int hgt)
   byte *src1, *dst1;
   int num;
 
-  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, wdt, hgt, GL_DSDT_MAG_NV, GL_UNSIGNED_BYTE, src);
+  GLR_TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, wdt, hgt, GL_DSDT_MAG_NV, GL_UNSIGNED_BYTE, src);
   num = 1;
   while (wdt!=1 && hgt!=1)
   {
@@ -2566,7 +2566,7 @@ void CGLTexMan::BuildMipsSub_DSDT(byte* src, int wdt, int hgt)
       }
       src1 += wd<<1;
     }
-    glTexSubImage2D(GL_TEXTURE_2D, num, 0, 0, wdt, hgt, GL_DSDT_MAG_NV, GL_UNSIGNED_BYTE, src);
+    GLR_TexSubImage2D(GL_TEXTURE_2D, num, 0, 0, wdt, hgt, GL_DSDT_MAG_NV, GL_UNSIGNED_BYTE, src);
     num++;
   }
 }
@@ -2619,7 +2619,7 @@ void CGLTexMan::UpdateTextureRegion(STexPic *pic, byte *data, int X, int Y, int 
           pBuf[i*4+3] = data[i*4+3];
         }
         while (glGetError() != GL_NO_ERROR) {}
-        glTexSubImage2D(pic->m_TargetType, 0, X, Y, USize, VSize, GL_RGBA, GL_UNSIGNED_BYTE, pBuf);
+        GLR_TexSubImage2D(pic->m_TargetType, 0, X, Y, USize, VSize, GL_RGBA, GL_UNSIGNED_BYTE, pBuf);
         { GLenum e = glGetError(); static int n = 0; if (getenv("FARCRY_FONT_TRACE") && n++ < 8) fprintf(stderr, "PORT font subimage err=0x%x pic=%dx%d tex=%d\n", e, pic->m_Width, pic->m_Height, pic->m_Bind); }
         delete [] pBuf;
       }
@@ -2633,7 +2633,7 @@ void CGLTexMan::UpdateTextureRegion(STexPic *pic, byte *data, int X, int Y, int 
           pBuf[i] = data[i*4+3];
         }
         while (glGetError() != GL_NO_ERROR) {}
-        glTexSubImage2D(pic->m_TargetType, 0, X, Y, USize, VSize, GL_ALPHA, GL_UNSIGNED_BYTE, pBuf);
+        GLR_TexSubImage2D(pic->m_TargetType, 0, X, Y, USize, VSize, GL_ALPHA, GL_UNSIGNED_BYTE, pBuf);
         { GLenum e = glGetError(); static int n = 0; if (getenv("FARCRY_FONT_TRACE") && n++ < 8) fprintf(stderr, "PORT font subimage8 err=0x%x pic=%dx%d tex=%d\n", e, pic->m_Width, pic->m_Height, pic->m_Bind); }
         delete [] pBuf;
         break;
@@ -2715,12 +2715,12 @@ void CGLTexMan::UpdateTextureData(STexPic *pic, byte *data, int USize, int VSize
         BuildMipsSub(dst, USize, VSize);
       else
       {
-        glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, USize, VSize, GL_DSDT_MAG_NV, GL_BYTE, dst);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,GL_REPEAT);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
+        GLR_TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, USize, VSize, GL_DSDT_MAG_NV, GL_BYTE, dst);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,GL_REPEAT);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,GL_REPEAT);
         pic->m_Flags |= FT_NOMIPS;
       }
       delete [] dst;
@@ -2733,7 +2733,7 @@ void CGLTexMan::UpdateTextureData(STexPic *pic, byte *data, int USize, int VSize
       int h = VSize;
       if (nMips == 1)
       {
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA8, GL_UNSIGNED_BYTE, dst);
+        GLR_TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RGBA8, GL_UNSIGNED_BYTE, dst);
         pic->m_nMips = 1;
       }
       else
@@ -2746,7 +2746,7 @@ void CGLTexMan::UpdateTextureData(STexPic *pic, byte *data, int USize, int VSize
             w = 1;
           if (!h)
             h = 1;
-          glTexSubImage2D(GL_TEXTURE_2D, l, 0, 0, w, h, GL_RGBA8, GL_UNSIGNED_BYTE, data);
+          GLR_TexSubImage2D(GL_TEXTURE_2D, l, 0, 0, w, h, GL_RGBA8, GL_UNSIGNED_BYTE, data);
           data += w*h*4;
           w >>= 1;
           h >>= 1;
@@ -2765,14 +2765,14 @@ void CGLTexMan::UpdateTextureData(STexPic *pic, byte *data, int USize, int VSize
     if (CGLRenderer::CV_gl_mipprocedures && !(pic->m_Flags & FT_NOMIPS))
     {
       BuildMips8(GL_TEXTURE_2D, pic, data, true);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GetMinFilter());
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GetMagFilter());
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GetMinFilter());
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GetMagFilter());
     }
     else
     {
-      glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, USize, VSize, SourceFormat, GL_UNSIGNED_BYTE, data );
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      GLR_TexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, USize, VSize, SourceFormat, GL_UNSIGNED_BYTE, data );
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
       pic->m_Flags |= FT_NOMIPS;
     }
     return;
@@ -2781,9 +2781,9 @@ void CGLTexMan::UpdateTextureData(STexPic *pic, byte *data, int USize, int VSize
     BuildMipsSub((byte *)data, USize, VSize);
   else
   {
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, USize, VSize, GL_BGRA_EXT, GL_UNSIGNED_BYTE, data);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    GLR_TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, USize, VSize, GL_BGRA_EXT, GL_UNSIGNED_BYTE, data);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     pic->m_Flags |= FT_NOMIPS;
   }
 }
@@ -2840,70 +2840,70 @@ void ClearBufferWithQuad(int x2,int y2,int x1,int y1,float fR,float fG,float fB,
       }
     }
 
-    glDisable(GL_BLEND);   
-	  glDisable(GL_STENCIL_TEST);
+    GLR_Disable(GL_BLEND);   
+	  GLR_Disable(GL_STENCIL_TEST);
   	
-    glDisable(GL_DEPTH_TEST);
-    glDepthMask(1);
-    glDisable(GL_CULL_FACE);
+    GLR_Disable(GL_DEPTH_TEST);
+    GLR_DepthMask(1);
+    GLR_Disable(GL_CULL_FACE);
 
-    glEnable(GL_TEXTURE_2D);  		
+    GLR_EnableTexture(GL_TEXTURE_2D, true);  		
 	  pImage->Set();
-    glEnable(pImage->m_TargetType);
-    //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    //glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);		
+    GLR_Enable(pImage->m_TargetType);
+    //GLR_TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    //GLR_TexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);		
 
-    glBegin(GL_QUADS);
+    GLR_Begin(GL_QUADS);
 
-	  glColor3f(fR,fG,fB);
+	  GLR_Color3f(fR,fG,fB);
 
-    glTexCoord3f(crd[0][0], crd[0][1], crd[0][2]);
-	  glVertex3f(0.0f, 0.0f, 0.0f);				// Top Left
+    GLR_TexCoord3f(crd[0][0], crd[0][1], crd[0][2]);
+	  GLR_Vertex3f(0.0f, 0.0f, 0.0f);				// Top Left
 
-    glTexCoord3f(crd[1][0], crd[1][1], crd[1][2]);
-	  glVertex3f(0.0f, 256.0f, 0.0f);				// Bottom Left
+    GLR_TexCoord3f(crd[1][0], crd[1][1], crd[1][2]);
+	  GLR_Vertex3f(0.0f, 256.0f, 0.0f);				// Bottom Left
 
-    glTexCoord3f(crd[2][0], crd[2][1], crd[2][2]);
-	  glVertex3f(256.0f, 256.0f, 0.0f);				// Bottom Right
+    GLR_TexCoord3f(crd[2][0], crd[2][1], crd[2][2]);
+	  GLR_Vertex3f(256.0f, 256.0f, 0.0f);				// Bottom Right
 
-    glTexCoord3f(crd[3][0], crd[3][1], crd[3][2]);
-	  glVertex3f(256.0f, 0.0f, 0.0f);				// Top Right
+    GLR_TexCoord3f(crd[3][0], crd[3][1], crd[3][2]);
+	  GLR_Vertex3f(256.0f, 0.0f, 0.0f);				// Top Right
 
-    glEnd();    
+    GLR_End();    
 
     if (pImage->m_eTT == eTT_Cubemap)
-      glDisable(pImage->m_TargetType);
+      GLR_Disable(pImage->m_TargetType);
 
     gRenDev->Set2DMode(false, 256, 256);
 
-	  glEnable(GL_TEXTURE_2D);
-	  glEnable(GL_CULL_FACE);
-	  glEnable(GL_DEPTH_TEST); 
-    glClear(GL_DEPTH_BUFFER_BIT);
+	  GLR_EnableTexture(GL_TEXTURE_2D, true);
+	  GLR_Enable(GL_CULL_FACE);
+	  GLR_Enable(GL_DEPTH_TEST); 
+    GLR_Clear(GL_DEPTH_BUFFER_BIT);
 
     {
       /*int width = 256;
       int height = 256;
       byte *pic = new byte [width * height * 4];
-      glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
+      GLR_ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
       WriteTGA(pic,width,height,"EndCube.tga"); 
       delete [] pic;*/
     }
   }
   else
   {
-    //glClearColor(1,0,0,0);
-    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    //glScissor(0, 0, x2, y2);
+    //GLR_ClearColor(1,0,0,0);
+    //GLR_Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    //GLR_Scissor(0, 0, x2, y2);
     //glDisable (GL_SCISSOR_TEST);
     gcpOGL->EF_ClearBuffers(true, false);
-    //glScissor(0, 0, gcpOGL->GetWidth(), gcpOGL->GetHeight());
+    //GLR_Scissor(0, 0, gcpOGL->GetWidth(), gcpOGL->GetHeight());
     /*gcpOGL->m_bWasCleared = true;
-    glClearColor(gcpOGL->m_vClearColor.x,gcpOGL->m_vClearColor.y,gcpOGL->m_vClearColor.z,0);
+    GLR_ClearColor(gcpOGL->m_vClearColor.x,gcpOGL->m_vClearColor.y,gcpOGL->m_vClearColor.z,0);
     if (gRenDev->GetStencilBpp())
-	    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+	    GLR_Clear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     else
-	    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);*/
+	    GLR_Clear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);*/
   }
 }
 
@@ -2927,7 +2927,7 @@ void CGLTexMan::CreateBufRegion(int Width, int Height)
       b.m_BRHandle = wglCreateBufferRegionARB(gcpOGL->m_CurrContext->m_hDC, 0, WGL_DEPTH_BUFFER_BIT_ARB | WGL_BACK_COLOR_BUFFER_BIT_ARB);
       if (b.m_BRHandle)
       {
-        glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT );
+        GLR_Clear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT );
         // Copy the framebuffer to the buffer region (only depth).
         wglSaveBufferRegionARB(b.m_BRHandle, 0, 0, Width, Height);
       }
@@ -3088,7 +3088,7 @@ bool CGLTexMan::ScanEnvironmentCM (const char *name, int size, Vec3d& Pos)
     int width = size;
     int height = size;
     byte *pic = new byte [width * height * 4];
-    glReadPixels(size*(int)sAngles[n][3], size*(int)sAngles[n][4], width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
+    GLR_ReadPixels(size*(int)sAngles[n][3], size*(int)sAngles[n][4], width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
     sprintf(str, "%s_%s.jpg", szName, cubefaces[n]);
     WriteJPG(pic, width, height, str); 
     delete [] pic;
@@ -3149,7 +3149,7 @@ void CGLTexMan::ScanEnvironmentCube(SEnvTexture *cm, int RendFlags, int Size, bo
     cm->m_TexSize = tex_size;
     for(int n=0; n<6; n++)
     { 
-      glTexImage2D(cubefaces[n], 0, GL_RGB, tex_size, tex_size, 0, GL_RGB, GL_FLOAT, 0);
+      GLR_TexImage2D(cubefaces[n], 0, GL_RGB, tex_size, tex_size, 0, GL_RGB, GL_FLOAT, 0);
     }
     SetTexture(0, eTT_Cubemap);
   }
@@ -3189,7 +3189,7 @@ void CGLTexMan::ScanEnvironmentCube(SEnvTexture *cm, int RendFlags, int Size, bo
       int width = tex_size;
       int height = tex_size;
       byte *pic = new byte [width * height * 4];
-      glReadPixels(tex_size*(int)sAngles[n][3], tex_size*(int)sAngles[n][4], width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
+      GLR_ReadPixels(tex_size*(int)sAngles[n][3], tex_size*(int)sAngles[n][4], width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
       sprintf(str, "Cube_%s.jpg", cubefaces[n]);
       WriteJPG(pic, width, height, str); 
       delete [] pic;
@@ -3199,15 +3199,15 @@ void CGLTexMan::ScanEnvironmentCube(SEnvTexture *cm, int RendFlags, int Size, bo
 
   cm->m_Tex->m_Bind = tid;
   SetTexture(tid, eTT_Cubemap);
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_R,GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_R,GL_CLAMP_TO_EDGE);
 
   for(n=Start; n<End; n++ )
   { 
-    glCopyTexSubImage2D(cubefaces[n], 0, 0, 0, (int)(tex_size*sAngles[n][3]), (int)(tex_size*sAngles[n][4]), tex_size, tex_size);
+    GLR_CopyTexSubImage2D(cubefaces[n], 0, 0, 0, (int)(tex_size*sAngles[n][3]), (int)(tex_size*sAngles[n][4]), tex_size, tex_size);
   }
 
   gRenDev->SetViewport(vX, vY, vWidth, vHeight);
@@ -3385,7 +3385,7 @@ void CGLTexMan::ScanEnvironmentTexture(SEnvTexture *cm, SShader *pSH, SRenderSha
     cm->m_Tex->m_Flags |= FT_ALLOCATED;
     cm->m_TexSize = tex_size;
     SetTexture(tid, eTT_Base);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tex_size, tex_size, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+    GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tex_size, tex_size, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
     SetTexture(0, eTT_Base);
   }
 
@@ -3465,8 +3465,8 @@ void CGLTexMan::ScanEnvironmentTexture(SEnvTexture *cm, SShader *pSH, SRenderSha
     
     float matProj[16], matView[16], m2[16];
 
-    glGetFloatv(GL_PROJECTION_MATRIX, matProj);
-    glGetFloatv(GL_MODELVIEW_MATRIX, matView);
+    GLR_GetFloatv(GL_PROJECTION_MATRIX, matProj);
+    GLR_GetFloatv(GL_MODELVIEW_MATRIX, matView);
     mathMatrixMultiply(m2, &Smat[0], matProj, g_CpuFlags);
     mathMatrixMultiply(cm->m_Tex->m_Matrix, m2, matView, g_CpuFlags);
     //SGLFuncs::glMultMatrix(cm->m_Tex->m_Matrix, m1, rn->m_RP.m_pCurObject->GetMatrix().GetData());
@@ -3500,18 +3500,18 @@ void CGLTexMan::ScanEnvironmentTexture(SEnvTexture *cm, SShader *pSH, SRenderSha
 
   cm->m_Tex->m_Bind = tid;
   SetTexture(tid, eTT_Base);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
   
-  glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, tex_size, tex_size);
+  GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, tex_size, tex_size);
 
   /*{
       int width = tex_size;
       int height = tex_size;
       byte *pic = new byte [width * height * 4];
-      glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
+      GLR_ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
       WriteJPG(pic, width, height, "Bug.jpg"); 
       delete [] pic;
   }*/
@@ -3587,7 +3587,7 @@ void CGLTexMan::StartCubeSide(CCObject *obj)
     if (obj->m_ObjFlags & FOB_TEXTURE)
     {
       SetTexture(tid, eTT_Base);
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tex_size, tex_size, 0, GL_RGB, GL_FLOAT, 0);
+      GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tex_size, tex_size, 0, GL_RGB, GL_FLOAT, 0);
       SetTexture(0, eTT_Base);
     }
     else
@@ -3595,7 +3595,7 @@ void CGLTexMan::StartCubeSide(CCObject *obj)
       SetTexture(tid, eTT_Cubemap);
       for(int n=0; n<6; n++)
       { 
-        glTexImage2D(cubefaces[n], 0, GL_RGB, tex_size, tex_size, 0, GL_RGB, GL_FLOAT, 0);
+        GLR_TexImage2D(cubefaces[n], 0, GL_RGB, tex_size, tex_size, 0, GL_RGB, GL_FLOAT, 0);
       }
       SetTexture(0, eTT_Cubemap);
     }
@@ -3622,7 +3622,7 @@ void CGLTexMan::StartCubeSide(CCObject *obj)
   /*int width = 256;
   int height = 256;
   byte *pic = new byte [width * height * 3];
-  glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pic);
+  GLR_ReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pic);
   CImage::SaveTga(pic,FORMAT_24_BIT,width,height,"StartCube.tga",false); 
   delete [] pic;*/
 }
@@ -3657,11 +3657,11 @@ void CGLTexMan::EndCubeSide(CCObject *obj, bool bNeedClear)
     eTT = eTT_Base;
   }
   SetTexture(tid, eTT);
-  glTexParameteri(type, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(type, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(type, GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-  glTexParameteri(type, GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-  glTexParameteri(type, GL_TEXTURE_WRAP_R,GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(type, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(type, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(type, GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(type, GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(type, GL_TEXTURE_WRAP_R,GL_CLAMP_TO_EDGE);
 
   int n = obj->m_ObjFlags & FOB_CUBE_MASK;
   cm->m_MaskReady |= n >> FOB_CUBE_SHIFT;
@@ -3704,14 +3704,14 @@ void CGLTexMan::EndCubeSide(CCObject *obj, bool bNeedClear)
       break;
   }
 
-  glCopyTexSubImage2D(n, 0, 0, 0, 0, 0, tex_size, tex_size);
+  GLR_CopyTexSubImage2D(n, 0, 0, 0, 0, 0, tex_size, tex_size);
 
   SetTexture(0, eTT);
 
   /*int width = 800;
   int height = 600;
   byte *pic = new byte [width * height * 4];
-  glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
+  GLR_ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
   WriteTGA(pic,width,height,"EndCube.tga"); 
   delete [] pic;*/
   
@@ -3798,7 +3798,7 @@ void CGLTexMan::DrawToTexture(Plane& Pl, STexPic *Tex, int RendFlags)
     if (!Tex->m_RefTex.m_VidTex)
     {
       SetTexture(Tex->m_Bind, eTT_Base);
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, Tex->m_Width, Tex->m_Height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+      GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, Tex->m_Width, Tex->m_Height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
       Tex->m_Size = CGLTexMan::TexSize(Tex->m_Width, Tex->m_Height, 1, GL_RGB8);
       SetTexture(0, eTT_Base);
     }
@@ -3812,12 +3812,12 @@ void CGLTexMan::DrawToTexture(Plane& Pl, STexPic *Tex, int RendFlags)
   }
   else
   {
-    glBindTexture(GL_TEXTURE_2D, Tex->m_Bind);
+    GLR_BindTexture(GL_TEXTURE_2D, Tex->m_Bind);
     if (tt->m_DrawCount)
       tt->m_pBuffer->mfReleaseFromTexture();
     tt->m_pBuffer->mfMakeCurrent();
     // clear all pixels.
-    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+    GLR_Clear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
   }
 
   //gRenDev->EF_SaveDLights();
@@ -3866,8 +3866,8 @@ void CGLTexMan::DrawToTexture(Plane& Pl, STexPic *Tex, int RendFlags)
   
   float matProj[16], matView[16], m2[16];
 
-  glGetFloatv(GL_PROJECTION_MATRIX, matProj);
-  glGetFloatv(GL_MODELVIEW_MATRIX, matView);
+  GLR_GetFloatv(GL_PROJECTION_MATRIX, matProj);
+  GLR_GetFloatv(GL_MODELVIEW_MATRIX, matView);
   mathMatrixMultiply(m2, &Smat[0], matProj, g_CpuFlags);
   mathMatrixMultiply(Tex->m_Matrix, m2, matView, g_CpuFlags);
   //SGLFuncs::glMultMatrix(Tex->m_Matrix, m1, &gRenDev->m_ObjMatrix.m_values[0][0]);
@@ -3888,7 +3888,7 @@ void CGLTexMan::DrawToTexture(Plane& Pl, STexPic *Tex, int RendFlags)
   /*int width = 512;
   int height = 512;
   byte *pic = new byte [width * height * 4];
-  glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
+  GLR_ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
   WriteJPG(pic,width,height,"WaterMap.jpg"); 
   delete [] pic;*/
 
@@ -3896,21 +3896,21 @@ void CGLTexMan::DrawToTexture(Plane& Pl, STexPic *Tex, int RendFlags)
   {
     tt->m_DrawCount++;
     tt->m_pBuffer->mfMakeMainCurrent();
-    glBindTexture(GL_TEXTURE_2D, Tex->m_Bind);
+    GLR_BindTexture(GL_TEXTURE_2D, Tex->m_Bind);
     tt->m_pBuffer->mfTextureBind();
   }
   else
   {
-    glReadBuffer(GL_BACK);
+    GLR_ReadBuffer(GL_BACK);
     SetTexture(Tex->m_Bind, eTT_Base);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
-    //glTexImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
-    //glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 0, 0, Tex->m_Width, Tex->m_Height, 0);
+    GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
+    //GLR_TexImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
+    //GLR_CopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 0, 0, Tex->m_Width, Tex->m_Height, 0);
     
     ClearBuffer(Tex->m_Width, Tex->m_Height, true, NULL,0);
   }
@@ -3988,7 +3988,7 @@ void CGLTexMan::DrawFlashBangMap(int iId, int iRenderFlags, CREFlashBang *pRE)
 
     // create texture
     SetTexture(pTex->m_Bind, eTT_Base);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, pTex->m_Width, pTex->m_Height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+    GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, pTex->m_Width, pTex->m_Height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
     SetTexture(0, eTT_Base);
   }
 
@@ -4012,10 +4012,10 @@ void CGLTexMan::DrawFlashBangMap(int iId, int iRenderFlags, CREFlashBang *pRE)
 
   // set screen texture
   SetTexture(pScreenTex->m_Bind, eTT_Rectangle); 
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_NEAREST);  
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_NEAREST);  
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
   // set renderstate
   gRenDev->EnableDepthWrites(false);
@@ -4039,7 +4039,7 @@ void CGLTexMan::DrawFlashBangMap(int iId, int iRenderFlags, CREFlashBang *pRE)
   STexPic *pFlashBangFlash = gRenDev->m_TexMan->m_Text_FlashBangFlash;
 
   gRenDev->EnableBlend(true);
-  glBlendFunc(GL_DST_COLOR, GL_ONE);
+  GLR_BlendFunc(GL_DST_COLOR, GL_ONE);
 
   gRenDev->EnableDepthWrites(false);
   gRenDev->EnableDepthTest(false);
@@ -4052,13 +4052,13 @@ void CGLTexMan::DrawFlashBangMap(int iId, int iRenderFlags, CREFlashBang *pRE)
 
   // set texture/texture state 
   SetTexture(pTex->m_Bind, eTT_Base);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP); 
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP); 
 
   // get screen 
-  glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pTex->m_Width, pTex->m_Height);
+  GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pTex->m_Width, pTex->m_Height);
 
   // blur screen texture
 
@@ -4152,7 +4152,7 @@ void CGLTexMan::DrawFlashBangMap(int iId, int iRenderFlags, CREFlashBang *pRE)
   for(int iBlurPasses=0; iBlurPasses<2;iBlurPasses++) 
   {
     gRenDev->DrawTriStrip(&(CVertexBuffer (pData,VERTEX_FORMAT_P3F_TEX2F)), 4);
-    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pTex->m_Width, pTex->m_Height);
+    GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pTex->m_Width, pTex->m_Height);
   }
 
   // restore previous states
@@ -4227,7 +4227,7 @@ void CGLTexMan::DrawToTextureForGlare(int Id)
     // Preallocate texture
     AddToHash(pTex->m_Bind, pTex);
     SetTexture(pTex->m_Bind, eTT_Base);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, pTex->m_Width, pTex->m_Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, pTex->m_Width, pTex->m_Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
     SetTexture(0, eTT_Base);
   }
 
@@ -4255,10 +4255,10 @@ void CGLTexMan::DrawToTextureForGlare(int Id)
 
       // set screen texture
       SetTexture(pScreenTex->m_Bind, eTT_Rectangle); 
-      glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_NEAREST);  
-      glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_NEAREST);   
-      glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_S, GL_CLAMP);
-      glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_T, GL_CLAMP); 
+      GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_NEAREST);  
+      GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_NEAREST);   
+      GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_S, GL_CLAMP);
+      GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_T, GL_CLAMP); 
 
       // set renderstate
       gRenDev->EnableDepthWrites(false);
@@ -4280,7 +4280,7 @@ void CGLTexMan::DrawToTextureForGlare(int Id)
      
       // copy 4 pixels
       static unsigned char pBits[3*2*2];        
-      glReadPixels(0, 0, 2, 2, GL_RGB, GL_UNSIGNED_BYTE, pBits);
+      GLR_ReadPixels(0, 0, 2, 2, GL_RGB, GL_UNSIGNED_BYTE, pBits);
                 
       //// get pixels luminosity
       //float fAvgGlareAmount=0;
@@ -4348,10 +4348,10 @@ void CGLTexMan::DrawToTextureForGlare(int Id)
 
   // set screen texture
   SetTexture(pScreenTex->m_Bind, eTT_Rectangle); 
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_NEAREST);  
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_NEAREST);  
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
   // set renderstate
   gRenDev->EnableDepthWrites(false);
@@ -4372,11 +4372,11 @@ void CGLTexMan::DrawToTextureForGlare(int Id)
       
   // get screen
   SetTexture(pTex->m_Bind, eTT_Base);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-  glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pTex->m_Width, pTex->m_Height);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pTex->m_Width, pTex->m_Height);
 
   //if (CRenderer::CV_r_glare == 3) 
   //{
@@ -4445,31 +4445,31 @@ void CGLTexMan::DrawToTextureForGlare(int Id)
 
   pRenderer->EF_SelectTMU(0); 
   SetTexture(pTex->m_Bind, eTT_Base);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
   pRenderer->EF_SelectTMU(1);
   SetTexture(pTex->m_Bind, eTT_Base);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
   pRenderer->EF_SelectTMU(2);
   SetTexture(pTex->m_Bind, eTT_Base);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
   pRenderer->EF_SelectTMU(3);
   SetTexture(pTex->m_Bind, eTT_Base);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
  
   // get projection/modelview matrix
   float fMatrixModelView[16];
@@ -4490,7 +4490,7 @@ void CGLTexMan::DrawToTextureForGlare(int Id)
   for(int iBlurPasses=0; iBlurPasses<CRenderer::CV_r_glareboxsize;iBlurPasses++)  
   {
     gRenDev->DrawTriStrip(&(CVertexBuffer (pData,VERTEX_FORMAT_P3F_TEX2F)), 4);
-    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pTex->m_Width, pTex->m_Height);
+    GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, pTex->m_Width, pTex->m_Height);
   }
 
   vpBlur->mfSet(false, 0);
@@ -4507,10 +4507,10 @@ void CGLTexMan::DrawToTextureForGlare(int Id)
   // set screen texture
   gRenDev->SetViewport(m_TempX, m_TempY, m_TempWidth, m_TempHeight);
   SetTexture(pScreenTex->m_Bind, eTT_Rectangle);  
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
   // set renderstate
   gRenDev->EnableDepthWrites(false);
@@ -4538,21 +4538,21 @@ void CGLTexMan::DrawToTextureForGlare(int Id)
 
 _inline void GLQuad(float wdt, float hgt)
 {
-  glBegin(GL_QUADS);
+  GLR_Begin(GL_QUADS);
 
-  glTexCoord2f(0, 0);
-  glVertex3f(0, 0, 0);
+  GLR_TexCoord2f(0, 0);
+  GLR_Vertex3f(0, 0, 0);
 
-  glTexCoord2f(1.0f, 0);
-  glVertex3f(wdt, 0, 0);
+  GLR_TexCoord2f(1.0f, 0);
+  GLR_Vertex3f(wdt, 0, 0);
 
-  glTexCoord2f(1.0f, 1.0f);
-  glVertex3f(wdt, hgt, 0);
+  GLR_TexCoord2f(1.0f, 1.0f);
+  GLR_Vertex3f(wdt, hgt, 0);
 
-  glTexCoord2f(0, 1.0f);
-  glVertex3f(0, hgt, 0);
+  GLR_TexCoord2f(0, 1.0f);
+  GLR_Vertex3f(0, hgt, 0);
 
-  glEnd();
+  GLR_End();
 }
 
 void CGLTexMan::EndHeatMap()
@@ -4567,25 +4567,25 @@ void CGLTexMan::EndHeatMap()
   SetTexture(Tex->m_Bind, eTT_Base);
   if (SUPPORTS_GL_SGIS_generate_mipmap && CRenderer::CV_r_heatmapmips)
   {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     if (CRenderer::CV_r_heattype != 1)
-      glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
   }
   else
   {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
  }
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-  glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
+  GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
 
   if (SUPPORTS_GL_SGIS_generate_mipmap && CRenderer::CV_r_heatmapmips)
   {
     if (CRenderer::CV_r_heattype != 1)
-      glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
   }
 
   gRenDev->SetCamera(m_PrevCamera);
@@ -4596,13 +4596,13 @@ void CGLTexMan::EndHeatMap()
   if (CRenderer::CV_r_heattype == 1)
   {
     int i;
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(0.0, gRenDev->GetWidth(), 0.0, gRenDev->GetHeight(), -20.0, 0.0);
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
+    GLR_MatrixMode(GL_PROJECTION);
+    GLR_PushMatrix();
+    GLR_LoadIdentity();
+    GLR_Ortho(0.0, gRenDev->GetWidth(), 0.0, gRenDev->GetHeight(), -20.0, 0.0);
+    GLR_MatrixMode(GL_MODELVIEW);
+    GLR_PushMatrix();
+    GLR_LoadIdentity();
 
     gRenDev->SetCullMode(R_CULL_NONE);
     gRenDev->SetColorOp(eCO_MODULATE, eCO_MODULATE, DEF_TEXARG0, DEF_TEXARG0);
@@ -4611,7 +4611,7 @@ void CGLTexMan::EndHeatMap()
     gRenDev->SetState(GS_NODEPTHTEST);
     SetTexture(Tex->m_Bind, eTT_Base);
 
-    glColor4f(1,1,1,1);
+    GLR_Color4f(1,1,1,1);
 
     GLQuad(wdt, hgt);
 
@@ -4620,27 +4620,27 @@ void CGLTexMan::EndHeatMap()
     {
       float fOffs = (i+1)*(Tex->m_Width/1024.0f);
       float fAlpha = 0.1f;
-      glColor4f(1,1,1,fAlpha);
+      GLR_Color4f(1,1,1,fAlpha);
 
-      glPushMatrix();
-      glTranslatef(fOffs,0,0);
+      GLR_PushMatrix();
+      GLR_Translatef(fOffs,0,0);
       GLQuad(wdt, hgt);
-      glPopMatrix();
+      GLR_PopMatrix();
 
-      glPushMatrix();
-      glTranslatef(-fOffs,0,0);
+      GLR_PushMatrix();
+      GLR_Translatef(-fOffs,0,0);
       GLQuad(wdt, hgt);
-      glPopMatrix();
+      GLR_PopMatrix();
 
-      glPushMatrix();
-      glTranslatef(0,fOffs,0);
+      GLR_PushMatrix();
+      GLR_Translatef(0,fOffs,0);
       GLQuad(wdt, hgt);
-      glPopMatrix();
+      GLR_PopMatrix();
 
-      glPushMatrix();
-      glTranslatef(0,-fOffs,0);
+      GLR_PushMatrix();
+      GLR_Translatef(0,-fOffs,0);
       GLQuad(wdt, hgt);
-      glPopMatrix();
+      GLR_PopMatrix();
     }
 
     float fRandU = RandomNum() * 2.0f;
@@ -4649,35 +4649,35 @@ void CGLTexMan::EndHeatMap()
     STexPic *tp = gRenDev->m_TexMan->LoadTexture("Textures/Defaults/HeatNoise", 0, 0);
     tp->Set();
 
-    glBegin(GL_QUADS);
+    GLR_Begin(GL_QUADS);
 
-    glTexCoord2f(fRandU, fRandV);
-    glVertex3f(0, 0, 0);
+    GLR_TexCoord2f(fRandU, fRandV);
+    GLR_Vertex3f(0, 0, 0);
 
-    glTexCoord2f(4.0f+fRandU, fRandV);
-    glVertex3f(wdt, 0, 0);
+    GLR_TexCoord2f(4.0f+fRandU, fRandV);
+    GLR_Vertex3f(wdt, 0, 0);
 
-    glTexCoord2f(4.0f+fRandU, 4.0f+fRandV);
-    glVertex3f(wdt, hgt, 0);
+    GLR_TexCoord2f(4.0f+fRandU, 4.0f+fRandV);
+    GLR_Vertex3f(wdt, hgt, 0);
 
-    glTexCoord2f(fRandU, 4.0f+fRandV);
-    glVertex3f(0, hgt, 0);
+    GLR_TexCoord2f(fRandU, 4.0f+fRandV);
+    GLR_Vertex3f(0, hgt, 0);
 
-    glEnd();
+    GLR_End();
 
-    glPopMatrix();
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
+    GLR_PopMatrix();
+    GLR_MatrixMode(GL_PROJECTION);
+    GLR_PopMatrix();
+    GLR_MatrixMode(GL_MODELVIEW);
 
     SetTexture(Tex->m_Bind, eTT_Base);
     if (SUPPORTS_GL_SGIS_generate_mipmap && CRenderer::CV_r_heatmapmips)
-      glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
 
-    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
+    GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
 
     if (SUPPORTS_GL_SGIS_generate_mipmap && CRenderer::CV_r_heatmapmips)
-      glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
+      GLR_TexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
   }
 
   if (CRenderer::CV_r_heatmapsave)
@@ -4740,7 +4740,7 @@ void CGLTexMan::StartHeatMap(int Id)
     // Preallocate texture
     AddToHash(Tex->m_Bind, Tex);
     SetTexture(Tex->m_Bind, eTT_Base);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, Tex->m_Width, Tex->m_Height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+    GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, Tex->m_Width, Tex->m_Height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
     SetTexture(0, eTT_Base);
   }
 
@@ -4776,12 +4776,12 @@ void CGLTexMan::EndNightMap()
     gRenDev->Logv(SRendItem::m_RecurseLevel, "*** End Draw scene to texture for night ***\n");
 
   SetTexture(Tex->m_Bind, eTT_Base);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-  glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
+  GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
 
   gRenDev->SetCamera(m_PrevCamera);
   iSystem->SetViewCamera(m_PrevCamera);
@@ -4791,13 +4791,13 @@ void CGLTexMan::EndNightMap()
   if (CRenderer::CV_r_nighttype == 1)
   {
     int i;
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(0.0, gRenDev->GetWidth(), 0.0, gRenDev->GetHeight(), -20.0, 0.0);
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
+    GLR_MatrixMode(GL_PROJECTION);
+    GLR_PushMatrix();
+    GLR_LoadIdentity();
+    GLR_Ortho(0.0, gRenDev->GetWidth(), 0.0, gRenDev->GetHeight(), -20.0, 0.0);
+    GLR_MatrixMode(GL_MODELVIEW);
+    GLR_PushMatrix();
+    GLR_LoadIdentity();
 
     gRenDev->SetCullMode(R_CULL_NONE);
     gRenDev->SetColorOp(eCO_MODULATE, eCO_MODULATE, DEF_TEXARG0, DEF_TEXARG0);
@@ -4806,7 +4806,7 @@ void CGLTexMan::EndNightMap()
     gRenDev->EF_SetState(GS_NODEPTHTEST);
     SetTexture(Tex->m_Bind, eTT_Base);
 
-    glColor4f(1,1,1,1);
+    GLR_Color4f(1,1,1,1);
 
     GLQuad(wdt, hgt);
 
@@ -4815,27 +4815,27 @@ void CGLTexMan::EndNightMap()
     {
       float fOffs = (i+1)*(Tex->m_Width/1024.0f);
       float fAlpha = 0.1f;
-      glColor4f(1,1,1,fAlpha);
+      GLR_Color4f(1,1,1,fAlpha);
 
-      glPushMatrix();
-      glTranslatef(fOffs,0,0);
+      GLR_PushMatrix();
+      GLR_Translatef(fOffs,0,0);
       GLQuad(wdt, hgt);
-      glPopMatrix();
+      GLR_PopMatrix();
 
-      glPushMatrix();
-      glTranslatef(-fOffs,0,0);
+      GLR_PushMatrix();
+      GLR_Translatef(-fOffs,0,0);
       GLQuad(wdt, hgt);
-      glPopMatrix();
+      GLR_PopMatrix();
 
-      glPushMatrix();
-      glTranslatef(0,fOffs,0);
+      GLR_PushMatrix();
+      GLR_Translatef(0,fOffs,0);
       GLQuad(wdt, hgt);
-      glPopMatrix();
+      GLR_PopMatrix();
 
-      glPushMatrix();
-      glTranslatef(0,-fOffs,0);
+      GLR_PushMatrix();
+      GLR_Translatef(0,-fOffs,0);
       GLQuad(wdt, hgt);
-      glPopMatrix();
+      GLR_PopMatrix();
     }
 
     float fRandU = RandomNum() * 2.0f;
@@ -4844,30 +4844,30 @@ void CGLTexMan::EndNightMap()
     STexPic *tp = gRenDev->m_TexMan->LoadTexture("Textures/Defaults/HeatNoise", 0, 0);
     tp->Set();
 
-    glBegin(GL_QUADS);
+    GLR_Begin(GL_QUADS);
 
-    glTexCoord2f(fRandU, fRandV);
-    glVertex3f(0, 0, 0);
+    GLR_TexCoord2f(fRandU, fRandV);
+    GLR_Vertex3f(0, 0, 0);
 
-    glTexCoord2f(4.0f+fRandU, fRandV);
-    glVertex3f(wdt, 0, 0);
+    GLR_TexCoord2f(4.0f+fRandU, fRandV);
+    GLR_Vertex3f(wdt, 0, 0);
 
-    glTexCoord2f(4.0f+fRandU, 4.0f+fRandV);
-    glVertex3f(wdt, hgt, 0);
+    GLR_TexCoord2f(4.0f+fRandU, 4.0f+fRandV);
+    GLR_Vertex3f(wdt, hgt, 0);
 
-    glTexCoord2f(fRandU, 4.0f+fRandV);
-    glVertex3f(0, hgt, 0);
+    GLR_TexCoord2f(fRandU, 4.0f+fRandV);
+    GLR_Vertex3f(0, hgt, 0);
 
-    glEnd();
+    GLR_End();
 
-    glPopMatrix();
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
+    GLR_PopMatrix();
+    GLR_MatrixMode(GL_PROJECTION);
+    GLR_PopMatrix();
+    GLR_MatrixMode(GL_MODELVIEW);
 
     SetTexture(Tex->m_Bind, eTT_Base);
 
-    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
+    GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
 
   }
 
@@ -4931,7 +4931,7 @@ void CGLTexMan::StartNightMap(int Id)
     // Preallocate texture
     AddToHash(Tex->m_Bind, Tex);
     SetTexture(Tex->m_Bind, eTT_Base);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, Tex->m_Width, Tex->m_Height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+    GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, Tex->m_Width, Tex->m_Height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
     SetTexture(0, eTT_Base);
   }
 
@@ -4983,7 +4983,7 @@ void CGLTexMan::StartScreenMap(int Id)
     tx->m_Width = width;
     tx->m_Height = height;
     SetTexture(tx->m_Bind, eTT_Rectangle);
-    glTexImage2D(tx->m_TargetType, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+    GLR_TexImage2D(tx->m_TargetType, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
   }
   gRenDev->m_RP.m_bDrawToTexture = true;
   gRenDev->m_RP.m_PersFlags |= RBPF_DRAWSCREENMAP;// | RBPF_NOCLEARBUF;
@@ -4993,11 +4993,11 @@ void CGLTexMan::EndScreenMap()
 {
   STexPic *tx = gRenDev->m_TexMan->m_Text_EnvScr;
   SetTexture(tx->m_Bind, eTT_Rectangle);
-  glCopyTexSubImage2D(GL_TEXTURE_RECTANGLE_NV, 0, 0, 0, 0, 0, tx->m_Width, tx->m_Height);
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  GLR_CopyTexSubImage2D(GL_TEXTURE_RECTANGLE_NV, 0, 0, 0, 0, 0, tx->m_Width, tx->m_Height);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   SetTexture(0, eTT_Rectangle);
   gRenDev->m_RP.m_PersFlags &= ~(RBPF_DRAWSCREENMAP);// | RBPF_NOCLEARBUF);
   gRenDev->m_RP.m_bDrawToTexture = false;
@@ -5041,13 +5041,13 @@ void CGLTexMan::StartScreenTexMap(int Id)
     tx->m_Width = width;
     tx->m_Height = height;    
     SetTexture(tx->m_Bind, eTT_Rectangle);
-    glTexImage2D(tx->m_TargetType, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    GLR_TexImage2D(tx->m_TargetType, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
   }
   gRenDev->m_RP.m_bDrawToTexture = true;
   gRenDev->m_RP.m_PersFlags |= RBPF_DRAWSCREENTEXMAP; //| RBPF_NOCLEARBUF;
 
   gRenDev->SetViewport(m_TempX, m_TempY, m_TempWidth, m_TempHeight); 
-  //glClear(GL_DEPTH_BUFFER_BIT); 
+  //GLR_Clear(GL_DEPTH_BUFFER_BIT); 
 }
 
 // get screen texture
@@ -5072,11 +5072,11 @@ void CGLTexMan::EndScreenTexMap()
   if (SUPPORTS_GL_NV_texture_rectangle || SUPPORTS_GL_EXT_texture_rectangle)
     nTargetType=GL_TEXTURE_RECTANGLE_NV;
 
-  glCopyTexSubImage2D(nTargetType, 0, 0, 0, 0, 0, tx->m_Width, tx->m_Height);  
-  glTexParameteri(nTargetType, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(nTargetType, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(nTargetType, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(nTargetType, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);      
+  GLR_CopyTexSubImage2D(nTargetType, 0, 0, 0, 0, 0, tx->m_Width, tx->m_Height);  
+  GLR_TexParameteri(nTargetType, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  GLR_TexParameteri(nTargetType, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  GLR_TexParameteri(nTargetType, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(nTargetType, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);      
 
   SetTexture(0, eTT_Rectangle);
 
@@ -5130,7 +5130,7 @@ void CGLTexMan::DrawToTextureForRainMap(int Id)
     // Preallocate texture
     AddToHash(Tex->m_Bind, Tex);
     SetTexture(Tex->m_Bind, eTT_Base);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, Tex->m_Width, Tex->m_Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, Tex->m_Width, Tex->m_Height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
     SetTexture(0, eTT_Base);
   }
 
@@ -5160,12 +5160,12 @@ void CGLTexMan::DrawToTextureForRainMap(int Id)
     gRenDev->Logv(SRendItem::m_RecurseLevel, ".. End DrawLowDetail .. (DrawToTextureForRainMap)\n");
 
   SetTexture(Tex->m_Bind, eTT_Base);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-  glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
+  GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, Tex->m_Width, Tex->m_Height);
 
   gRenDev->SetCamera(prevCamera);
   iSystem->SetViewCamera(prevCamera);
@@ -5647,13 +5647,13 @@ bool CGLRenderer::EF_SetLightHole(Vec3d vPos, Vec3d vNormal, int idTex, float fS
   if (px>=0 && px<=1.0f && py>=0 && py<=1.0f)
   {
     STexPic *pImage = (STexPic *)((ITexPic*)pLight->m_pLightImage);
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(0.0, m_width, 0.0, m_height, -9999.0, 9999.0);
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
+    GLR_MatrixMode(GL_PROJECTION);
+    GLR_PushMatrix();
+    GLR_LoadIdentity();
+    GLR_Ortho(0.0, m_width, 0.0, m_height, -9999.0, 9999.0);
+    GLR_MatrixMode(GL_MODELVIEW);
+    GLR_PushMatrix();
+    GLR_LoadIdentity();
     Vec3d crd[4];
     switch(Side)
     {
@@ -5694,39 +5694,39 @@ bool CGLRenderer::EF_SetLightHole(Vec3d vPos, Vec3d vNormal, int idTex, float fS
         crd[3] = Vec3d(1,-1,-1);
         break;
     }
-    glDisable(GL_BLEND);   
-	  glDisable(GL_STENCIL_TEST);
+    GLR_Disable(GL_BLEND);   
+	  GLR_Disable(GL_STENCIL_TEST);
   	
-    glDisable(GL_DEPTH_TEST);
-    glDepthMask(1);
-    glDisable(GL_CULL_FACE);
+    GLR_Disable(GL_DEPTH_TEST);
+    GLR_DepthMask(1);
+    GLR_Disable(GL_CULL_FACE);
 
 	  pImage->Set();
-    glEnable(pImage->m_TargetType);
+    GLR_Enable(pImage->m_TargetType);
 
     float fWdt = (float)pImage->m_Width;
     float fHgt = (float)pImage->m_Height;
 
-    glBegin(GL_QUADS);
+    GLR_Begin(GL_QUADS);
 
-	  glColor3f(1,1,1);
+	  GLR_Color3f(1,1,1);
 
-    glTexCoord3f(crd[0][0], crd[0][1], crd[0][2]);
-	  glVertex3f(0.0f, 0.0f, 0.0f);				// Top Left
+    GLR_TexCoord3f(crd[0][0], crd[0][1], crd[0][2]);
+	  GLR_Vertex3f(0.0f, 0.0f, 0.0f);				// Top Left
 
-    glTexCoord3f(crd[1][0], crd[1][1], crd[1][2]);
-	  glVertex3f(0.0f, fHgt, 0.0f);				// Bottom Left
+    GLR_TexCoord3f(crd[1][0], crd[1][1], crd[1][2]);
+	  GLR_Vertex3f(0.0f, fHgt, 0.0f);				// Bottom Left
 
-    glTexCoord3f(crd[2][0], crd[2][1], crd[2][2]);
-	  glVertex3f(fWdt, fHgt, 0.0f);				// Bottom Right
+    GLR_TexCoord3f(crd[2][0], crd[2][1], crd[2][2]);
+	  GLR_Vertex3f(fWdt, fHgt, 0.0f);				// Bottom Right
 
-    glTexCoord3f(crd[3][0], crd[3][1], crd[3][2]);
-	  glVertex3f(fWdt, 0.0f, 0.0f);				// Top Right
+    GLR_TexCoord3f(crd[3][0], crd[3][1], crd[3][2]);
+	  GLR_Vertex3f(fWdt, 0.0f, 0.0f);				// Top Right
 
-    glEnd();    
+    GLR_End();    
 
     if (pImage->m_eTT == eTT_Cubemap)
-      glDisable(pImage->m_TargetType);
+      GLR_Disable(pImage->m_TargetType);
 
     float posx = (1.0f-px) * (float)pImage->m_Width;
     float posy = (1.0f-py) * (float)pImage->m_Height;
@@ -5735,45 +5735,45 @@ bool CGLRenderer::EF_SetLightHole(Vec3d vPos, Vec3d vNormal, int idTex, float fS
     pImage->Set();
     float fs = (float)fWdt / 256.0f;
     float fSize = fScale / 2.0f * (float)pImage->m_Width * fs;
-    glEnable(GL_TEXTURE_2D);
+    GLR_EnableTexture(GL_TEXTURE_2D, true);
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ONE);
+    GLR_Enable(GL_BLEND);
+    GLR_BlendFunc(GL_ONE, GL_ONE);
 
-    glBegin(GL_QUADS);
+    GLR_Begin(GL_QUADS);
 
-    glTexCoord2f(0, 0);
-	  glVertex3f(posx-fSize, posy-fSize, 0.0f);
+    GLR_TexCoord2f(0, 0);
+	  GLR_Vertex3f(posx-fSize, posy-fSize, 0.0f);
 
-    glTexCoord2f(0, 1);
-	  glVertex3f(posx-fSize, posy+fSize, 0.0f);
+    GLR_TexCoord2f(0, 1);
+	  GLR_Vertex3f(posx-fSize, posy+fSize, 0.0f);
 
-    glTexCoord2f(1, 1);
-	  glVertex3f(posx+fSize, posy+fSize, 0.0f);
+    GLR_TexCoord2f(1, 1);
+	  GLR_Vertex3f(posx+fSize, posy+fSize, 0.0f);
 
-    glTexCoord2f(1, 0);
-	  glVertex3f(posx+fSize, posy-fSize, 0.0f);
+    GLR_TexCoord2f(1, 0);
+	  GLR_Vertex3f(posx+fSize, posy-fSize, 0.0f);
 
-    glEnd();
+    GLR_End();
 
     pImage = (STexPic *)((ITexPic*)pLight->m_pLightImage);
     pImage->Set();
 
-    glCopyTexSubImage2D(cubefaces[Side], 0, 0, 0, 0, 0, pImage->m_Width, pImage->m_Height);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    GLR_CopyTexSubImage2D(cubefaces[Side], 0, 0, 0, 0, 0, pImage->m_Width, pImage->m_Height);
+    GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     if (pImage->m_eTT == eTT_Cubemap)
-      glDisable(pImage->m_TargetType);
-    glDisable(GL_BLEND);
+      GLR_Disable(pImage->m_TargetType);
+    GLR_Disable(GL_BLEND);
 
     m_TexMan->SetTexture(0, eTT_Cubemap);
     //pImage->SaveJPG("LightCube");
 
-    glPopMatrix();
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
+    GLR_PopMatrix();
+    GLR_MatrixMode(GL_PROJECTION);
+    GLR_PopMatrix();
+    GLR_MatrixMode(GL_MODELVIEW);
   }
 
   return true;
@@ -5956,21 +5956,21 @@ void CGLTexMan::GenerateFuncTextures()
   {    
     m_Text_NormalizeCMap = LoadTexture("$NormalizeCMap", FT_NOREMOVE | FT_NOMIPS, FT2_NODXT, eTT_Cubemap, -1.0f, -1.0f, TO_NORMALIZE_CUBE_MAP);
     //SNormalizeVector norm;
-    glEnable(GL_TEXTURE_CUBE_MAP_EXT);
-    glBindTexture(GL_TEXTURE_CUBE_MAP_EXT, TO_NORMALIZE_CUBE_MAP);
+    GLR_EnableTexture(GL_TEXTURE_CUBE_MAP_EXT, true);
+    GLR_BindTexture(GL_TEXTURE_CUBE_MAP_EXT, TO_NORMALIZE_CUBE_MAP);
     //sTestStr.AddElem(m_Text_NormalizeCMap);
     //MakeCubeMap<SNormalizeVector>(norm, GL_RGB8, 256, false, m_Text_NormalizeCMap);
     MakeNormalizeVectorCubeMap(128, gRenDev->m_TexMan->m_Text_NormalizeCMap);
-    glDisable(GL_TEXTURE_CUBE_MAP_EXT);    
+    GLR_EnableTexture(GL_TEXTURE_CUBE_MAP_EXT, false);    
 
     gRenDev->m_TexMan->m_Text_LightCMap = LoadTexture("$LightCMap", FT_NOREMOVE, FT2_NODXT, eTT_Cubemap, -1.0f, -1.0f, TO_LIGHT_CUBE_MAP);
     SSingleLight f(16);
-    glEnable(GL_TEXTURE_CUBE_MAP_EXT);
-    glBindTexture(GL_TEXTURE_CUBE_MAP_EXT, TO_LIGHT_CUBE_MAP);
+    GLR_EnableTexture(GL_TEXTURE_CUBE_MAP_EXT, true);
+    GLR_BindTexture(GL_TEXTURE_CUBE_MAP_EXT, TO_LIGHT_CUBE_MAP);
     //sTestStr.AddElem(m_Text_LightCMap);
     MakeCubeMap<SSingleLight>(f, GL_RGB8, 64, true, gRenDev->m_TexMan->m_Text_LightCMap);
     //gRenDev->m_TexMan->m_Text_LightCMap->SaveJPG("CubeLight.jpg", false);
-    glDisable(GL_TEXTURE_CUBE_MAP_EXT);    
+    GLR_EnableTexture(GL_TEXTURE_CUBE_MAP_EXT, false);    
   }
 
   GenerateFogMaps();

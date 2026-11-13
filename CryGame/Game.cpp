@@ -998,6 +998,7 @@ bool CXGame::IsInPause(IProcess *pProcess)
 bool g_PortMenuActive = false;
 double g_PortPhaseMs[PORT_PHASE_COUNT];
 double g_PortGameplayStartMs = 0;
+int g_PortDemoFrame = -1, g_PortDemoLoop = -1;
 void PortSamplerPoll();
 int PortSleepFarRigidBodies(IPhysicalWorld *pWorld, const vectorf &center, float dist, float vmax);
 
@@ -1461,6 +1462,12 @@ bool CXGame::Update()
 	//////////////////////////////////////////////////////////////////////////
 	// Special update function for developers mode.
 	//////////////////////////////////////////////////////////////////////////
+#ifndef WIN32
+	// Linux port: DevModeUpdate drives the time demo only on Windows; play
+	// time demos (console "demo <name>", e.g. the PCGH/HOC benchmark demos) here.
+	if (m_pTimeDemoRecorder && (m_pTimeDemoRecorder->IsPlaying() || m_pTimeDemoRecorder->IsRecording()))
+		m_pTimeDemoRecorder->Update();
+#endif
 	if (IsDevModeEnable())		
 		DevModeUpdate();
 	//////////////////////////////////////////////////////////////////////////

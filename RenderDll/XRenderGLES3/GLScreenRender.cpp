@@ -60,13 +60,13 @@ inline void SetTexture(CGLRenderer *pRenderer, STexPic *pTex, int iStage, int iM
     pTex->Set(); 
     
     GLenum iTextureMode = pTex->m_TargetType;
-    glTexParameteri(iTextureMode, GL_TEXTURE_MIN_FILTER, iMinFilter);
-    glTexParameteri(iTextureMode, GL_TEXTURE_MAG_FILTER, iMagFilter);
+    GLR_TexParameteri(iTextureMode, GL_TEXTURE_MIN_FILTER, iMinFilter);
+    GLR_TexParameteri(iTextureMode, GL_TEXTURE_MAG_FILTER, iMagFilter);
 
     if(!pTex->m_RefTex.bRepeats)
     {
-      glTexParameteri(iTextureMode, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-      glTexParameteri(iTextureMode, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);      
+      GLR_TexParameteri(iTextureMode, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+      GLR_TexParameteri(iTextureMode, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);      
     }
   }
   else
@@ -83,7 +83,7 @@ inline void CopyScreenToTexture(CGLRenderer *pRenderer, STexPic *pTex)
   // copy to previous frame buffer texture
   SetTexture(pRenderer, pTex, 0, GL_NEAREST, GL_NEAREST, 1); 
 
-  glCopyTexSubImage2D(pTex->m_TargetType, 0, 0, 0, 0, 0, pTex->m_Width, pTex->m_Height);
+  GLR_CopyTexSubImage2D(pTex->m_TargetType, 0, 0, 0, 0, 0, pTex->m_Width, pTex->m_Height);
 
   /*{
       byte *pDst = new byte [pTex->m_Width*pTex->m_Height*4];
@@ -126,7 +126,7 @@ bool CreateRenderTarget(CGLRenderer *pRenderer, STexPic *&pTex, int iWidth, int 
     pTex->m_Width = iWidth;
     pTex->m_Height = iHeight;    
     pRenderer->m_TexMan->SetTexture(pTex->m_Bind, eTT_Rectangle);
-    glTexImage2D(pTex->m_TargetType, 0, dstFormat, iWidth, iHeight, 0, srcFormat, GL_UNSIGNED_BYTE, 0);
+    GLR_TexImage2D(pTex->m_TargetType, 0, dstFormat, iWidth, iHeight, 0, srcFormat, GL_UNSIGNED_BYTE, 0);
     return 1;
   }
 

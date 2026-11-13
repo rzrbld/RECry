@@ -1052,6 +1052,32 @@ void CSystem::Render()
     }
 #endif
 #endif
+	// Linux port diagnostic: FARCRY_DUMP_SETTINGS=<file> writes the renderer
+	// feature flags and every console variable as actually applied, every 30 s
+	// (latest wins), to compare devices.
+	static const char *s_szDumpSettings = getenv("FARCRY_DUMP_SETTINGS");
+	if (const char *szDump = s_szDumpSettings)
+	{
+		static float fNextDump = 30.0f;
+		const float fNow = m_Time.GetAsyncCurTime();
+		if (fNow >= fNextDump && m_pConsole)
+		{
+			fNextDump = fNow + 30.0f;
+			if (FILE *f = fopen(szDump, "w"))
+			{
+				struct SSink : public ICVarDumpSink
+				{
+					std::vector<std::string> lines;
+					void OnElementFound(ICVar *pCVar) { if (pCVar) lines.push_back(std::string(pCVar->GetName()) + " = " + pCVar->GetString()); }
+				} sink;
+				fprintf(f, "renderer_features = 0x%x\n", m_pRenderer ? m_pRenderer->GetFeatures() : 0);
+				m_pConsole->DumpCVars(&sink);
+				std::sort(sink.lines.begin(), sink.lines.end());
+				for (size_t i = 0; i < sink.lines.size(); ++i) fprintf(f, "%s\n", sink.lines[i].c_str());
+				fclose(f);
+			}
+		}
+	}
 	// Linux port: FARCRY_CMD_AT="<sec>:<console command>;<sec>:<command>;..."
 	// Times are seconds after the first gameplay frame (first CSystem::Render
 	// call after the level is loaded). Commands are executed in time order and

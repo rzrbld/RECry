@@ -33,6 +33,7 @@ The GLRenderer interface Class
 #ifdef GLES3_RENDERER
 // Frames are presented through SDL; the Win32 GDI SwapBuffers does not exist.
 void GLES3_SwapBuffers();
+void GLES3PrepareCachePath(char* path);   // GLES3Bringup.cpp
 #define SwapBuffers(hdc) GLES3_SwapBuffers()
 #endif
 #define GL_EXT(name) extern byte SUPPORTS##name;
@@ -42,6 +43,9 @@ void GLES3_SwapBuffers();
 #undef GL_PROC
 
 #include "CG/cgGL.h"
+#ifdef GLES3_RENDERER
+#include "GLRBridge.h"   // native backend bridge (texture units/objects/uploads)
+#endif
 
 class PBuffer;
 class CPBuffer;
@@ -514,16 +518,16 @@ public:
     {
       if (bFogOverrided == 3)
       {
-        glEnable(GL_FOG);
+        GLR_Enable(GL_FOG);
         m_FS.m_bEnable = true;
       }
       else
       {
-        glFogfv(GL_FOG_COLOR, &m_FS.m_FogColor[0]);    
+        GLR_Fogfv(GL_FOG_COLOR, &m_FS.m_FogColor[0]);    
         if (bFogOverrided == 2)
         {
-          glFogf(GL_FOG_END,   m_FS.m_FogEnd); 
-          glFogf(GL_FOG_START, m_FS.m_FogStart); 
+          GLR_Fogf(GL_FOG_END,   m_FS.m_FogEnd); 
+          GLR_Fogf(GL_FOG_START, m_FS.m_FogStart); 
         }
       }
     }
@@ -536,52 +540,52 @@ public:
     {
       bFogDisable = true;
       if (m_FS.m_bEnable)
-        glDisable(GL_FOG);
+        GLR_Disable(GL_FOG);
     }
     switch (m_CurState & GS_BLEND_MASK)
     {
       case GS_BLSRC_ONE | GS_BLDST_ONE:
         bFogOverride = 1;
         col = CFColor(0.0f, 0.0f, 0.0f, 0.0f);
-        glFogfv(GL_FOG_COLOR,&col[0]);    
+        GLR_Fogfv(GL_FOG_COLOR,&col[0]);    
         break;
       case GS_BLSRC_DSTCOL | GS_BLDST_SRCCOL:
         bFogOverride = 1;
         col = CFColor(0.5f, 0.5f, 0.5f, 0.0f);
-        glFogfv(GL_FOG_COLOR,&col[0]);    
+        GLR_Fogfv(GL_FOG_COLOR,&col[0]);    
         break;
       case GS_BLSRC_ONE | GS_BLDST_ONEMINUSSRCALPHA:
         bFogOverride = 1;
         col = CFColor(0.0f, 0.0f, 0.0f, 0.0f);
-        glFogfv(GL_FOG_COLOR,&col[0]);    
+        GLR_Fogfv(GL_FOG_COLOR,&col[0]);    
         break;
       case GS_BLSRC_ONE | GS_BLDST_ONEMINUSSRCCOL:
         bFogOverride = 1;
         col = CFColor(0.0f, 0.0f, 0.0f, 0.0f);
-        glFogfv(GL_FOG_COLOR,&col[0]);    
+        GLR_Fogfv(GL_FOG_COLOR,&col[0]);    
         break;
       case GS_BLSRC_ZERO | GS_BLDST_ONEMINUSSRCCOL:
         bFogOverride = 1;
         col = CFColor(0.0f, 0.0f, 0.0f, 0.0f);
-        glFogfv(GL_FOG_COLOR,&col[0]);    
+        GLR_Fogfv(GL_FOG_COLOR,&col[0]);    
         break;
       case GS_BLSRC_SRCALPHA | GS_BLDST_ONE:
         bFogOverride = 1;
         col = CFColor(0.0f, 0.0f, 0.0f, 0.0f);
-        glFogfv(GL_FOG_COLOR,&col[0]);    
+        GLR_Fogfv(GL_FOG_COLOR,&col[0]);    
         break;
       case GS_BLSRC_ZERO | GS_BLDST_ONE:
         bFogOverride = 1;
         col = CFColor(0.0f, 0.0f, 0.0f, 0.0f);
-        glFogfv(GL_FOG_COLOR,&col[0]);    
+        GLR_Fogfv(GL_FOG_COLOR,&col[0]);    
         break;
       case GS_BLSRC_DSTCOL | GS_BLDST_ZERO:
         bFogOverride = 2;
         col = CFColor(1.0f, 1.0f, 1.0f, 1.0f);
-        glFogfv(GL_FOG_COLOR,&col[0]);    
+        GLR_Fogfv(GL_FOG_COLOR,&col[0]);    
 
-        glFogf(GL_FOG_END,   gRenDev->m_FS.m_FogEnd*0.5f); 
-        glFogf(GL_FOG_START, gRenDev->m_FS.m_FogStart*0.5f); 
+        GLR_Fogf(GL_FOG_END,   gRenDev->m_FS.m_FogEnd*0.5f); 
+        GLR_Fogf(GL_FOG_START, gRenDev->m_FS.m_FogStart*0.5f); 
         break;
     }
     if (bFogDisable)
@@ -595,8 +599,8 @@ public:
   {
     if (Stage != CTexMan::m_CurStage)
     {
-      glActiveTextureARB(GL_TEXTURE0_ARB+Stage);
-      glClientActiveTextureARB(GL_TEXTURE0_ARB+Stage);
+      GLR_ActiveTexture(GL_TEXTURE0_ARB+Stage);
+      GLR_ClientActiveTexture(GL_TEXTURE0_ARB+Stage);
       CTexMan::m_CurStage = Stage;
     }
   }
@@ -626,9 +630,9 @@ public:
             float *fPlane = pRT->m_TexModificator.m_TexGenMatrix.GetData();
             for (j=0; j<4; j++)
             {
-              glTexGeni(GL_S+j, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-              glTexGenfv(GL_S+j, GL_OBJECT_PLANE, fPlane);
-              glEnable(GL_TEXTURE_GEN_S+j);
+              GLR_TexGeni(GL_S+j, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+              GLR_TexGenfv(GL_S+j, GL_OBJECT_PLANE, fPlane);
+              GLR_Enable(GL_TEXTURE_GEN_S+j);
               fPlane += 4;
             }
           }
@@ -636,7 +640,7 @@ public:
           {
             for (j=0; j<4; j++)
             {
-              glDisable(GL_TEXTURE_GEN_S+j);
+              GLR_Disable(GL_TEXTURE_GEN_S+j);
             }
           }
         }
@@ -646,18 +650,18 @@ public:
           EF_SelectTMU(i);
           if (bEnable)
           {
-            glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP_NV);
-            glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP_NV);
-            glTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP_NV);
-            glEnable(GL_TEXTURE_GEN_S);
-            glEnable(GL_TEXTURE_GEN_T);
-            glEnable(GL_TEXTURE_GEN_R);
+            GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP_NV);
+            GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP_NV);
+            GLR_TexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_REFLECTION_MAP_NV);
+            GLR_Enable(GL_TEXTURE_GEN_S);
+            GLR_Enable(GL_TEXTURE_GEN_T);
+            GLR_Enable(GL_TEXTURE_GEN_R);
           }
           else
           {
-            glDisable(GL_TEXTURE_GEN_S);
-            glDisable(GL_TEXTURE_GEN_T);
-            glDisable(GL_TEXTURE_GEN_R);
+            GLR_Disable(GL_TEXTURE_GEN_S);
+            GLR_Disable(GL_TEXTURE_GEN_T);
+            GLR_Disable(GL_TEXTURE_GEN_R);
           }
         }
 
@@ -666,18 +670,18 @@ public:
           EF_SelectTMU(i);
           if (bEnable)
           {
-            glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_NORMAL_MAP_NV);
-            glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_NORMAL_MAP_NV);
-            glTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_NORMAL_MAP_NV);
-            glEnable(GL_TEXTURE_GEN_S);
-            glEnable(GL_TEXTURE_GEN_T);
-            glEnable(GL_TEXTURE_GEN_R);
+            GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_NORMAL_MAP_NV);
+            GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_NORMAL_MAP_NV);
+            GLR_TexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_NORMAL_MAP_NV);
+            GLR_Enable(GL_TEXTURE_GEN_S);
+            GLR_Enable(GL_TEXTURE_GEN_T);
+            GLR_Enable(GL_TEXTURE_GEN_R);
           }
           else
           {
-            glDisable(GL_TEXTURE_GEN_S);
-            glDisable(GL_TEXTURE_GEN_T);
-            glDisable(GL_TEXTURE_GEN_R);
+            GLR_Disable(GL_TEXTURE_GEN_S);
+            GLR_Disable(GL_TEXTURE_GEN_T);
+            GLR_Disable(GL_TEXTURE_GEN_R);
           }
         }
 
@@ -686,15 +690,15 @@ public:
           EF_SelectTMU(i);
           if (bEnable)
           {
-            glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
-            glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
-            glEnable(GL_TEXTURE_GEN_S);
-            glEnable(GL_TEXTURE_GEN_T);
+            GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
+            GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_SPHERE_MAP);
+            GLR_Enable(GL_TEXTURE_GEN_S);
+            GLR_Enable(GL_TEXTURE_GEN_T);
           }
           else
           {
-            glDisable(GL_TEXTURE_GEN_S);
-            glDisable(GL_TEXTURE_GEN_T);
+            GLR_Disable(GL_TEXTURE_GEN_S);
+            GLR_Disable(GL_TEXTURE_GEN_T);
           }
         }
       }
@@ -706,15 +710,15 @@ public:
         if (fl & (RBMF_TCM0<<i))
         {
           EF_SelectTMU(i);
-          glMatrixMode(GL_TEXTURE);
+          GLR_MatrixMode(GL_TEXTURE);
           if (bEnable)
           {
             SEfResTexture *pRT = gRenDev->m_RP.m_ShaderTexResources[i];
-            glLoadMatrixf(pRT->m_TexModificator.m_TexMatrix.GetData());
+            GLR_LoadMatrixf(pRT->m_TexModificator.m_TexMatrix.GetData());
           }
           else
-            glLoadIdentity();
-          glMatrixMode(GL_MODELVIEW);
+            GLR_LoadIdentity();
+          GLR_MatrixMode(GL_MODELVIEW);
         }
       }
     }
@@ -754,23 +758,23 @@ public:
         if (xorVL & (1<<i))
         {
           if (m_RP.m_CurrentVLights & (1<<i))
-            glEnable(GL_LIGHT0 + i);
+            GLR_Enable(GL_LIGHT0 + i);
           else
-            glDisable(GL_LIGHT0 + i);
+            GLR_Disable(GL_LIGHT0 + i);
           if ((uint)(1<<(i+1)) > xorVL)
             break;
         }
       }
       if (!m_RP.m_CurrentVLights && m_RP.m_EnabledVLights)
       {
-        glDisable(GL_NORMALIZE);
-        glDisable(GL_LIGHTING);
+        GLR_Disable(GL_NORMALIZE);
+        GLR_Disable(GL_LIGHTING);
       }
       else
       if (m_RP.m_CurrentVLights && !m_RP.m_EnabledVLights)
       {
-        glEnable(GL_NORMALIZE);
-        glEnable(GL_LIGHTING);
+        GLR_Enable(GL_NORMALIZE);
+        GLR_Enable(GL_LIGHTING);
       }
       m_RP.m_EnabledVLights = m_RP.m_CurrentVLights;
     }
@@ -794,12 +798,12 @@ public:
     {
       if (fl & RBPF_TSNEEDSET)
       {
-        glEnable(GL_TEXTURE_SHADER_NV);
+        GLR_Enable(GL_TEXTURE_SHADER_NV);
         m_RP.m_PersFlags |= RBPF_TSWASSET;
       }
       else
       {
-        glDisable(GL_TEXTURE_SHADER_NV);
+        GLR_Disable(GL_TEXTURE_SHADER_NV);
         m_RP.m_PersFlags &= ~RBPF_TSWASSET;
       }
     }
@@ -807,12 +811,12 @@ public:
     {
       if (fl & RBPF_PS1NEEDSET)
       {
-        glEnable(GL_REGISTER_COMBINERS_NV);
+        GLR_Enable(GL_REGISTER_COMBINERS_NV);
         m_RP.m_PersFlags |= RBPF_PS1WASSET;
       }
       else
       {
-        glDisable(GL_REGISTER_COMBINERS_NV);
+        GLR_Disable(GL_REGISTER_COMBINERS_NV);
         m_RP.m_PersFlags &= ~RBPF_PS1WASSET;
       }
     }
@@ -820,12 +824,12 @@ public:
     {
       if (fl & RBPF_PS2NEEDSET)
       {
-        glEnable(GL_FRAGMENT_PROGRAM_ARB);
+        GLR_Enable(GL_FRAGMENT_PROGRAM_ARB);
         m_RP.m_PersFlags |= RBPF_PS2WASSET;
       }
       else
       {
-        glDisable(GL_FRAGMENT_PROGRAM_ARB);
+        GLR_Disable(GL_FRAGMENT_PROGRAM_ARB);
         m_RP.m_PersFlags &= ~RBPF_PS2WASSET;
       }
     }
@@ -835,7 +839,7 @@ public:
     int fl = m_RP.m_PersFlags;
     if ((fl & RBPF_VSNEEDSET) && !(fl & RBPF_VSWASSET))
     {
-      glEnable(GL_VERTEX_PROGRAM_NV);
+      GLR_Enable(GL_VERTEX_PROGRAM_NV);
       m_RP.m_PersFlags |= RBPF_VSWASSET;
     }
     else
@@ -843,7 +847,7 @@ public:
     {
       if (fl & RBPF_VSWASSET)
       {
-        glDisable(GL_VERTEX_PROGRAM_NV);
+        GLR_Disable(GL_VERTEX_PROGRAM_NV);
         m_RP.m_PersFlags &= ~RBPF_VSWASSET;
       }
       if (m_RP.m_FlagsModificators & (RBMF_TCM | RBMF_TCG))
@@ -876,9 +880,9 @@ public:
         if (xorM1 & (1<<i))
         {
           if (Cur & (1<<i))
-            glEnableClientState(m_ArraysEnum[i]);
+            GLR_EnableClientState(m_ArraysEnum[i]);
           else
-            glDisableClientState(m_ArraysEnum[i]);
+            GLR_DisableClientState(m_ArraysEnum[i]);
 
           if ((1<<(i+1)) > xorM1)
             break;
@@ -892,9 +896,9 @@ public:
           {
             EF_SelectTMU(i);
             if (Cur & (0x20<<i))
-              glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+              GLR_EnableClientState(GL_TEXTURE_COORD_ARRAY);
             else
-              glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+              GLR_DisableClientState(GL_TEXTURE_COORD_ARRAY);
 
             if ((0x20<<(i+1)) > xorM)
               break;
@@ -913,7 +917,7 @@ public:
         if (xorM & (1<<i))
         {
           if (!(Cur & (1<<i)))
-            glDisableClientState(m_ArraysEnum[i]);
+            GLR_DisableClientState(m_ArraysEnum[i]);
 
           if ((1<<(i+1)) > xorM)
             break;
@@ -928,7 +932,7 @@ public:
             if (!(Cur & (0x20<<i)))
             {
               EF_SelectTMU(i);
-              glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+              GLR_DisableClientState(GL_TEXTURE_COORD_ARRAY);
             }
 
             if ((1<<(i+1)) > xorM)
@@ -957,8 +961,8 @@ public:
     byte *pData;
     if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
-      glBindBufferARB(GL_ARRAY_BUFFER_ARB, m_RP.m_VidBufs[nCurVB].m_pVBDyn->m_VS[0].m_VertBuf.m_nID);
-      pData = (byte *)glMapBufferARB(GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
+      GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, m_RP.m_VidBufs[nCurVB].m_pVBDyn->m_VS[0].m_VertBuf.m_nID);
+      pData = (byte *)GLR_MapBufferARB(GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
       if (nSize+m_RP.m_VidBufs[nCurVB].m_nOffs > m_RP.m_VidBufs[nCurVB].m_nCount)
         m_RP.m_VidBufs[nCurVB].m_nOffs = 0;
       nOffs = m_RP.m_VidBufs[nCurVB].m_nOffs;
@@ -987,8 +991,8 @@ public:
   {
     if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
-      glBindBufferARB(GL_ARRAY_BUFFER_ARB, m_RP.m_VidBufs[nCurVB].m_pVBDyn->m_VS[0].m_VertBuf.m_nID);
-      glUnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+      GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, m_RP.m_VidBufs[nCurVB].m_pVBDyn->m_VS[0].m_VertBuf.m_nID);
+      GLR_UnmapBufferARB(GL_ARRAY_BUFFER_ARB);
     }
   }
   
@@ -1003,29 +1007,29 @@ public:
         case 0:
           {
             m_RP.m_nCurBufferID = m_RP.m_VidBufs[nBuf].m_pVBDyn->m_VS[0].m_VertBuf.m_nID;
-            glBindBufferARB(GL_ARRAY_BUFFER_ARB, m_RP.m_nCurBufferID);
-            glVertexPointer(3, GL_FLOAT, m_RP.m_Stride, BUFFER_OFFSET(0+nOffsetV));
+            GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, m_RP.m_nCurBufferID);
+            GLR_VertexPointer(3, GL_FLOAT, m_RP.m_Stride, BUFFER_OFFSET(0+nOffsetV));
             SArrayPointer_Vertex::m_pLastPointer = (void *)m_RP.m_nCurBufferID;
 
             if (m_RP.m_OffsD)
             {
-              glColorPointer(4, GL_UNSIGNED_BYTE, m_RP.m_Stride, BUFFER_OFFSET(m_RP.m_OffsD+nOffsetV));
+              GLR_ColorPointer(4, GL_UNSIGNED_BYTE, m_RP.m_Stride, BUFFER_OFFSET(m_RP.m_OffsD+nOffsetV));
               SArrayPointer_Color::m_pLastPointer = (void *)nBuf;
             }
             if (m_RP.m_OffsN)
             {
-              glNormalPointer(GL_FLOAT, m_RP.m_Stride, BUFFER_OFFSET(m_RP.m_OffsN+nOffsetV));
+              GLR_NormalPointer(GL_FLOAT, m_RP.m_Stride, BUFFER_OFFSET(m_RP.m_OffsN+nOffsetV));
               SArrayPointer_Normal::m_pLastPointer = (void *)nBuf;
             }
             if (m_RP.m_OffsT)
             {
               EF_SelectTMU(0);
-              glTexCoordPointer(2, GL_FLOAT, m_RP.m_Stride, BUFFER_OFFSET(m_RP.m_OffsT+nOffsetV));
+              GLR_TexCoordPointer(2, GL_FLOAT, m_RP.m_Stride, BUFFER_OFFSET(m_RP.m_OffsT+nOffsetV));
               SArrayPointer_Texture::m_pLastPointer[0] = (void *)nBuf;
               if (SArrayPointer_Texture::m_CurEnabled & (PFE_POINTER_TEX0<<1))
               {
                 EF_SelectTMU(1);
-                glTexCoordPointer(2, GL_FLOAT, m_RP.m_Stride, BUFFER_OFFSET(m_RP.m_OffsT+nOffsetV));
+                GLR_TexCoordPointer(2, GL_FLOAT, m_RP.m_Stride, BUFFER_OFFSET(m_RP.m_OffsT+nOffsetV));
                 SArrayPointer_Texture::m_pLastPointer[1] = (void *)nBuf;
               }
             }
@@ -1035,14 +1039,14 @@ public:
           { // Tangent vectors stream
             int Stride = sizeof(SPipTangents);
             EF_SelectTMU(2);
-            glTexCoordPointer(3, GL_FLOAT, Stride, BUFFER_OFFSET(nOffsetV));
+            GLR_TexCoordPointer(3, GL_FLOAT, Stride, BUFFER_OFFSET(nOffsetV));
             SArrayPointer_Texture::m_pLastPointer[2] = (void *)nBuf;
 
             EF_SelectTMU(3);
-            glTexCoordPointer(3, GL_FLOAT, Stride, BUFFER_OFFSET(nOffsetV+sizeof(Vec3)));
+            GLR_TexCoordPointer(3, GL_FLOAT, Stride, BUFFER_OFFSET(nOffsetV+sizeof(Vec3)));
             SArrayPointer_Texture::m_pLastPointer[3] = (void *)nBuf;
 
-            glNormalPointer(GL_FLOAT, Stride, BUFFER_OFFSET(nOffsetV+sizeof(Vec3)*2));
+            GLR_NormalPointer(GL_FLOAT, Stride, BUFFER_OFFSET(nOffsetV+sizeof(Vec3)*2));
             SArrayPointer_Normal::m_pLastPointer = (void *)nBuf;
           }
           break;
@@ -1050,7 +1054,7 @@ public:
           { // LM TC stream
             int Stride = sizeof(struct_VERTEX_FORMAT_TEX2F);
             EF_SelectTMU(1);
-            glTexCoordPointer(2, GL_FLOAT, Stride, BUFFER_OFFSET(nOffsetV));
+            GLR_TexCoordPointer(2, GL_FLOAT, Stride, BUFFER_OFFSET(nOffsetV));
             SArrayPointer_Texture::m_pLastPointer[1] = (void *)nBuf;
           }
           break;
@@ -1064,27 +1068,27 @@ public:
         case 0:
           {
             SArrayPointer_Vertex::m_pLastPointer = pData;
-            glVertexPointer(3, GL_FLOAT, m_RP.m_Stride, pData);
+            GLR_VertexPointer(3, GL_FLOAT, m_RP.m_Stride, pData);
 
             if (m_RP.m_OffsD)
             {
               SArrayPointer_Color::m_pLastPointer = pData+m_RP.m_OffsD;
-              glColorPointer(4, GL_UNSIGNED_BYTE, m_RP.m_Stride, pData+m_RP.m_OffsD);
+              GLR_ColorPointer(4, GL_UNSIGNED_BYTE, m_RP.m_Stride, pData+m_RP.m_OffsD);
             }
             if (m_RP.m_OffsN)
             {
               SArrayPointer_Normal::m_pLastPointer = pData+m_RP.m_OffsN;
-              glNormalPointer(GL_FLOAT, m_RP.m_Stride, pData+m_RP.m_OffsN);
+              GLR_NormalPointer(GL_FLOAT, m_RP.m_Stride, pData+m_RP.m_OffsN);
             }
             if (m_RP.m_OffsT)
             {
               EF_SelectTMU(0);
               SArrayPointer_Texture::m_pLastPointer[0] = pData+m_RP.m_OffsT;
-              glTexCoordPointer(2, GL_FLOAT, m_RP.m_Stride, pData+m_RP.m_OffsT);
+              GLR_TexCoordPointer(2, GL_FLOAT, m_RP.m_Stride, pData+m_RP.m_OffsT);
               if (SArrayPointer_Texture::m_CurEnabled & (PFE_POINTER_TEX0<<1))
               {
                 EF_SelectTMU(1);
-                glTexCoordPointer(2, GL_FLOAT, m_RP.m_Stride, pData+m_RP.m_OffsT);
+                GLR_TexCoordPointer(2, GL_FLOAT, m_RP.m_Stride, pData+m_RP.m_OffsT);
                 SArrayPointer_Texture::m_pLastPointer[1] = pData+m_RP.m_OffsT;
               }
             }
@@ -1095,14 +1099,14 @@ public:
             int Stride = sizeof(SPipTangents);
             EF_SelectTMU(2);
             SArrayPointer_Texture::m_pLastPointer[2] = pData;
-            glTexCoordPointer(3, GL_FLOAT, Stride, pData);
+            GLR_TexCoordPointer(3, GL_FLOAT, Stride, pData);
 
             EF_SelectTMU(3);
             SArrayPointer_Texture::m_pLastPointer[3] = pData+sizeof(Vec3);
-            glTexCoordPointer(3, GL_FLOAT, Stride, pData+sizeof(Vec3));
+            GLR_TexCoordPointer(3, GL_FLOAT, Stride, pData+sizeof(Vec3));
 
             SArrayPointer_Normal::m_pLastPointer = pData+sizeof(Vec3)*2;
-            glNormalPointer(GL_FLOAT, Stride, pData+sizeof(Vec3)*2);
+            GLR_NormalPointer(GL_FLOAT, Stride, pData+sizeof(Vec3)*2);
           }
           break;
         case 2:
@@ -1110,7 +1114,7 @@ public:
             int Stride = sizeof(struct_VERTEX_FORMAT_TEX2F);
             EF_SelectTMU(1);
             SArrayPointer_Texture::m_pLastPointer[1] = pData;
-            glTexCoordPointer(2, GL_FLOAT, Stride, pData);
+            GLR_TexCoordPointer(2, GL_FLOAT, Stride, pData);
           }
           break;
       }
@@ -1146,11 +1150,11 @@ public:
 
       if (bFogOverrided)
       {
-        glFogfv(GL_FOG_COLOR, &m_FS.m_FogColor[0]);    
+        GLR_Fogfv(GL_FOG_COLOR, &m_FS.m_FogColor[0]);    
         if (bFogOverrided == 2)
         {
-          glFogf(GL_FOG_END,   m_FS.m_FogEnd); 
-          glFogf(GL_FOG_START, m_FS.m_FogStart); 
+          GLR_Fogf(GL_FOG_END,   m_FS.m_FogEnd); 
+          GLR_Fogf(GL_FOG_START, m_FS.m_FogStart); 
         }
       }
     }
@@ -1170,7 +1174,7 @@ public:
         m_sPrevY = sY;
         m_sPrevWdt = sWdt;
         m_sPrevHgt = sHgt;
-        glScissor(sX, m_height-sY-sHgt, sWdt, sHgt);
+        GLR_Scissor(sX, m_height-sY-sHgt, sWdt, sHgt);
       }
       if (bEnable != m_bsPrev)
       {
@@ -1427,9 +1431,9 @@ public:
         if (From < gcpOGL->m_MaxActiveTexturesARBFixed)
         {
           gcpOGL->EF_SelectTMU(From);
-          glDisable(CGLTexMan::m_TUState[From].m_Target);
+          GLR_EnableTexture(CGLTexMan::m_TUState[From].m_Target, false);
           if (gcpOGL->m_RP.m_ClipPlaneEnabled==1 && SUPPORTS_GL_NV_texture_shader)
-            glTexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, GL_NONE);
+            GLR_TexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, GL_NONE);
         }
         CGLTexMan::m_TUState[From].m_Bind = 0;
         CGLTexMan::m_TUState[From].m_Target = 0;
@@ -1445,11 +1449,11 @@ public:
       {
         gcpOGL->EF_SelectTMU(i);
         if (i == 3)
-          glTexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, GL_CULL_FRAGMENT_NV);
+          GLR_TexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, GL_CULL_FRAGMENT_NV);
         else
-          glTexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, CGLTexMan::m_TUState[i].m_Target);
+          GLR_TexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, CGLTexMan::m_TUState[i].m_Target);
       }
-      glEnable(GL_TEXTURE_SHADER_NV);
+      GLR_Enable(GL_TEXTURE_SHADER_NV);
     }
   }
 
@@ -1467,14 +1471,14 @@ public:
           {
             gcpOGL->m_RP.m_ClipPlaneEnabled = 0;
             gcpOGL->m_RP.m_ClipPlaneWasOverrided = 1;
-            glDisable(GL_TEXTURE_SHADER_NV);
+            GLR_Disable(GL_TEXTURE_SHADER_NV);
           }
           else
-            glTexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, Target);
+            GLR_TexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, Target);
         }
         if (CGLTexMan::m_TUState[Stage].m_Target)
-          glDisable(CGLTexMan::m_TUState[Stage].m_Target);
-        glEnable(Target);
+          GLR_EnableTexture(CGLTexMan::m_TUState[Stage].m_Target, false);
+        GLR_EnableTexture(Target, true);
       }
       CGLTexMan::m_TUState[Stage].m_Target = Target;
     }
@@ -1484,10 +1488,10 @@ public:
     if (CGLTexMan::m_TUState[Stage].m_Target)
     {
       if (CTexMan::m_CurStage < gcpOGL->m_MaxActiveTexturesARBFixed)
-        glDisable(CGLTexMan::m_TUState[Stage].m_Target);
+        GLR_EnableTexture(CGLTexMan::m_TUState[Stage].m_Target, false);
       CGLTexMan::m_TUState[Stage].m_Target = 0;
       if (gcpOGL->m_RP.m_ClipPlaneEnabled==1 && SUPPORTS_GL_NV_texture_shader)
-        glTexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, GL_NONE);
+        GLR_TexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, GL_NONE);
     }
   }
 

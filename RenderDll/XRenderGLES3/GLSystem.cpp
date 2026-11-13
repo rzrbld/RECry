@@ -13,6 +13,9 @@ static char THIS_FILE[] = __FILE__;
 
 #include "RenderPCH.h"
 #include "GL_Renderer.h"
+#include "GLAudit.h"
+#include "GLR.h"
+#include "GLTexUpload.h"
 #include "CG/cgGL.h"
 #include "GLCGVProgram.h"
 #include "GLCGPShader.h"
@@ -38,6 +41,7 @@ COMPRESSOR_ERROR (*CompressTextureATI)(DWORD width,
 #include <vector>
 #include <algorithm>
 #include "GLES3CoreFuncs.h"
+#include "GLNative.h"
 #include "GLES3FFP.h"
 #include "../../port/platform/PortTiming.h"
 
@@ -52,6 +56,18 @@ static void GLES3AuditTextureNames()
     STexPic* tp = gRenDev->m_TexMan->m_Textures[i];
     if (tp) fprintf(stderr, "GLES3TEX bind=%d name=%s %dx%d flags=0x%x\n", tp->m_Bind, tp->m_SearchName.c_str(), tp->m_Width, tp->m_Height, tp->m_Flags);
   }
+}
+
+// Diagnostics: engine texture name of a GL texture (only used on errors).
+static const char* GLES3TexNameOf(unsigned tex)
+{
+  if (!gRenDev || !gRenDev->m_TexMan) return "?";
+  for (int i = 0; i < gRenDev->m_TexMan->m_Textures.Num(); ++i)
+  {
+    STexPic* tp = gRenDev->m_TexMan->m_Textures[i];
+    if (tp && (unsigned)tp->m_Bind == tex) return tp->m_SearchName.c_str();
+  }
+  return "?";
 }
 
 static SDL_Window*   g_GLES3Window  = NULL;
@@ -72,6 +88,14 @@ static void GLES3_ReadSize(int& w, int& h)
   SDL_GL_GetDrawableSize(g_GLES3Window, &w, &h);
 }
 
+// Captures are port tooling: they read through the driver directly, never
+// through the engine's GL table (trapped by the native backend).
+static void GLES3_RealReadPixels(GLint x, GLint y, GLsizei w, GLsizei h, GLenum f, GLenum t, void* p)
+{
+  typedef void (APIENTRY *PRead)(GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, void*);
+  static PRead rd = (PRead)SDL_GL_GetProcAddress("glReadPixels");
+  rd(x, y, w, h, f, t, p);
+}
 static void GLES3_SnapIfRequested()
 {
   static bool s_init = false; static int s_series = 0;
@@ -79,11 +103,20 @@ static void GLES3_SnapIfRequested()
   if (!s_snapRequest) return;
   const int k = 3 - (int)s_snapRequest; if (k == 0) ++s_series;
   if (k == 2) { extern void GLES3FFPRequestDump(); GLES3FFPRequestDump(); } // after the 3 clean frames
+  if (k == 0 && GLR::Active()) GLR::TraceNextDraws(600);   // native: log the next frame's draws
+  if (k == 0 && gRenDev)
+  {
+    // Where the snapshot was taken (FARCRY_BENCH_POS reproduces it: x y z yaw).
+    const CCamera& cam = gRenDev->GetCamera();
+    const Vec3 p = cam.GetPos(), a = cam.GetAngles();
+    fprintf(stderr, "PORT snap: camera %.2f %.2f %.2f angles %.1f %.1f %.1f (bench: \"%.2f %.2f %.2f %.1f\")\n",
+            p.x, p.y, p.z, a.x, a.y, a.z, p.x, p.y, p.z - 1.7f, a.z);
+  }
   --s_snapRequest;
   const char* dir = getenv("FARCRY_SNAP_DIR"); if (!dir) dir = getenv("FARCRY_CAPTURE_DIR"); if (!dir) dir = ".";
   int w = 0, h = 0; GLES3_ReadSize(w, h);
   std::vector<unsigned char> px((size_t)w * h * 4);
-  glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+  GLES3_RealReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
   char path[1024]; snprintf(path, sizeof(path), "%s/snap-%02d-%d.ppm", dir, s_series, k);
   if (FILE* f = fopen(path, "wb"))
   {
@@ -104,6 +137,35 @@ static void GLES3_CaptureIfDue()
       for (const char* p = t; *p; ) { s_times.push_back((float)atof(p)); while (*p && *p != ',') ++p; if (*p) ++p; }
     s_start = SDL_GetTicks();
   }
+  // FARCRY_CAPTURE_DEMO_FRAMES=300,1200: capture when the time demo's first
+  // loop renders those frames (demo-<frame>.ppm): frame-exact image compares
+  // between renderers, independent of frame rate.
+  {
+    static std::vector<int> s_demoFrames; static size_t s_demoNext = 0; static bool s_demoInit = false;
+    if (!s_demoInit)
+    {
+      s_demoInit = true;
+      if (const char* t = getenv("FARCRY_CAPTURE_DEMO_FRAMES"))
+        for (const char* p = t; *p; ) { s_demoFrames.push_back(atoi(p)); while (*p && *p != ',') ++p; if (*p) ++p; }
+    }
+    if (s_demoNext < s_demoFrames.size() && g_PortDemoLoop == 0 && g_PortDemoFrame >= s_demoFrames[s_demoNext])
+    {
+      const char* dir = getenv("FARCRY_CAPTURE_DIR");
+      int w = 0, h = 0; GLES3_ReadSize(w, h);
+      std::vector<unsigned char> px((size_t)w * h * 4);
+      GLES3_RealReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+      char path[1024]; snprintf(path, sizeof(path), "%s/demo-%05d.ppm", dir ? dir : ".", s_demoFrames[s_demoNext]);
+      if (FILE* f = fopen(path, "wb"))
+      {
+        fprintf(f, "P6\n%d %d\n255\n", w, h);
+        for (int y = h - 1; y >= 0; --y)
+          for (int x = 0; x < w; ++x) fwrite(&px[((size_t)y * w + x) * 4], 1, 3, f);
+        fclose(f);
+        fprintf(stderr, "PORT capture: %s (demo frame %d)\n", path, g_PortDemoFrame);
+      }
+      ++s_demoNext;
+    }
+  }
   // FARCRY_CAPTURE_FRAMES=N: from the first capture time on, capture N consecutive frames.
   static const int s_burst = getenv("FARCRY_CAPTURE_FRAMES") ? atoi(getenv("FARCRY_CAPTURE_FRAMES")) : 0;
   const bool bInBurst = s_burst > 0 && s_next > 0 && s_next < (size_t)s_burst;
@@ -119,7 +181,7 @@ static void GLES3_CaptureIfDue()
   const char* dir = getenv("FARCRY_CAPTURE_DIR");
   int w = 0, h = 0; GLES3_ReadSize(w, h);
   std::vector<unsigned char> px((size_t)w * h * 4);
-  glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+  GLES3_RealReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
   char path[1024]; snprintf(path, sizeof(path), "%s/frame-%02d.ppm", dir ? dir : ".", (int)s_next);
   if (FILE* f = fopen(path, "wb"))
   {
@@ -272,6 +334,15 @@ static void GLES3_SceneSetup(int w, int h, int dw, int dh)
     s_bindFramebuffer(GL_FRAMEBUFFER, 0); s_scene.fbo = 0;
     return;
   }
+  // The context's default viewport and scissor box are the window's size.
+  // Menus, videos and other 2D screens never set a viewport (they expect the
+  // default to match the game's size), so with a smaller offscreen target
+  // they were drawn window-sized and only their lower-left corner showed.
+  {
+    typedef void (APIENTRY *PRect)(GLint, GLint, GLsizei, GLsizei);
+    if (PRect vp = (PRect)SDL_GL_GetProcAddress("glViewport")) vp(0, 0, w, h);
+    if (PRect sc = (PRect)SDL_GL_GetProcAddress("glScissor")) sc(0, 0, w, h);
+  }
   const char* sm = getenv("FARCRY_SCALE");
   s_scene.w = w; s_scene.h = h; s_scene.dw = dw; s_scene.dh = dh;
   s_sceneReadW = w; s_sceneReadH = h;
@@ -331,6 +402,12 @@ void GLES3_SwapBuffers()
 {
   if (g_GLES3Window)
   {
+    { int sw = 0, sh = 0; GLES3_ReadSize(sw, sh); GLN::SelfTest(sw, sh); }
+    if (GLR::Active())
+    {
+      if (getenv("FARCRY_GLR_SELFTEST")) GLR::SelfTest();
+      GLR::EndFrame();   // native backend: play back the recorded frame
+    }
     GLES3_CaptureIfDue();
     GLES3FFPFrameBoundary();
     GLES3_ScenePresent();
@@ -342,7 +419,7 @@ void GLES3_SwapBuffers()
       {
         int w = 0, h = 0; SDL_GL_GetDrawableSize(g_GLES3Window, &w, &h);
         std::vector<unsigned char> px((size_t)w * h * 4);
-        glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+        GLES3_RealReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
         if (FILE* f = fopen(s_shot, "wb"))
         {
           fprintf(f, "P6\n%d %d\n255\n", w, h);
@@ -351,11 +428,34 @@ void GLES3_SwapBuffers()
         }
       }
     }
+    // Diagnostic: FARCRY_GPU_TIMING=1 waits for the GPU before the swap and
+    // logs the median wait every 100 frames (how long the GPU takes to finish
+    // a frame after the CPU has submitted it; separates GPU cost from the
+    // display's page-flip wait in swap_ms).
+    {
+      static const bool s_gpuTiming = getenv("FARCRY_GPU_TIMING") != NULL;
+      if (s_gpuTiming)
+      {
+        static std::vector<double> s_waits;
+        const Uint64 t0 = SDL_GetPerformanceCounter();
+        glFinish();
+        s_waits.push_back((SDL_GetPerformanceCounter() - t0) * 1000.0 / (double)SDL_GetPerformanceFrequency());
+        if (s_waits.size() >= 100)
+        {
+          std::sort(s_waits.begin(), s_waits.end());
+          fprintf(stderr, "PORT gpu_finish_ms median=%.2f p90=%.2f max=%.2f\n", s_waits[50], s_waits[90], s_waits[99]);
+          s_waits.clear();
+        }
+      }
+    }
     {
       SPortPhaseScope portScope(PORT_PHASE_SWAP);
       SDL_GL_SwapWindow(g_GLES3Window);
     }
     GLES3_SceneRebind();
+    GLN::FrameBoundary();
+    if (GLR::Active()) GLR::BeginFrame();
+    GLAudit_Frame();
     GLES3_LogFrameTime();
   }
 }
@@ -409,7 +509,8 @@ static bool GLES3IsCoreExtension(const char* ext)
   // Bring-up switch: report the ARB program extensions so the engine selects
   // its shader techniques and requests Cg programs (captured for the
   // Cg -> GLSL ES translator). Their entry points are counted stubs.
-  static int s_shaderTier = getenv("FARCRY_GLES3_SHADER_TIER") ? atoi(getenv("FARCRY_GLES3_SHADER_TIER")) : 0;
+  // In native mode the programs are real (GLRCg translation, GLRCgPrograms).
+  static int s_shaderTier = GLR::ProgramsSupported() ? 1 : (getenv("FARCRY_GLES3_SHADER_TIER") ? atoi(getenv("FARCRY_GLES3_SHADER_TIER")) : 0);
   if (s_shaderTier && (!strcmp(ext, "GL_ARB_vertex_program") || !strcmp(ext, "GL_ARB_fragment_program")))
     return true;
   return false;
@@ -731,6 +832,20 @@ void CGLRenderer::FindProcs( bool AllowExt )
   #include "GLFuncs.h"
   #undef GL_EXT
   #undef GL_PROC
+#ifdef GLES3_RENDERER
+  // Stage 0 of the native backend: FARCRY_GL_AUDIT counts every engine GL
+  // call per function and call site (GLAudit.h). Wrapped once.
+  static bool s_audited = false;
+  if (!s_audited && GLAudit_Enabled())
+  {
+    s_audited = true;
+    #define GL_EXT(name)
+    #define GL_PROC(ext,ret,func,parms) GLAUDIT_WRAP(func)
+    #include "GLFuncs.h"
+    #undef GL_EXT
+    #undef GL_PROC
+  }
+#endif
 }
 
 bool CGLRenderer::CheckOGLExtensions(void)
@@ -1836,6 +1951,9 @@ HWND CGLRenderer::SetMode(int x,int y,int width,int height,unsigned int cbpp, in
       iLog->Log("GLES3 surface: alpha %d bits, depth %d bits%s", a, d, a > 0 ? "" : " (no destination alpha: terrain layers/sprites degrade)");
     }
     GLES3FFPInit(&GLES3LogBridge);
+    GLN::Init(&GLES3LogBridge);
+    if (GLR::Active() && !GLR::Init()) iLog->Log("GLR: native backend could not start");
+    GLTex::SetTexNameLookup(&GLES3TexNameOf);
     GLES3FFPSetAuditHook(&GLES3AuditTextureNames);
     int dw = width, dh = height;
     SDL_GL_GetDrawableSize(g_GLES3Window, &dw, &dh);
@@ -2391,7 +2509,9 @@ exr:
   // shader) branches, which this renderer cannot run.
   // Default: GF2 class (FARCRY_GLES3_GPU=other keeps the detected class).
   {
+    // Native backend with programs: the detected (ARB program) class.
     const char* gpu = getenv("FARCRY_GLES3_GPU");
+    if (!gpu && GLR::ProgramsSupported()) gpu = "other";
     if (!gpu || !stricmp(gpu, "gf2")) { m_Features &= ~RFT_HW_MASK; m_Features |= RFT_HW_GF2; }
   }
   fprintf(stderr, "PORT GPU class: 0x%x\n", m_Features & RFT_HW_MASK);

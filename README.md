@@ -5,6 +5,9 @@ and packaged for [PortMaster](https://portmaster.games).
 
 - The engine from the Far Cry 1 source SDK, ported to Linux, aarch64 and OpenGL ES 3
   (a native GLES3 renderer), with SDL2 for display, sound and input.
+- The game's own Cg shader programs are translated to GLSL ES at runtime, so materials
+  look as on a 2004 shader-model-2 PC: bump-mapped and specular surfaces, reflective
+  water, underwater caustics.
 - The story cutscenes (Bink) play through a small bundled FFmpeg build.
 - A launcher unpacks your GOG installer on the device and offers the port's settings.
 - Any screen size, render resolution and aspect ratio (4:3, 16:10, 16:9).
@@ -23,6 +26,15 @@ unedited:
 | Fort | Pier |
 | ![Catacombs](docs/screenshots/catacombs.png) | ![Swamp](docs/screenshots/swamp.png) |
 | Catacombs | Swamp |
+
+With the native renderer and the game's shader programs (Renderer: Native, the default):
+
+| | |
+|---|---|
+| ![Ocean reflections](docs/screenshots/pier-water-h700.png) | ![Jungle and waterfall](docs/screenshots/pier-jungle-h700.png) |
+| Water reflections | Jungle, bump-mapped rock and waterfall |
+| ![Underwater](docs/screenshots/pier-underwater-h700.png) | ![Training hut](docs/screenshots/hut-interior.png) |
+| Underwater caustics | Training hut interior (PC capture, same renderer) |
 
 ## Performance: Anbernic RG40XX-H (Allwinner H700)
 
@@ -43,14 +55,14 @@ Measured on an RG40XX-H (H700, 4x Cortex-A53 at 1.5 GHz, Mali-G31, 1 GB RAM, muO
 | Cooler | 30.0 | | Control | 30.0 |
 
 The game is capped at 30 FPS (launcher: Frame limit). A typical frame needs 7-23 ms of the
-33 ms budget. On slow handhelds "Auto" turns on three trade-offs:
+33 ms budget. The handheld defaults trade a little detail for speed: idle physics
+objects sleep sooner, fewer particles and decals, no bird/fish flocks or cloth, and a
+shorter draw distance for props (not characters). They are ordinary game settings and
+can be changed in the game's Options menu.
 
-- **Physics:** idle objects sleep sooner, fewer solver steps.
-- **Effects:** fewer particles and decals, no water reflections.
-- **View distance:** shorter draw distance for props, not for characters.
-
-Each can be switched off in the launcher. Without them the H700 runs Fort and Catacombs
-at about 26-27 FPS.
+The level table above predates the native renderer's shader programs. On the Pier
+timedemo with materials and water reflections on, the H700 averages 34.7 FPS
+(uncapped) and the RG DS 34.6 FPS.
 
 The first visit to each level is slower for a minute: textures are converted for the GPU
 once and cached in `ports/recry/cache/`.
@@ -122,13 +134,18 @@ shooters"; gptokeyb2 has no tap-vs-hold, so its hold actions are on an LB layer)
 |---|---|
 | Resolution | Game resolution. Auto = the screen up to 480 lines, else 480 lines at the screen's shape |
 | Picture | Keep aspect (bars when shapes differ) or stretch |
-| Physics / Effects / View distance | Auto: simplified on handhelds (H700, RK3326, RK3566/RK3568, ...), stock Far Cry on desktop-class devices |
 | Menu text size | Bigger menu text for small screens |
 | Frame limit | 30, 60 or uncapped |
 | FPS counter | Off, On (a small counter) or Built-in (the engine's own statistics) |
 | CPU | Performance governor while playing (restored on exit) |
+| Renderer | Native (default): the game's own shader programs, full materials and water. Classic: the older fixed-function renderer |
+| Restore default game settings | Undo changes made in the game's Options menu (press A twice); saves are kept |
 | Look speed / Pointer speed | Right stick turning speed and the menu pointer speed, 5-200 % (30 % = default) |
 | Controls | Classic or Modern shooter (see Controls) |
+
+Graphics quality (particles, view distance, water, physics) is set in the game's own
+Options menu. The port writes handheld defaults on first start and after updates;
+your changes in the game menu are kept until you restore the defaults in the launcher.
 
 In the menus either stick moves the pointer and A clicks. A, B or Start skips movies and
 cutscenes (the ones Far Cry lets you skip).

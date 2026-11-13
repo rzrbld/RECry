@@ -380,7 +380,7 @@ public:
     else
     if (m_CGProfileType == CG_PROFILE_ARBVP1)
     {
-      glBindProgramARB(GL_VERTEX_PROGRAM_ARB, m_Insts[m_CurInst].m_dwHandle);
+      GLR_BindProgramARB(GL_VERTEX_PROGRAM_ARB, m_Insts[m_CurInst].m_dwHandle);
       if (m_Insts[m_CurInst].m_BindConstants)
       {
         int i;
@@ -394,7 +394,7 @@ public:
             m_CurParams[n][1] = p->m_Val[1];
             m_CurParams[n][2] = p->m_Val[2];
             m_CurParams[n][3] = p->m_Val[3];
-            glProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, p->m_dwBind, &p->m_Val[0]);
+            GLR_ProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, p->m_dwBind, &p->m_Val[0]);
           }
         }
       }
@@ -529,7 +529,7 @@ public:
       int size = strlen(prog_text);
       glLoadProgramNV(GL_VERTEX_PROGRAM_NV, m_Insts[m_CurInst].m_dwHandle, size, (const GLubyte *)prog_text);
       GLint errpos = -1;
-      glGetIntegerv(GL_PROGRAM_ERROR_POSITION_NV, &errpos);
+      if (!GLR::Active()) glGetIntegerv(GL_PROGRAM_ERROR_POSITION_NV, &errpos);
       if(errpos != -1)
       {
         iLog->Log("Warning: VProgram error:\n");
@@ -548,12 +548,12 @@ public:
     else
     if (m_CGProfileType == CG_PROFILE_ARBVP1)
     {
-      glGenProgramsARB(1, &m_Insts[m_CurInst].m_dwHandle);
-      glBindProgramARB(GL_VERTEX_PROGRAM_ARB, m_Insts[m_CurInst].m_dwHandle);
+      GLR_GenProgramsARB(1, &m_Insts[m_CurInst].m_dwHandle);
+      GLR_BindProgramARB(GL_VERTEX_PROGRAM_ARB, m_Insts[m_CurInst].m_dwHandle);
       int size = strlen(prog_text);
-      glProgramStringARB(GL_VERTEX_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, size, (const GLubyte *)prog_text);
-      GLint errpos;
-      glGetIntegerv(GL_PROGRAM_ERROR_POSITION_ARB, &errpos);
+      GLR_ProgramStringARB(GL_VERTEX_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, size, (const GLubyte *)prog_text);
+      GLint errpos = -1;   // port: ES has no program error position (query leaves it unset)
+      if (!GLR::Active()) glGetIntegerv(GL_PROGRAM_ERROR_POSITION_ARB, &errpos);
       if(errpos != -1)
       {
         iLog->Log("Warning: VProgram error:\n");
@@ -629,7 +629,7 @@ public:
           m_CurParams[n][1] = v[1];
           m_CurParams[n][2] = v[2];
           m_CurParams[n][3] = v[3];
-          glProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, n, v);
+          GLR_ProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, n, v);
         }
         v += 4;
       }
@@ -742,10 +742,10 @@ public:
       }
       else
       {
-        glProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, n, v);
-        glProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, n+1, v+4);
-        glProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, n+2, v+8);
-        glProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, n+3, v+12);
+        GLR_ProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, n, v);
+        GLR_ProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, n+1, v+4);
+        GLR_ProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, n+2, v+8);
+        GLR_ProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, n+3, v+12);
         if (n)
           memcpy(&m_CurParams[n][0], v, 4*4*sizeof(float));
       }
@@ -755,18 +755,18 @@ public:
   void mfEnable()
   {
     if (m_CGProfileType == CG_PROFILE_VP20)
-      glEnable(GL_VERTEX_PROGRAM_NV);
+      GLR_Enable(GL_VERTEX_PROGRAM_NV);
     else
     if (m_CGProfileType == CG_PROFILE_ARBVP1)
-      glEnable(GL_VERTEX_PROGRAM_ARB);
+      GLR_Enable(GL_VERTEX_PROGRAM_ARB);
   }
   void mfDisable()
   {
     if (m_CGProfileType == CG_PROFILE_VP20)
-      glDisable(GL_VERTEX_PROGRAM_NV);
+      GLR_Disable(GL_VERTEX_PROGRAM_NV);
     else
     if (m_CGProfileType == CG_PROFILE_ARBVP1)
-      glDisable(GL_VERTEX_PROGRAM_ARB);
+      GLR_Disable(GL_VERTEX_PROGRAM_ARB);
     gRenDev->m_RP.m_PersFlags &= ~RBPF_VSWASSET;
   }
 
@@ -788,7 +788,7 @@ public:
         glDeleteProgramsNV(1, &m_Insts[m_CurInst].m_dwHandle);
       else
       if (m_CGProfileType == CG_PROFILE_ARBVP1)
-        glDeleteProgramsARB(1, &m_Insts[m_CurInst].m_dwHandle);
+        GLR_DeleteProgramsARB(1, &m_Insts[m_CurInst].m_dwHandle);
     }
     m_Insts[m_CurInst].m_dwHandle = 0;
   }

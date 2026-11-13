@@ -65,11 +65,11 @@ void CGLRenderer::BlurImage(int nSizeX, int nSizeY, int nType, int nTexIdSrc, in
   {
     EF_SetState(GS_NODEPTHTEST);
     m_TexMan->SetTexture(nTexIdSrc, eTT_Base);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, nSizeX, nSizeY, 0);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    GLR_CopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, nSizeX, nSizeY, 0);
     Set2DMode(true, 1, 1);
 
     struct_VERTEX_FORMAT_P3F_TEX2F pScreenBlur[] =  
@@ -188,13 +188,13 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
   // remember fog value
   int bFog=0; 
   glGetIntegerv(GL_FOG,&bFog);
-  glDisable(GL_FOG);
+  GLR_Disable(GL_FOG);
 
   // glPush
-  glMatrixMode(GL_PROJECTION);
-  glPushMatrix();
-  glMatrixMode(GL_MODELVIEW);
-  glPushMatrix();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_PushMatrix();
+  GLR_MatrixMode(GL_MODELVIEW);
+  GLR_PushMatrix();
 
   // check extension
   bool bDepth = (m_Features & RFT_DEPTHMAPS) != 0;
@@ -216,15 +216,15 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
   float lightFrustumMatrix[16];
   float lightViewMatrix[16];
 
-  glMatrixMode(GL_PROJECTION);
+  GLR_MatrixMode(GL_PROJECTION);
   makeProjectionMatrix(lof->FOV, lof->ProjRatio, lof->min_dist, lof->max_dist, lightFrustumMatrix);
-  glLoadMatrixf(lightFrustumMatrix);
+  GLR_LoadMatrixf(lightFrustumMatrix);
 
-  glMatrixMode(GL_MODELVIEW);
+  GLR_MatrixMode(GL_MODELVIEW);
   SGLFuncs::gluLookAt( lof->pLs->vSrcPos.x, lof->pLs->vSrcPos.y, lof->pLs->vSrcPos.z, 
              lof->target.x,   lof->target.y,   lof->target.z, 
              0, 0, 1, lightViewMatrix);
-  glLoadMatrixf(lightViewMatrix);
+  GLR_LoadMatrixf(lightViewMatrix);
   //iLog->Log("Generate SM: From (%.3f,%.3f,%.3f) To (%.3f,%.3f,%.3f), FOV: %.3f, MinD: %.3f, MaxD: %.3f", lof->pLs->vSrcPos.x, lof->pLs->vSrcPos.y, lof->pLs->vSrcPos.z, lof->target.x, lof->target.y, lof->target.z, lof->FOV, lof->min_dist, lof->max_dist);
 
   memcpy(lof->debugLightFrustumMatrix,lightFrustumMatrix,sizeof(lof->debugLightFrustumMatrix));
@@ -239,7 +239,7 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
   EF_ClearBuffers(true, false, &col[0]);
 
   // disable rendering of borders
-  glScissor(1, 1, nShadowTexSize-2, nShadowTexSize-2);
+  GLR_Scissor(1, 1, nShadowTexSize-2, nShadowTexSize-2);
   glEnable (GL_SCISSOR_TEST);
 
   IShader * pStateShader = EF_LoadShader("StateNoCull", eSH_World);
@@ -300,7 +300,7 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
 
   if(make_new_tid)
   { // new id for static objects
-    glGenTextures(1,&lof->depth_tex_id);
+    GLR_GenTextures(1,&lof->depth_tex_id);
 		assert(lof->depth_tex_id<14000);
   }
   else
@@ -341,7 +341,7 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
 
     if(!m_ShadowTexIDBuffer[nCurTexIdSlot].nTexId)
     {
-      glGenTextures(1,&m_ShadowTexIDBuffer[nCurTexIdSlot].nTexId);
+      GLR_GenTextures(1,&m_ShadowTexIDBuffer[nCurTexIdSlot].nTexId);
 			assert(m_ShadowTexIDBuffer[nCurTexIdSlot].nTexId<14000);
       make_new_tid = true;
     }
@@ -377,11 +377,11 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
     st = &m_TempShadowTextures[i];
     if (!st->nTexId)
     {
-      glGenTextures(1,&st->nTexId);
+      GLR_GenTextures(1,&st->nTexId);
       gRenDev->m_TexMan->SetTexture(st->nTexId, eTT_Base);
     }
     if (CV_r_shadowblur > 2 && !CRenderer::CV_r_nops20 && !st->nTexIdTemp)
-      glGenTextures(1,&st->nTexIdTemp);
+      GLR_GenTextures(1,&st->nTexIdTemp);
     int BlurType = CV_r_shadowblur-1;
     if (CV_r_shadowblur > 2 && CRenderer::CV_r_nops20)
       BlurType = 1;
@@ -398,7 +398,7 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
     if (bDepth)
     {
       byte *pic = new byte [width * height];
-      glReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, pic);    
+      GLR_ReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, pic);    
       char buff[128];
       sprintf(buff, "ShadowMap%00d.tga", nCurTexIdSlot);
       WriteTGA8(pic,width,height,buff); 
@@ -407,7 +407,7 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
     else
     {
       byte *pic = new byte [width * height * 4];
-      glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);    
+      GLR_ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pic);    
       char buff[128];
       sprintf(buff, "ShadowMap%00d.tga", nCurTexIdSlot);
       ::WriteTGA(pic,width,height,buff,32); 
@@ -420,7 +420,7 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
   // make texture of requested type
   if(bDepth)
   {
-    glCopyTexImage2D( GL_TEXTURE_2D,           
+    GLR_CopyTexImage2D( GL_TEXTURE_2D,           
       0,             
       bDepth ? (m_zbpp == 24 ? GL_DEPTH_COMPONENT24_SGIX : GL_DEPTH_COMPONENT16_SGIX) : GL_DEPTH_COMPONENT,
       0,                 
@@ -434,7 +434,7 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
     int width = nShadowTexSize;
     int height = nShadowTexSize;
     byte * pDepthMap = new byte [width * height];
-    glReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, pDepthMap);
+    GLR_ReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, pDepthMap);
     WriteTGA8(pDepthMap,width,height,"_DepthMap.tga"); 
 
     byte * pPenumbra = new byte [width * height];
@@ -444,7 +444,7 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
     delete [] pDepthMap;
 
     // make gl texture
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE8, width, width, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, pPenumbra);
+    GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE8, width, width, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, pPenumbra);
     delete [] pPenumbra;
   }
   else
@@ -452,15 +452,15 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
     if(1)//lof->dynamic)
     { // entities
       if(make_new_tid)
-        glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, nShadowTexSize, nShadowTexSize, 0);
+        GLR_CopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, nShadowTexSize, nShadowTexSize, 0);
       else
-        glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, nShadowTexSize, nShadowTexSize);
+        GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, nShadowTexSize, nShadowTexSize);
     }
     else
     { // static objects
       assert(nShadowTexSize<=512);
       byte *depth_map = new byte[512*512];
-      glReadPixels(0, 0, nShadowTexSize, nShadowTexSize, GL_RED, GL_UNSIGNED_BYTE, depth_map);
+      GLR_ReadPixels(0, 0, nShadowTexSize, nShadowTexSize, GL_RED, GL_UNSIGNED_BYTE, depth_map);
      
       for(int x=0; x<nShadowTexSize; x++)
       for(int y=0; y<nShadowTexSize; y++)
@@ -479,39 +479,39 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
         depth_map[x+y*nShadowTexSize] = b;
       }
      
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_ALPHA_ARB,//GL_ALPHA,
+      GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_ALPHA_ARB,//GL_ALPHA,
         nShadowTexSize, nShadowTexSize, 0, GL_ALPHA, GL_UNSIGNED_BYTE, depth_map);
 
       delete [] depth_map;
     }
   }
 
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
   if(bDepth)
   {  // enable extension
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_SGIX, GL_TRUE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_OPERATOR_SGIX, GL_TEXTURE_LEQUAL_R_SGIX);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_SGIX, GL_TRUE);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_OPERATOR_SGIX, GL_TEXTURE_LEQUAL_R_SGIX);
   }
 
-  glPopMatrix();
-  glMatrixMode(GL_PROJECTION);
-  glPopMatrix();
-  glMatrixMode(GL_MODELVIEW);
+  GLR_PopMatrix();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_PopMatrix();
+  GLR_MatrixMode(GL_MODELVIEW);
 
   gRenDev->SetViewport(vX, vY, vWidth, vHeight);
   gRenDev->SetScissor(0, 0, 0, 0);
-  glDisable(GL_SCISSOR_TEST);
+  GLR_Disable(GL_SCISSOR_TEST);
 
-	glClearColor(m_vClearColor.x,m_vClearColor.y,m_vClearColor.z,0);
+	GLR_ClearColor(m_vClearColor.x,m_vClearColor.y,m_vClearColor.z,0);
   SetState(GS_DEPTHWRITE);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  GLR_Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   if(bFog)
-    glEnable(GL_FOG);
+    GLR_Enable(GL_FOG);
 
   if(lof->pPenumbra && lof->pPenumbra->bUpdateRequested)
     PrepareDepthMap(lof->pPenumbra, make_new_tid);
@@ -584,7 +584,7 @@ void MakePenumbraTextureFromDepthMap(byte * pDepthMapIn, int nSize, byte * pPenu
 
 inline void glShadowVertex(int x, int y) 
 { 
-  glVertex3f((float)x, (float)y, iSystem->GetI3DEngine()->GetTerrainZ(x,y)+0.05f);//iTerrain->GetZSafe(x,y)/*+0.05f*/); 
+  GLR_Vertex3f((float)x, (float)y, iSystem->GetI3DEngine()->GetTerrainZ(x,y)+0.05f);//iTerrain->GetZSafe(x,y)/*+0.05f*/); 
 }
 
 void CGLRenderer::SetupShadowOnlyPass(int Num, ShadowMapFrustum * pFrustum, Vec3d * vShadowTrans, const float fShadowScale, 
@@ -639,13 +639,13 @@ int MakeShadowIdentityTexture()
     texmap[i] = i;
 
   unsigned int tid;
-  glGenTextures(1,&tid);
+  GLR_GenTextures(1,&tid);
   assert(tid<14000);
-  glBindTexture(GL_TEXTURE_1D, tid);
+  GLR_BindTexture(GL_TEXTURE_1D, tid);
   glTexImage1D(GL_TEXTURE_1D, 0, GL_INTENSITY8, 256, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, texmap);
-  glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   return tid;
 }
 
@@ -673,9 +673,9 @@ void CGLRenderer::ConfigShadowTexgen(int Num, int rangeMap, ShadowMapFrustum * p
 		}
     else
     {
-      glBindTexture(GL_TEXTURE_1D, to_map_8bit);
-      glEnable(GL_TEXTURE_1D);
-      glDisable(GL_TEXTURE_2D);
+      GLR_BindTexture(GL_TEXTURE_1D, to_map_8bit);
+      GLR_EnableTexture(GL_TEXTURE_1D, true);
+      GLR_EnableTexture(GL_TEXTURE_2D, false);
     }
 
     memcpy(mtexSc,RSmatrix,sizeof(m1));
@@ -821,7 +821,7 @@ void CGLRenderer::ConfigShadowTexgen(int Num, int rangeMap, ShadowMapFrustum * p
 
   glCallList(lid);
 
-  glEnable(GL_REGISTER_COMBINERS_NV);
+  GLR_Enable(GL_REGISTER_COMBINERS_NV);
 
   char * const * const p = nvparse_get_errors();
   assert(!p[0]);
@@ -851,7 +851,7 @@ void CGLRenderer::ConfigShadowTexgen(int Num, int rangeMap, ShadowMapFrustum * p
 
   gRenDev->PopMatrix();
 
-  glDisable(GL_REGISTER_COMBINERS_NV);
+  GLR_Disable(GL_REGISTER_COMBINERS_NV);
   
   // draw closest shadows 
   for(int s=0; s<lsources->Count() && s<4; s++)
@@ -885,8 +885,8 @@ void CGLRenderer::ConfigShadowTexgen(int Num, int rangeMap, ShadowMapFrustum * p
 */
 /*void CGLRenderer::ClearAlphaBuffer(float fAlphaValue)
 {
-  glColorMask(0,0,0,1);
-  glColor4f(fAlphaValue,fAlphaValue,fAlphaValue,fAlphaValue);
+  GLR_ColorMask(0,0,0,1);
+  GLR_Color4f(fAlphaValue,fAlphaValue,fAlphaValue,fAlphaValue);
 
   SelectTMU(1);
   EnableTMU(false);
@@ -894,28 +894,28 @@ void CGLRenderer::ConfigShadowTexgen(int Num, int rangeMap, ShadowMapFrustum * p
   EnableTMU(false);
 
   int x1=0,x2=m_width,y1=0,y2=m_height;  
-  glMatrixMode(GL_PROJECTION);
-  glPushMatrix();
-  glLoadIdentity();
-  glOrtho(x1, x2, y2, y1, -1.0, 1.0);
-  glMatrixMode(GL_MODELVIEW);
-  glPushMatrix();
-  glLoadIdentity();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_PushMatrix();
+  GLR_LoadIdentity();
+  GLR_Ortho(x1, x2, y2, y1, -1.0, 1.0);
+  GLR_MatrixMode(GL_MODELVIEW);
+  GLR_PushMatrix();
+  GLR_LoadIdentity();
     
-  glDisable(GL_DEPTH_TEST);
-  glDisable(GL_CULL_FACE);
+  GLR_Disable(GL_DEPTH_TEST);
+  GLR_Disable(GL_CULL_FACE);
 
-  glBegin(GL_QUADS);   
-  glVertex2i(x1,y1);    
-  glVertex2i(x2,y1);  
-  glVertex2i(x2,y2);  
-  glVertex2i(x1,y2);  
-  glEnd();    
+  GLR_Begin(GL_QUADS);   
+  GLR_Vertex2i(x1,y1);    
+  GLR_Vertex2i(x2,y1);  
+  GLR_Vertex2i(x2,y2);  
+  GLR_Vertex2i(x1,y2);  
+  GLR_End();    
    
-  glPopMatrix();
-  glMatrixMode(GL_PROJECTION);
-  glPopMatrix();
-  glMatrixMode(GL_MODELVIEW);          
+  GLR_PopMatrix();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_PopMatrix();
+  GLR_MatrixMode(GL_MODELVIEW);          
 
   EnableTMU(true);
 }

@@ -242,6 +242,20 @@ static char g_res[32] = "auto";        /* auto or WxH */
 static int g_stretch = 0, g_phys = 0, g_fx = 0, g_view = 0;   /* 0 auto, 1 on (simplified), 2 off (full) */
 static int g_text = 0, g_limit = 30, g_fps = 0, g_cpu_perf = 1, g_controls = 0;   /* controls: 0 classic, 1 modern */
 static int g_look = 30, g_pointer = 30;   /* stick speeds in %: 30 = the port's tuned default */
+/* Panfrost (Mesa's open-source Mali driver): the port bundles a Mesa with a
+   fixed tiler setup in libs.mesa/. Shown only where Panfrost drives the GPU
+   and the bundle exists; 1 = bundled (patched) Mesa, 0 = the firmware's. */
+static int g_panfrost = 0, g_mesa_patched = 1;
+static int g_native = 1;   /* renderer: 1 native (engine shader programs), 0 classic */
+static void detect_panfrost(const char *root) {
+    char p[4200]; struct stat st;
+    snprintf(p, sizeof p, "%s/libs.mesa/libgallium-25.0.7.so", root);
+    if (stat(p, &st) != 0) return;
+    DIR *d = opendir("/sys/bus/platform/drivers/panfrost"); if (!d) return;
+    struct dirent *e;
+    while ((e = readdir(d))) { size_t n = strlen(e->d_name); if (n > 4 && !strcmp(e->d_name + n - 4, ".gpu")) g_panfrost = 1; }
+    closedir(d);
+}
 
 static void cfg_load(void) {
     char p[4200]; snprintf(p, sizeof p, "%s/recry.cfg", g_conf);
@@ -261,6 +275,8 @@ static void cfg_load(void) {
         else if (sscanf(line, "RECRY_CONTROLS=%63s", v) == 1) g_controls = !strcmp(v, "modern");
         else if (sscanf(line, "RECRY_LOOK=%d", &n) == 1) g_look = n < 5 ? 5 : n > 200 ? 200 : n;
         else if (sscanf(line, "RECRY_POINTER=%d", &n) == 1) g_pointer = n < 5 ? 5 : n > 200 ? 200 : n;
+        else if (sscanf(line, "RECRY_MESA=%63s", v) == 1) g_mesa_patched = strcmp(v, "system") != 0;
+        else if (sscanf(line, "RECRY_RENDERER=%63s", v) == 1) g_native = strcmp(v, "classic") != 0;
     }
     fclose(f);
 }
@@ -272,9 +288,9 @@ static int cfg_save(void) {
     char txt[16]; if (g_text) snprintf(txt, sizeof txt, "%d", g_text); else snprintf(txt, sizeof txt, "auto");
     fprintf(f, "# RECry settings (written by the launcher)\n"
                "RECRY_RES=%s\nRECRY_SCALE=%s\nRECRY_PHYSICS=%s\nRECRY_EFFECTS=%s\nRECRY_VIEW=%s\n"
-               "RECRY_TEXT=%s\nRECRY_LIMIT=%d\nRECRY_FPS=%d\nRECRY_CPU=%s\nRECRY_CONTROLS=%s\nRECRY_LOOK=%d\nRECRY_POINTER=%d\n",
+               "RECRY_TEXT=%s\nRECRY_LIMIT=%d\nRECRY_FPS=%d\nRECRY_CPU=%s\nRECRY_CONTROLS=%s\nRECRY_LOOK=%d\nRECRY_POINTER=%d\nRECRY_MESA=%s\nRECRY_RENDERER=%s\n",
             g_res, g_stretch ? "stretch" : "fit", tri(g_phys), tri(g_fx), tri(g_view), txt, g_limit, g_fps, g_cpu_perf ? "perf" : "system",
-            g_controls ? "modern" : "classic", g_look, g_pointer);
+            g_controls ? "modern" : "classic", g_look, g_pointer, g_mesa_patched ? "patched" : "system", g_native ? "native" : "classic");
     if (fclose(f) || rename(t, p)) return -1;
     return 0;
 }
@@ -283,6 +299,10 @@ static int cfg_save(void) {
 static char g_resl[24][32]; static int g_resn;
 static void auto_res(char *out, size_t n) {
     int h = g_sh <= 480 ? g_sh : 480, w = (int)((double)h * g_sw / g_sh + 1) & ~1;
+    /* system Mesa on Panfrost: run.sh keeps the largest side at 496 (tiler) */
+    if (g_panfrost && !g_mesa_patched && (w > 496 || h > 496)) {
+        if (w >= h) { h = (496 * h / w) & ~1; w = 496; } else { w = (496 * w / h) & ~1; h = 496; }
+    }
     snprintf(out, n, "%dx%d", w, h);
 }
 static void build_res_list(void) {
@@ -341,28 +361,29 @@ static int page_controls(void) {
 }
 
 static int page_settings(void) {
-    enum { S_RES, S_SCALE, S_PHYS, S_FX, S_VIEW, S_TEXT, S_LIMIT, S_FPS, S_CPU, S_LOOK, S_POINTER, S_CTRL, S_RUN, S_N };
-    static const char *lab[S_N] = { "Resolution", "Picture", "Physics", "Effects", "View distance", "Menu text size",
-                                    "Frame limit", "FPS counter", "CPU", "Look speed", "Pointer speed", "Controls", "START GAME" };
-    int sel = S_RUN, ri = res_index();
+    enum { S_RES, S_SCALE, S_TEXT, S_LIMIT, S_FPS, S_CPU, S_REN, S_GPU, S_LOOK, S_POINTER, S_CTRL, S_RESET, S_RUN, S_N };
+    static const char *lab[S_N] = { "Resolution", "Picture", "Menu text size",
+                                    "Frame limit", "FPS counter", "CPU", "Renderer", "GPU driver", "Look speed", "Pointer speed", "Controls", "Restore default game settings", "START GAME" };
+#define ROW_HIDDEN(i) ((i) == S_GPU && !g_panfrost)
+    int sel = S_RUN, ri = res_index(), reset_state = 0;   /* 1: asked, 2: done */
     for (;;) {
         frame_begin("SETTINGS");
         char v[S_N][48]; memset(v, 0, sizeof v);  /* rows without a value: START GAME, Exit */
         if (!strcmp(g_resl[ri], "auto")) { char a[32]; auto_res(a, sizeof a); snprintf(v[S_RES], 48, "Auto (%s)", a); }
         else snprintf(v[S_RES], 48, "%s", g_resl[ri]);
         snprintf(v[S_SCALE], 48, "%s", g_stretch ? "Stretch to screen" : "Keep aspect");
-        static const char *tri3[3][3] = { { "Auto", "Simplified", "Full" }, { "Auto", "Reduced", "Full" }, { "Auto", "Reduced", "Full" } };
-        snprintf(v[S_PHYS], 48, "%s", tri3[0][g_phys]); snprintf(v[S_FX], 48, "%s", tri3[1][g_fx]); snprintf(v[S_VIEW], 48, "%s", tri3[2][g_view]);
         if (g_text) snprintf(v[S_TEXT], 48, "%d %%", g_text); else snprintf(v[S_TEXT], 48, "Auto");
         if (g_limit) snprintf(v[S_LIMIT], 48, "%d FPS", g_limit); else snprintf(v[S_LIMIT], 48, "Off");
         snprintf(v[S_FPS], 48, "%s", g_fps == 1 ? "On" : g_fps == 2 ? "Built-in" : "Off");
         snprintf(v[S_CPU], 48, "%s", g_cpu_perf ? "Performance" : "System");
+        snprintf(v[S_REN], 48, "%s", g_native ? "Native" : "Classic");
+        snprintf(v[S_GPU], 48, "%s", g_mesa_patched ? "Patched Mesa" : "System Mesa");
         snprintf(v[S_CTRL], 48, "%s", k_layout_name[g_controls]);
         snprintf(v[S_LOOK], 48, "%d %%", g_look); snprintf(v[S_POINTER], 48, "%d %%", g_pointer);
         /* Scrolling list: rows that do not fit scroll, the selection stays visible. */
         int rowh = 21, y0 = PY + 46, yb = PY + PH - 36, viewh = yb - y0;
         static int top = 0;
-        int vy[S_N]; for (int i = 0; i < S_N; i++) vy[i] = i * rowh + (i >= S_CTRL ? 4 : 0) + (i >= S_RUN ? 4 : 0);
+        int vy[S_N]; for (int i = 0, r = 0; i < S_N; i++) { vy[i] = r * rowh + (i >= S_CTRL ? 4 : 0) + (i >= S_RUN ? 4 : 0); if (!ROW_HIDDEN(i)) r++; }
         const int total = vy[S_N - 1] + rowh;
         if (vy[sel] < top) top = vy[sel];
         if (vy[sel] + rowh > top + viewh) top = vy[sel] + rowh - viewh;
@@ -373,7 +394,7 @@ static int page_settings(void) {
         if (top + viewh < total) for (int r = 0; r < 6; r++) fill(PX + PW - 24 - r, yb + 8 - r, 1 + 2 * r, 1, C_AMBER, 255);
         for (int i = 0; i < S_N; i++) {
             int y = y0 + vy[i] - top;
-            if (y < y0 || y + rowh > yb + 1) continue;
+            if (ROW_HIDDEN(i) || y < y0 || y + rowh > yb + 1) continue;
             int on = i == sel;
             if (on) fill(PX + 12, y - 1, PW - 24, rowh, C_AMBER, 235);
             SDL_Color fg = on ? C_SEL_FG : (i == S_RUN ? C_AMBER : C_TEXT);
@@ -389,13 +410,15 @@ static int page_settings(void) {
         const char *h =
             sel == S_RES ? "Game resolution. Lower is faster; the picture is scaled to the screen" :
             sel == S_SCALE ? (g_stretch ? "Fill the whole screen (the picture may look stretched)" : "Keep the game's shape, black bars if the screen differs") :
-            sel == S_PHYS ? "Simplified: idle objects sleep, fewer physics steps. Auto = simplified on handhelds" :
-            sel == S_FX ? "Reduced: fewer particles and decals, no water reflections. Auto = reduced on handhelds" :
-            sel == S_VIEW ? "Reduced: shorter draw distance for props (not enemies). Auto = reduced on handhelds" :
+            sel == S_RESET ? (reset_state == 1 ? "Press A again to reset the game's video/sound/control options (saves are kept)" :
+                              reset_state == 2 ? "Done: the handheld defaults are used at the next start" :
+                              "Undo changes made in the game's Options menu (saves are kept)") :
             sel == S_TEXT ? "Size of menu text in the game. Auto = bigger on small screens" :
             sel == S_LIMIT ? (g_limit == 0 ? "Off: uncapped, as fast as the device can" : g_limit == 60 ? "60 FPS cap: for fast devices" : "30 FPS cap: steady pacing on handhelds") :
             sel == S_FPS ? (g_fps == 2 ? "Built-in: the engine's own statistics (FPS, draw calls, memory)" : "On: a small frame rate counter in the top right corner") :
             sel == S_CPU ? "Performance: CPU at full rated speed while playing (restored on exit)" :
+            sel == S_REN ? (g_native ? "Native: full materials (bump, specular, water) via the game's shaders" : "Classic: the older fixed-function renderer") :
+            sel == S_GPU ? (g_mesa_patched ? "Patched: bundled Mesa with a Mali tiler fix, full resolution at speed" : "System: the firmware's Mesa; Auto resolution drops to 496 px wide for speed") :
             sel == S_CTRL ? (g_controls ? "Modern shooter: B crouch, RB grenade, LB layer. A shows the layout" : "Classic: the port's original layout. A shows the layout") :
             sel == S_LOOK ? "Right stick turning speed in the game (30 % = default)" :
             sel == S_POINTER ? "Menu pointer speed with the sticks (30 % = default)" :
@@ -406,20 +429,20 @@ static int page_settings(void) {
         present();
         int k = poll_key();
         if (k == K_QUIT) return EXIT_USER;
-        if (k == K_UP) sel = (sel + S_N - 1) % S_N;
-        if (k == K_DOWN) sel = (sel + 1) % S_N;
+        if (k == K_UP || k == K_DOWN) { if (reset_state == 1) reset_state = 0; }
+        if (k == K_UP) { sel = (sel + S_N - 1) % S_N; if (ROW_HIDDEN(sel)) sel = (sel + S_N - 1) % S_N; }
+        if (k == K_DOWN) { sel = (sel + 1) % S_N; if (ROW_HIDDEN(sel)) sel = (sel + 1) % S_N; }
         if (k == K_LEFT || k == K_RIGHT) {
             int d = k == K_RIGHT ? 1 : -1;
             switch (sel) {
             case S_RES: ri = (ri + g_resn + d) % g_resn; snprintf(g_res, sizeof g_res, "%s", g_resl[ri]); break;
             case S_SCALE: g_stretch = !g_stretch; break;
-            case S_PHYS: g_phys = (g_phys + 3 + d) % 3; break;
-            case S_FX: g_fx = (g_fx + 3 + d) % 3; break;
-            case S_VIEW: g_view = (g_view + 3 + d) % 3; break;
             case S_TEXT: { static const int T[] = { 0, 100, 115, 130, 150 }; int i = 0; while (i < 5 && T[i] != g_text) i++; if (i == 5) i = 0; g_text = T[(i + 5 + d) % 5]; break; }
             case S_LIMIT: { static const int L[] = { 30, 60, 0 }; int i = g_limit == 60 ? 1 : g_limit == 0 ? 2 : 0; g_limit = L[(i + 3 + d) % 3]; break; }
             case S_FPS: g_fps = (g_fps + 3 + d) % 3; break;
             case S_CPU: g_cpu_perf = !g_cpu_perf; break;
+            case S_GPU: g_mesa_patched = !g_mesa_patched; break;
+            case S_REN: g_native = !g_native; break;
             case S_CTRL: g_controls = !g_controls; break;
             case S_LOOK: g_look += d * 5; if (g_look < 5) g_look = 5; if (g_look > 200) g_look = 200; break;
             case S_POINTER: g_pointer += d * 5; if (g_pointer < 5) g_pointer = 5; if (g_pointer > 200) g_pointer = 200; break;
@@ -428,6 +451,17 @@ static int page_settings(void) {
         if (k == K_A) {
             if (sel == S_CTRL) { int r = page_controls(); if (r >= 0) return r; }
             else if (sel == S_RUN) return cfg_save() == 0 ? EXIT_RUN : EXIT_ERR;
+            else if (sel == S_RESET) {
+                if (reset_state != 1) reset_state = 1;   /* first press: ask */
+                else {
+                    /* The game's own configs; run.sh writes the handheld preset
+                       again when they are missing. Profiles and saves stay. */
+                    static const char *f[] = { "System.Cfg", "system.cfg", "game.cfg", "preset.id" };
+                    char p[4200];
+                    for (unsigned i = 0; i < sizeof f / sizeof f[0]; i++) { snprintf(p, sizeof p, "%s/%s", g_conf, f[i]); remove(p); }
+                    reset_state = 2;
+                }
+            }
         }
         if (k == K_B) return EXIT_USER;
         SDL_Delay(16);
@@ -623,6 +657,7 @@ int main(int argc, char **argv) {
     for (int i = 1; i + 1 < argc; i++) if (!strcmp(argv[i], "--root")) g_root = argv[i + 1];
     if (!g_root) { fprintf(stderr, "usage: recry-launcher --root GAMEDIR\n"); return EXIT_ERR; }
     snprintf(g_conf, sizeof g_conf, "%s/conf", g_root);
+    detect_panfrost(g_root);
     snprintf(g_data, sizeof g_data, "%s/gamedata", g_root);
     snprintf(g_inst, sizeof g_inst, "%s/installer", g_root);
     mkdir(g_conf, 0755); mkdir(g_inst, 0755);

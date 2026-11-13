@@ -86,7 +86,7 @@ template <class FunctionOfDirection> void MakeCubeMap(FunctionOfDirection & f, G
         }
       }
 
-      glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_EXT, level, internal_format, size, size, 0, format, GL_UNSIGNED_BYTE, pixels);
+      GLR_TexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_EXT, level, internal_format, size, size, 0, format, GL_UNSIGNED_BYTE, pixels);
     }
     // negative x image 
     {
@@ -106,7 +106,7 @@ template <class FunctionOfDirection> void MakeCubeMap(FunctionOfDirection & f, G
           ip += components;
         }
       }
-      glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X_EXT, level, internal_format, size, size, 0, format, GL_UNSIGNED_BYTE, pixels);
+      GLR_TexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X_EXT, level, internal_format, size, size, 0, format, GL_UNSIGNED_BYTE, pixels);
     }
 
     // positive y image 
@@ -127,7 +127,7 @@ template <class FunctionOfDirection> void MakeCubeMap(FunctionOfDirection & f, G
           ip += components;
         }
       }
-      glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y_EXT, level, internal_format, size, size, 0, format, GL_UNSIGNED_BYTE, pixels);
+      GLR_TexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y_EXT, level, internal_format, size, size, 0, format, GL_UNSIGNED_BYTE, pixels);
     }
     // negative y image 
     {
@@ -147,7 +147,7 @@ template <class FunctionOfDirection> void MakeCubeMap(FunctionOfDirection & f, G
           ip += components;
         }
       }
-      glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y_EXT, level, internal_format, size, size, 0, format, GL_UNSIGNED_BYTE, pixels);
+      GLR_TexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y_EXT, level, internal_format, size, size, 0, format, GL_UNSIGNED_BYTE, pixels);
     }
 
     // positive z image 
@@ -168,7 +168,7 @@ template <class FunctionOfDirection> void MakeCubeMap(FunctionOfDirection & f, G
           ip += components;
         }
       }
-      glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z_EXT, level, internal_format, size, size, 0, format, GL_UNSIGNED_BYTE, pixels);
+      GLR_TexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z_EXT, level, internal_format, size, size, 0, format, GL_UNSIGNED_BYTE, pixels);
     }
     // negative z image 
     {
@@ -188,7 +188,7 @@ template <class FunctionOfDirection> void MakeCubeMap(FunctionOfDirection & f, G
           ip += components;
         }
       }
-      glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_EXT, level, internal_format, size, size, 0, format, GL_UNSIGNED_BYTE, pixels);
+      GLR_TexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_EXT, level, internal_format, size, size, 0, format, GL_UNSIGNED_BYTE, pixels);
     }
     delete [] image;
     delete [] pixels;
@@ -201,14 +201,14 @@ template <class FunctionOfDirection> void MakeCubeMap(FunctionOfDirection & f, G
   tp->m_Size *= 6;
   gRenDev->m_TexMan->m_StatsCurTexMem += tp->m_Size;
 
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
   if (bMips)
-    glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
   else
-    glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLR_TexParameteri(GL_TEXTURE_CUBE_MAP_EXT, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
   gRenDev->m_TexMan->CheckTexLimits(NULL);
 }

@@ -11,6 +11,9 @@
 //////////////////////////////////////////////////////////////////////
 
 #ifdef GLES3_RENDERER
+#include "GLNative.h"
+#include "GLNMesh.h"
+#include "GLN2D.h"
 #include "GLES3FFP.h"
 #endif
 #include "RenderPCH.h"
@@ -57,9 +60,9 @@ void CGLRenderer::DrawDynVB(int nOffs, int Pool, int nVerts)
     int size = sizeof(struct_VERTEX_FORMAT_P3F_COL4UB_TEX2F)*2048;
     /*if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
-      glGenBuffersARB(1, &m_DynVBId);
-      glBindBufferARB(GL_ARRAY_BUFFER_ARB, m_DynVBId);
-      glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, NULL, GL_DYNAMIC_DRAW_ARB);
+      GLR_GenBuffersARB(1, &m_DynVBId);
+      GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, m_DynVBId);
+      GLR_BufferDataARB(GL_ARRAY_BUFFER_ARB, size, NULL, GL_DYNAMIC_DRAW_ARB);
     }
     else
     if(IsVarPresent())
@@ -77,23 +80,23 @@ void CGLRenderer::DrawDynVB(int nOffs, int Pool, int nVerts)
       m_nOffsDMesh3D = 0;
     }
 
-    glBindBufferARB(GL_ARRAY_BUFFER_ARB, m_DynVBId);
-    glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, sizeV*m_nOffsDMesh3D, sizeV*nVerts, m_DynVB);
+    GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, m_DynVBId);
+    GLR_BufferSubDataARB(GL_ARRAY_BUFFER_ARB, sizeV*m_nOffsDMesh3D, sizeV*nVerts, m_DynVB);
     m_RP.m_PS.m_MeshUpdateBytes += sizeV*nVerts;
 
     SBufInfoTable *pOffs = &gBufInfoTable[nVFormat];
-    //glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_COLOR_ARRAY);
-    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    //GLR_EnableClientState(GL_VERTEX_ARRAY);
+    GLR_EnableClientState(GL_COLOR_ARRAY);
+    GLR_EnableClientState(GL_TEXTURE_COORD_ARRAY);
 
-    glVertexPointer(3, GL_FLOAT, sizeV, BUFFER_OFFSET(0));
-    glColorPointer(4, GL_UNSIGNED_BYTE, sizeV, BUFFER_OFFSET(pOffs->OffsColor));
-    glTexCoordPointer(2, GL_FLOAT, sizeV, BUFFER_OFFSET(pOffs->OffsTC));
+    GLR_VertexPointer(3, GL_FLOAT, sizeV, BUFFER_OFFSET(0));
+    GLR_ColorPointer(4, GL_UNSIGNED_BYTE, sizeV, BUFFER_OFFSET(pOffs->OffsColor));
+    GLR_TexCoordPointer(2, GL_FLOAT, sizeV, BUFFER_OFFSET(pOffs->OffsTC));
 
-    glDrawArrays(GL_TRIANGLES, m_nOffsDMesh3D, nVerts); 
+    GLR_DrawArrays(GL_TRIANGLES, m_nOffsDMesh3D, nVerts); 
 
-    glDisableClientState(GL_COLOR_ARRAY);
-    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    GLR_DisableClientState(GL_COLOR_ARRAY);
+    GLR_DisableClientState(GL_TEXTURE_COORD_ARRAY);
     m_nOffsDMesh3D += nVerts;
   }*/
   /*else
@@ -109,23 +112,23 @@ void CGLRenderer::DrawDynVB(int nOffs, int Pool, int nVerts)
       m_nOffsDMesh3D = 0;
     }
     SBufInfoTable *pOffs = &gBufInfoTable[nVFormat];
-    //glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_COLOR_ARRAY);
-    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    //GLR_EnableClientState(GL_VERTEX_ARRAY);
+    GLR_EnableClientState(GL_COLOR_ARRAY);
+    GLR_EnableClientState(GL_TEXTURE_COORD_ARRAY);
 
     byte *pDst = (byte *)m_DynVBId;
     memcpy(&pDst[m_nOffsDMesh3D*sizeV], m_DynVB, sizeV*nVerts);
 
-    glVertexPointer(3, GL_FLOAT, sizeV, (byte *)m_DynVBId);
-    glColorPointer(4, GL_UNSIGNED_BYTE, sizeV, (byte *)m_DynVBId+pOffs->OffsColor);
-    glTexCoordPointer(2, GL_FLOAT, sizeV, (byte *)m_DynVBId+pOffs->OffsTC);
+    GLR_VertexPointer(3, GL_FLOAT, sizeV, (byte *)m_DynVBId);
+    GLR_ColorPointer(4, GL_UNSIGNED_BYTE, sizeV, (byte *)m_DynVBId+pOffs->OffsColor);
+    GLR_TexCoordPointer(2, GL_FLOAT, sizeV, (byte *)m_DynVBId+pOffs->OffsTC);
 
-    glDrawArrays(GL_TRIANGLES, m_nOffsDMesh3D, nVerts); 
+    GLR_DrawArrays(GL_TRIANGLES, m_nOffsDMesh3D, nVerts); 
     glSetFenceNV(m_DynVBFence, GL_ALL_COMPLETED_NV);
     m_bDynVBFenceSet = true;
 
-    glDisableClientState(GL_COLOR_ARRAY);
-    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    GLR_DisableClientState(GL_COLOR_ARRAY);
+    GLR_DisableClientState(GL_TEXTURE_COORD_ARRAY);
     m_nOffsDMesh3D += nVerts;
   }
   else*/
@@ -134,28 +137,32 @@ void CGLRenderer::DrawDynVB(int nOffs, int Pool, int nVerts)
     if (m_TempDynVB)
       pVB = m_TempDynVB;
 
-    glBegin(GL_TRIANGLES);
+    extern bool g_bGLNFontState;
+    if (g_bGLNFontState && GLN2D_DrawFontTriangles(pVB, nVerts, (float)m_width, (float)m_height))
+      return;
+
+    GLR_Begin(GL_TRIANGLES);
     int nTris = nVerts/3;
     
     for (int k=0; k<nTris; k++)    
     {
       int nInd = k*3+0;
-      glTexCoord2fv(&pVB[nInd].st[0]);
-      glColor4ubv(&pVB[nInd].color.bcolor[0]);
-      glVertex3fv(&pVB[nInd].xyz.x);     
+      GLR_TexCoord2fv(&pVB[nInd].st[0]);
+      GLR_Color4ubv(&pVB[nInd].color.bcolor[0]);
+      GLR_Vertex3fv(&pVB[nInd].xyz.x);     
 
       nInd = k*3+1;
-      glTexCoord2fv(&pVB[nInd].st[0]);
-      glColor4ubv(&pVB[nInd].color.bcolor[0]);
-      glVertex3fv(&pVB[nInd].xyz.x);     
+      GLR_TexCoord2fv(&pVB[nInd].st[0]);
+      GLR_Color4ubv(&pVB[nInd].color.bcolor[0]);
+      GLR_Vertex3fv(&pVB[nInd].xyz.x);     
 
       nInd = k*3+2;
-      glTexCoord2fv(&pVB[nInd].st[0]);
-      glColor4ubv(&pVB[nInd].color.bcolor[0]);
-      glVertex3fv(&pVB[nInd].xyz.x);     
+      GLR_TexCoord2fv(&pVB[nInd].st[0]);
+      GLR_Color4ubv(&pVB[nInd].color.bcolor[0]);
+      GLR_Vertex3fv(&pVB[nInd].xyz.x);     
     }
     
-    glEnd();
+    GLR_End();
   }
 }
 
@@ -166,9 +173,9 @@ void CGLRenderer::DrawDynVB(struct_VERTEX_FORMAT_P3F_COL4UB_TEX2F *pBuf, ushort 
     int size = sizeof(struct_VERTEX_FORMAT_P3F_COL4UB_TEX2F)*4096;
     /*if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
-      glGenBuffersARB(1, &m_DynVBId);
-      glBindBufferARB(GL_ARRAY_BUFFER_ARB, m_DynVBId);
-      glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, NULL, GL_DYNAMIC_DRAW_ARB);
+      GLR_GenBuffersARB(1, &m_DynVBId);
+      GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, m_DynVBId);
+      GLR_BufferDataARB(GL_ARRAY_BUFFER_ARB, size, NULL, GL_DYNAMIC_DRAW_ARB);
     }
     else
     if(IsVarPresent())
@@ -193,50 +200,50 @@ void CGLRenderer::DrawDynVB(struct_VERTEX_FORMAT_P3F_COL4UB_TEX2F *pBuf, ushort 
       m_nOffsDMesh3D = 0;
     }
     SBufInfoTable *pOffs = &gBufInfoTable[nVFormat];
-    //glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_COLOR_ARRAY);
-    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    //GLR_EnableClientState(GL_VERTEX_ARRAY);
+    GLR_EnableClientState(GL_COLOR_ARRAY);
+    GLR_EnableClientState(GL_TEXTURE_COORD_ARRAY);
 
     byte *pDst = (byte *)m_DynVBId;
     int nOffs = m_nOffsDMesh3D*sizeV;
     memcpy(&pDst[nOffs], m_DynVB, sizeV*nVerts);
 
-    glVertexPointer(3, GL_FLOAT, sizeV, (byte *)m_DynVBId+nOffs);
-    glColorPointer(4, GL_UNSIGNED_BYTE, sizeV, (byte *)m_DynVBId+nOffs+pOffs->OffsColor);
-    glTexCoordPointer(2, GL_FLOAT, sizeV, (byte *)m_DynVBId+nOffs+pOffs->OffsTC);
+    GLR_VertexPointer(3, GL_FLOAT, sizeV, (byte *)m_DynVBId+nOffs);
+    GLR_ColorPointer(4, GL_UNSIGNED_BYTE, sizeV, (byte *)m_DynVBId+nOffs+pOffs->OffsColor);
+    GLR_TexCoordPointer(2, GL_FLOAT, sizeV, (byte *)m_DynVBId+nOffs+pOffs->OffsTC);
 
-    glDrawElements(GL_TRIANGLES,nInds,GL_UNSIGNED_SHORT,pInds); 
+    GLR_DrawElements(GL_TRIANGLES,nInds,GL_UNSIGNED_SHORT,pInds); 
     glSetFenceNV(m_DynVBFence, GL_ALL_COMPLETED_NV);
     m_bDynVBFenceSet = true;
 
-    glDisableClientState(GL_COLOR_ARRAY);
-    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    GLR_DisableClientState(GL_COLOR_ARRAY);
+    GLR_DisableClientState(GL_TEXTURE_COORD_ARRAY);
     m_nOffsDMesh3D += nVerts;
   }
   else*/
   {
-    glBegin(GL_TRIANGLES);
+    GLR_Begin(GL_TRIANGLES);
     int nTris = nInds/3;
     
     for (int k=0; k<nTris; k++)    
     {
       int nInd = pInds[k*3+0];
-      glTexCoord2fv(&pBuf[nInd].st[0]);
-      glColor4ubv(&pBuf[nInd].color.bcolor[0]);
-      glVertex3fv(&pBuf[nInd].xyz.x);     
+      GLR_TexCoord2fv(&pBuf[nInd].st[0]);
+      GLR_Color4ubv(&pBuf[nInd].color.bcolor[0]);
+      GLR_Vertex3fv(&pBuf[nInd].xyz.x);     
 
       nInd = pInds[k*3+1];
-      glTexCoord2fv(&pBuf[nInd].st[0]);
-      glColor4ubv(&pBuf[nInd].color.bcolor[0]);
-      glVertex3fv(&pBuf[nInd].xyz.x);     
+      GLR_TexCoord2fv(&pBuf[nInd].st[0]);
+      GLR_Color4ubv(&pBuf[nInd].color.bcolor[0]);
+      GLR_Vertex3fv(&pBuf[nInd].xyz.x);     
 
       nInd = pInds[k*3+2];
-      glTexCoord2fv(&pBuf[nInd].st[0]);
-      glColor4ubv(&pBuf[nInd].color.bcolor[0]);
-      glVertex3fv(&pBuf[nInd].xyz.x);     
+      GLR_TexCoord2fv(&pBuf[nInd].st[0]);
+      GLR_Color4ubv(&pBuf[nInd].color.bcolor[0]);
+      GLR_Vertex3fv(&pBuf[nInd].xyz.x);     
     }
     
-    glEnd();
+    GLR_End();
   }
 }
 
@@ -281,11 +288,11 @@ void CGLRenderer::CreateBuffer(int size, int vertexformat, CVertexBuffer *buf, i
   else
   if (SUPPORTS_GL_ARB_vertex_buffer_object)
   {
-    glGenBuffersARB(1, &buf->m_VS[Type].m_VertBuf.m_nID);
-    glBindBufferARB(GL_ARRAY_BUFFER_ARB, buf->m_VS[Type].m_VertBuf.m_nID);
-    glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, NULL, buf->m_VS[Type].m_bDynamic ? GL_DYNAMIC_DRAW_ARB : GL_STATIC_DRAW_ARB);
+    GLR_GenBuffersARB(1, &buf->m_VS[Type].m_VertBuf.m_nID);
+    GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, buf->m_VS[Type].m_VertBuf.m_nID);
+    GLR_BufferDataARB(GL_ARRAY_BUFFER_ARB, size, NULL, buf->m_VS[Type].m_bDynamic ? GL_DYNAMIC_DRAW_ARB : GL_STATIC_DRAW_ARB);
     buf->m_VS[Type].m_VData = (void *)1;
-    //buf->m_VS[Type].m_VData = glMapBufferARB(GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
+    //buf->m_VS[Type].m_VData = GLR_MapBufferARB(GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
     //buf->m_VS[Type].m_bLocked = true;
     m_CurVertBufferSize += size;
     return;
@@ -304,9 +311,9 @@ void CGLRenderer::CreateIndexBuffer(SVertexStream *dest,const void *src,int inde
   {
     if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
-      glGenBuffersARB(1, &dest->m_VertBuf.m_nID);
-      glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, dest->m_VertBuf.m_nID);
-      glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indexcount*sizeof(ushort), NULL, dest->m_bDynamic ? GL_DYNAMIC_DRAW_ARB : GL_STATIC_DRAW_ARB);
+      GLR_GenBuffersARB(1, &dest->m_VertBuf.m_nID);
+      GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, dest->m_VertBuf.m_nID);
+      GLR_BufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indexcount*sizeof(ushort), NULL, dest->m_bDynamic ? GL_DYNAMIC_DRAW_ARB : GL_STATIC_DRAW_ARB);
     }
     else
       dest->m_VData = new ushort[indexcount];
@@ -331,8 +338,8 @@ void CGLRenderer::UpdateIndexBuffer(SVertexStream *dest,const void *src,int inde
     int size = indexcount*sizeof(ushort);
     if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
-      glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, dest->m_VertBuf.m_nID);
-      dst = glMapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
+      GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, dest->m_VertBuf.m_nID);
+      dst = GLR_MapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
       dest->m_VData = dst;
       dest->m_bLocked = true;
     }
@@ -345,7 +352,7 @@ void CGLRenderer::UpdateIndexBuffer(SVertexStream *dest,const void *src,int inde
     {
       if (SUPPORTS_GL_ARB_vertex_buffer_object)
       {
-        glUnmapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB);
+        GLR_UnmapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB);
         dest->m_bLocked = false;
       }
     }
@@ -357,7 +364,7 @@ void CGLRenderer::ReleaseIndexBuffer(SVertexStream *dest)
   if (SUPPORTS_GL_ARB_vertex_buffer_object)
   {
     if (dest->m_VertBuf.m_nID)
-      glDeleteBuffersARB(1, &dest->m_VertBuf.m_nID);
+      GLR_DeleteBuffersARB(1, &dest->m_VertBuf.m_nID);
   }
   else
     SAFE_DELETE_ARRAY(dest->m_VData);
@@ -415,11 +422,11 @@ CVertexBuffer *CGLRenderer::CreateBuffer(int vertexcount,int vertexformat, const
       }
     }
     // create the vertex object
-    glGenBuffersARB(1, &vtemp->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
-    glBindBufferARB(GL_ARRAY_BUFFER_ARB, vtemp->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
-    glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, NULL, bDynamic ? GL_DYNAMIC_DRAW_ARB : GL_STATIC_DRAW_ARB);
+    GLR_GenBuffersARB(1, &vtemp->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+    GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, vtemp->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+    GLR_BufferDataARB(GL_ARRAY_BUFFER_ARB, size, NULL, bDynamic ? GL_DYNAMIC_DRAW_ARB : GL_STATIC_DRAW_ARB);
     vtemp->m_VS[VSF_GENERAL].m_VData = (void *)1;
-    //vtemp->m_VS[VSF_GENERAL].m_VData = glMapBufferARB(GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
+    //vtemp->m_VS[VSF_GENERAL].m_VData = GLR_MapBufferARB(GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
     //vtemp->m_VS[VSF_GENERAL].m_bLocked = true;
 
     m_CurVertBufferSize += size;
@@ -458,14 +465,14 @@ void CGLRenderer::UpdateBuffer(CVertexBuffer *dest,const void *src,int vertexcou
     {
       if (!Type)
       {
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, dest->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+        GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, dest->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
         if (bUnlock)
         {
           // video buffer update
           if (dest->m_VS[VSF_GENERAL].m_bLocked)
           {
             dest->m_VS[VSF_GENERAL].m_bLocked = false;
-            glUnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+            GLR_UnmapBufferARB(GL_ARRAY_BUFFER_ARB);
           }
         }
         else
@@ -475,7 +482,7 @@ void CGLRenderer::UpdateBuffer(CVertexBuffer *dest,const void *src,int vertexcou
           {
             PROFILE_FRAME(Mesh_UpdateVBuffersLock);
             dest->m_VS[VSF_GENERAL].m_bLocked = true;
-            pVertices = glMapBufferARB(GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
+            pVertices = GLR_MapBufferARB(GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
             dest->m_VS[VSF_GENERAL].m_VData = pVertices;
           }
         }
@@ -488,13 +495,13 @@ void CGLRenderer::UpdateBuffer(CVertexBuffer *dest,const void *src,int vertexcou
             continue;
           if (!dest->m_VS[i].m_VertBuf.m_nID)
             continue;
-          glBindBufferARB(GL_ARRAY_BUFFER_ARB, dest->m_VS[i].m_VertBuf.m_nID);
+          GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, dest->m_VS[i].m_VertBuf.m_nID);
           if (bUnlock)
           {
             if (dest->m_VS[i].m_bLocked)
             {
               dest->m_VS[i].m_bLocked = false;
-              glUnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+              GLR_UnmapBufferARB(GL_ARRAY_BUFFER_ARB);
             }
           }
           else
@@ -503,7 +510,7 @@ void CGLRenderer::UpdateBuffer(CVertexBuffer *dest,const void *src,int vertexcou
             {
               PROFILE_FRAME(Mesh_UpdateVBuffersLock);
               dest->m_VS[i].m_bLocked = true;
-              pVertices = glMapBufferARB(GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
+              pVertices = GLR_MapBufferARB(GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
               dest->m_VS[i].m_VData = pVertices;
             }
           }
@@ -530,21 +537,21 @@ void CGLRenderer::UpdateBuffer(CVertexBuffer *dest,const void *src,int vertexcou
       if (SUPPORTS_GL_ARB_vertex_buffer_object && dest->m_VS[Type].m_VertBuf.m_nID)
       {
         uint IdBuf = dest->m_VS[Type].m_VertBuf.m_nID;
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, IdBuf);
+        GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, IdBuf);
         /*if (dest->m_VS[Type].m_bLocked)
         {
-          glUnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+          GLR_UnmapBufferARB(GL_ARRAY_BUFFER_ARB);
           dest->m_VS[Type].m_bLocked = false;
         }*/
         if (Type == VSF_GENERAL)
         {
-          glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, m_VertexSize[dest->m_vertexformat]*offs, m_VertexSize[dest->m_vertexformat]*vertexcount, src);
+          GLR_BufferSubDataARB(GL_ARRAY_BUFFER_ARB, m_VertexSize[dest->m_vertexformat]*offs, m_VertexSize[dest->m_vertexformat]*vertexcount, src);
           m_RP.m_PS.m_MeshUpdateBytes += m_VertexSize[dest->m_vertexformat]*vertexcount;
         }
         else
         if (Type == VSF_TANGENTS)
         {
-          glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, sizeof(SPipTangents)*offs, sizeof(SPipTangents)*vertexcount, src);
+          GLR_BufferSubDataARB(GL_ARRAY_BUFFER_ARB, sizeof(SPipTangents)*offs, sizeof(SPipTangents)*vertexcount, src);
           m_RP.m_PS.m_MeshUpdateBytes += sizeof(SPipTangents)*vertexcount;
         }
       }
@@ -619,34 +626,34 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
       { 
         struct_VERTEX_FORMAT_TRP3F_COL4UB_TEX2F * pData = (struct_VERTEX_FORMAT_TRP3F_COL4UB_TEX2F*)src->m_VS[VSF_GENERAL].m_VData;
 
-        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        GLR_EnableClientState(GL_TEXTURE_COORD_ARRAY);
         if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
-          glEnableClientState(GL_COLOR_ARRAY);
+          GLR_EnableClientState(GL_COLOR_ARRAY);
         if (SUPPORTS_GL_ARB_vertex_buffer_object)
         {
-          glBindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
-          glVertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));
+          GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+          GLR_VertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));
 
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
             GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
-            glColorPointer(4, GL_UNSIGNED_BYTE, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsColor));
+            GLR_ColorPointer(4, GL_UNSIGNED_BYTE, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsColor));
 
-          glTexCoordPointer(2, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsTC));
-          glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
+          GLR_TexCoordPointer(2, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsTC));
+          GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
         }
         else
         {
-          glVertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->x);          
+          GLR_VertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->x);          
 
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
             GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
-            glColorPointer(4,GL_UNSIGNED_BYTE,m_VertexSize[src->m_vertexformat],&pData->color.bcolor[0]);          
+            GLR_ColorPointer(4,GL_UNSIGNED_BYTE,m_VertexSize[src->m_vertexformat],&pData->color.bcolor[0]);          
 
-          glTexCoordPointer(2,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->st[0]);         
+          GLR_TexCoordPointer(2,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->st[0]);         
         }
       }
       break;
@@ -654,33 +661,33 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
       { 
         if (SUPPORTS_GL_ARB_vertex_buffer_object)
         {
-          glBindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
-          glVertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
-          glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
+          GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+          GLR_VertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
+          GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
         }
         else
-          glVertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], src->m_VS[VSF_GENERAL].m_VData);    
-        glEnableClientState(GL_VERTEX_ARRAY);
+          GLR_VertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], src->m_VS[VSF_GENERAL].m_VData);    
+        GLR_EnableClientState(GL_VERTEX_ARRAY);
       }   
       break;
     case VERTEX_FORMAT_P3F_TEX2F:
       { 
         struct_VERTEX_FORMAT_P3F_TEX2F * pData = (struct_VERTEX_FORMAT_P3F_TEX2F*)src->m_VS[VSF_GENERAL].m_VData;
 
-        glClientActiveTextureARB(GL_TEXTURE0_ARB);
-        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-        glEnableClientState(GL_VERTEX_ARRAY);
+        GLR_ClientActiveTexture(GL_TEXTURE0_ARB);
+        GLR_EnableClientState(GL_TEXTURE_COORD_ARRAY);
+        GLR_EnableClientState(GL_VERTEX_ARRAY);
         if (SUPPORTS_GL_ARB_vertex_buffer_object)
         {
-          glBindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
-          glVertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
-          glTexCoordPointer(2, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsTC));
-          glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
+          GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+          GLR_VertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
+          GLR_TexCoordPointer(2, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsTC));
+          GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
         }
         else
         {
-          glVertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->xyz.x);    
-          glTexCoordPointer(2,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->st[0]);
+          GLR_VertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->xyz.x);    
+          GLR_TexCoordPointer(2,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->st[0]);
         }
       }   
       break;
@@ -688,23 +695,23 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
       { 
         struct_VERTEX_FORMAT_P3F_N_TEX2F * pData = (struct_VERTEX_FORMAT_P3F_N_TEX2F*)src->m_VS[VSF_GENERAL].m_VData;
 
-        glClientActiveTextureARB(GL_TEXTURE0_ARB);
-        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-        glEnableClientState(GL_VERTEX_ARRAY);
-        glEnableClientState(GL_NORMAL_ARRAY);
+        GLR_ClientActiveTexture(GL_TEXTURE0_ARB);
+        GLR_EnableClientState(GL_TEXTURE_COORD_ARRAY);
+        GLR_EnableClientState(GL_VERTEX_ARRAY);
+        GLR_EnableClientState(GL_NORMAL_ARRAY);
         if (SUPPORTS_GL_ARB_vertex_buffer_object)
         {
-          glBindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
-          glVertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
-          glNormalPointer(GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsNormal));          
-          glTexCoordPointer(2, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsTC));
-          glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
+          GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+          GLR_VertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
+          GLR_NormalPointer(GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsNormal));          
+          GLR_TexCoordPointer(2, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsTC));
+          GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
         }
         else
         {
-          glVertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->xyz.x);    
-          glTexCoordPointer(2,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->st[0]);
-          glNormalPointer(GL_FLOAT, m_VertexSize[src->m_vertexformat], &pData->normal.x);          
+          GLR_VertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->xyz.x);    
+          GLR_TexCoordPointer(2,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->st[0]);
+          GLR_NormalPointer(GL_FLOAT, m_VertexSize[src->m_vertexformat], &pData->normal.x);          
         }
       }   
       break;
@@ -712,31 +719,31 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
       { 
         struct_VERTEX_FORMAT_P3F_COL4UB_TEX2F * pData = (struct_VERTEX_FORMAT_P3F_COL4UB_TEX2F*)src->m_VS[VSF_GENERAL].m_VData;
 
-        glClientActiveTextureARB(GL_TEXTURE0_ARB);
-        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        GLR_ClientActiveTexture(GL_TEXTURE0_ARB);
+        GLR_EnableClientState(GL_TEXTURE_COORD_ARRAY);
         if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
-          glEnableClientState(GL_COLOR_ARRAY);
+          GLR_EnableClientState(GL_COLOR_ARRAY);
         if (SUPPORTS_GL_ARB_vertex_buffer_object)
         {
-          glBindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
-          glVertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
+          GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+          GLR_VertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
             GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
-            glColorPointer(4, GL_UNSIGNED_BYTE, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsColor));
-          glTexCoordPointer(2, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsTC));
-          glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
+            GLR_ColorPointer(4, GL_UNSIGNED_BYTE, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsColor));
+          GLR_TexCoordPointer(2, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsTC));
+          GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
         }
         else
         {
-          glVertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->xyz.x);          
+          GLR_VertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->xyz.x);          
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
             GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
-            glColorPointer(4,GL_UNSIGNED_BYTE,m_VertexSize[src->m_vertexformat],&pData->color.bcolor[0]);          
-          glTexCoordPointer(2,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->st[0]);         
+            GLR_ColorPointer(4,GL_UNSIGNED_BYTE,m_VertexSize[src->m_vertexformat],&pData->color.bcolor[0]);          
+          GLR_TexCoordPointer(2,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->st[0]);         
         }
       }   
       break;
@@ -744,34 +751,34 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
       { 
         struct_VERTEX_FORMAT_P3F_N_COL4UB_TEX2F * pData = (struct_VERTEX_FORMAT_P3F_N_COL4UB_TEX2F*)src->m_VS[VSF_GENERAL].m_VData;
 
-        glClientActiveTextureARB(GL_TEXTURE0_ARB);
-        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        GLR_ClientActiveTexture(GL_TEXTURE0_ARB);
+        GLR_EnableClientState(GL_TEXTURE_COORD_ARRAY);
         if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
-          glEnableClientState(GL_COLOR_ARRAY);
-        glEnableClientState(GL_NORMAL_ARRAY);
+          GLR_EnableClientState(GL_COLOR_ARRAY);
+        GLR_EnableClientState(GL_NORMAL_ARRAY);
         if (SUPPORTS_GL_ARB_vertex_buffer_object)
         {
-          glBindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
-          glVertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
-          glNormalPointer(GL_FLOAT,m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsNormal));          
+          GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+          GLR_VertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
+          GLR_NormalPointer(GL_FLOAT,m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsNormal));          
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
             GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
-            glColorPointer(4, GL_UNSIGNED_BYTE, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsColor));
-          glTexCoordPointer(2, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsTC));
-          glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
+            GLR_ColorPointer(4, GL_UNSIGNED_BYTE, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsColor));
+          GLR_TexCoordPointer(2, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsTC));
+          GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
         }
         else
         {
-          glVertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->xyz.x);          
-          glNormalPointer(GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->normal.x);          
+          GLR_VertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->xyz.x);          
+          GLR_NormalPointer(GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->normal.x);          
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
             GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
-            glColorPointer(4,GL_UNSIGNED_BYTE,m_VertexSize[src->m_vertexformat],&pData->color.bcolor[0]);          
-          glTexCoordPointer(2,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->st[0]);         
+            GLR_ColorPointer(4,GL_UNSIGNED_BYTE,m_VertexSize[src->m_vertexformat],&pData->color.bcolor[0]);          
+          GLR_TexCoordPointer(2,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->st[0]);         
         }
       }   
       break;
@@ -780,27 +787,27 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
         struct_VERTEX_FORMAT_P3F_COL4UB * pData = (struct_VERTEX_FORMAT_P3F_COL4UB*)src->m_VS[VSF_GENERAL].m_VData;
 
         if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
-          glEnableClientState(GL_COLOR_ARRAY);
+          GLR_EnableClientState(GL_COLOR_ARRAY);
         if (SUPPORTS_GL_ARB_vertex_buffer_object)
         {
-          glBindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
-          glVertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
+          GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, src->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+          GLR_VertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
             GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
-            glColorPointer(4, GL_UNSIGNED_BYTE, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsColor));
-          glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
+            GLR_ColorPointer(4, GL_UNSIGNED_BYTE, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsColor));
+          GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
         }
         else
         {
-          glVertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->xyz.x);          
+          GLR_VertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->xyz.x);          
         
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
             GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
-            glColorPointer(4,GL_UNSIGNED_BYTE,m_VertexSize[src->m_vertexformat],&pData->color.bcolor[0]);
+            GLR_ColorPointer(4,GL_UNSIGNED_BYTE,m_VertexSize[src->m_vertexformat],&pData->color.bcolor[0]);
         }
       }   
       break;
@@ -809,12 +816,84 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
       assert(0);
       break;
   }
+#ifdef GLES3_RENDERER
+  // Native mesh stage (FARCRY_NATIVE=mesh): same streams, stage state and
+  // primitives, drawn with a GLSL program/VAO; otherwise the layer below.
+  if (GLN::Enabled(GLN_STAGE_MESH) && SUPPORTS_GL_ARB_vertex_buffer_object && src->m_vertexformat != VERTEX_FORMAT_TRP3F_COL4UB_TEX2F)
+  {
+    if (true)
+    {
+      GLNMeshDraw d; memset(&d, 0, sizeof(d));
+      const int fmt = src->m_vertexformat, stride = m_VertexSize[fmt];
+      const unsigned vbo = src->m_VS[VSF_GENERAL].m_VertBuf.m_nID;
+      d.pos = { vbo, 0, stride, 3, GL_FLOAT, false };
+      if (pOffs->OffsNormal) d.normal = { vbo, (unsigned)pOffs->OffsNormal, stride, 3, GL_FLOAT, false };
+      if (pOffs->OffsColor && !(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
+        d.color = { vbo, (unsigned)pOffs->OffsColor, stride, 4, GL_UNSIGNED_BYTE, true };
+      d.colorSemantic = (fmt == VERTEX_FORMAT_P3F_COL4UB_COL4UB || fmt == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0;
+      if (!d.colorSemantic && m_RP.m_pRE && m_RP.m_pRE->mfGetType() == eDATA_OcLeaf)
+      {
+        CLeafBuffer* pLB = ((CREOcLeaf*)m_RP.m_pRE)->m_pBuffer;
+        if (pLB) pLB = pLB->GetVertexContainer();
+        if (pLB && pLB->m_bVertexAlphaIsLighting) d.colorSemantic = 2;
+      }
+      d.numStages = CTexMan::m_nCurStages < 4 ? CTexMan::m_nCurStages : 4;
+      for (int u = 0; u < d.numStages; ++u)
+      {
+        GLNMeshStage& st = d.stage[u];
+        st.texture = CGLTexMan::m_TUState[u].m_Bind; st.target = CGLTexMan::m_TUState[u].m_Target;
+        st.colorOp = m_eCurColorOp[u]; st.alphaOp = m_eCurAlphaOp[u]; st.colorArg = m_eCurColorArg[u]; st.alphaArg = m_eCurAlphaArg[u];
+        st.rgbScale = m_fCurRGBScale[u] > 0 ? m_fCurRGBScale[u] : 1.0f;
+        memcpy(st.constant, CGLTexMan::m_TUState[u].m_Color.bcolor, 4);
+        if (SArrayPointer::m_CurEnabled & (PFE_POINTER_TEX0 << u)) d.tex[u] = g_GLNTexStream[u];
+        else if (u == 0 && pOffs->OffsTC) d.tex[u] = { vbo, (unsigned)pOffs->OffsTC, stride, 2, GL_FLOAT, false };
+      }
+      if (pOffs->OffsTC && !(SArrayPointer::m_CurEnabled & PFE_POINTER_TEX0))
+        d.tex[0] = { vbo, (unsigned)pOffs->OffsTC, stride, 2, GL_FLOAT, false };
+      switch (m_CurState & GS_ALPHATEST_MASK)
+      {
+        case GS_ALPHATEST_GREATER0: d.alphaTestMode = 1; d.alphaRef = 0.0f; break;
+        case GS_ALPHATEST_LESS128: d.alphaTestMode = 2; d.alphaRef = 0.5f; break;
+        case GS_ALPHATEST_GEQUAL128: d.alphaTestMode = 3; d.alphaRef = 0.5f; break;
+        case GS_ALPHATEST_GEQUAL64: d.alphaTestMode = 3; d.alphaRef = 0.25f; break;
+      }
+      if (m_FS.m_bEnable)
+      {
+        d.fogMode = m_FS.m_nCurFogMode == GL_EXP ? 2 : (m_FS.m_nCurFogMode == GL_EXP2 ? 3 : 1);
+        d.fogStart = m_FS.m_FogStart; d.fogEnd = m_FS.m_FogEnd; d.fogDensity = m_FS.m_FogDensity;
+        d.fogColor[0] = m_FS.m_FogColor[0]; d.fogColor[1] = m_FS.m_FogColor[1]; d.fogColor[2] = m_FS.m_FogColor[2];
+      }
+      d.indexBuffer = indicies ? indicies->m_VertBuf.m_nID : 0;
+      const unsigned idxBase = (unsigned)offsindex * 2;
+      bool drawn = false;
+      if (prmode == R_PRIMV_TRIANGLES || prmode == R_PRIMV_TRIANGLE_STRIP)
+      {
+        d.primitive = prmode == R_PRIMV_TRIANGLES ? GL_TRIANGLES : GL_TRIANGLE_STRIP;
+        drawn = GLNMesh_Draw(d, numindices, idxBase);
+        if (drawn) m_nPolygons += prmode == R_PRIMV_TRIANGLES ? numindices / 3 : numindices - 2;
+      }
+      else if (prmode == R_PRIMV_MULTI_GROUPS && mi && mi->m_pPrimitiveGroups)
+      {
+        drawn = true;
+        for (int i = 0; i < (int)mi->m_dwNumSections && drawn; i++)
+        {
+          SPrimitiveGroup* g = &mi->m_pPrimitiveGroups[i];
+          d.primitive = g->type == PT_STRIP ? GL_TRIANGLE_STRIP : (g->type == PT_FAN ? GL_TRIANGLE_FAN : GL_TRIANGLES);
+          drawn = GLNMesh_Draw(d, g->numIndices, idxBase + g->offsIndex * 2);
+          if (drawn) m_nPolygons += g->numTris;
+          else if (i > 0) { GLNMesh_Fallback("BUG: partial multi-group"); }
+        }
+      }
+      if (drawn) goto native_drawn;
+    }
+  }
+#endif
   // draw
   switch (prmode)
   {
     case R_PRIMV_TRIANGLES:
       {
-  			glDrawElements(GL_TRIANGLES,numindices,GL_UNSIGNED_SHORT,pInds); 
+  			GLR_DrawElements(GL_TRIANGLES,numindices,GL_UNSIGNED_SHORT,pInds); 
         
         m_nPolygons+=numindices/3;
       }
@@ -822,7 +901,7 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
 
     case R_PRIMV_TRIANGLE_STRIP:
       {		 
-  			glDrawElements(GL_TRIANGLE_STRIP,numindices,GL_UNSIGNED_SHORT,pInds); 
+  			GLR_DrawElements(GL_TRIANGLE_STRIP,numindices,GL_UNSIGNED_SHORT,pInds); 
         
         m_nPolygons+=numindices-2;
       }
@@ -842,15 +921,15 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
               switch (g->type)
               {
                 case PT_STRIP:
-                  glDrawElements(GL_TRIANGLE_STRIP, g->numIndices, GL_UNSIGNED_SHORT, &pInds[g->offsIndex]);
+                  GLR_DrawElements(GL_TRIANGLE_STRIP, g->numIndices, GL_UNSIGNED_SHORT, &pInds[g->offsIndex]);
                   break;
                   
                 case PT_LIST:
-                  glDrawElements(GL_TRIANGLES, g->numIndices, GL_UNSIGNED_SHORT, &pInds[g->offsIndex]);
+                  GLR_DrawElements(GL_TRIANGLES, g->numIndices, GL_UNSIGNED_SHORT, &pInds[g->offsIndex]);
                   break;
                   
                 case PT_FAN:
-                  glDrawElements(GL_TRIANGLE_FAN, g->numIndices, GL_UNSIGNED_SHORT, &pInds[g->offsIndex]);
+                  GLR_DrawElements(GL_TRIANGLE_FAN, g->numIndices, GL_UNSIGNED_SHORT, &pInds[g->offsIndex]);
                   break;
               }
               m_nPolygons += g->numTris;
@@ -861,6 +940,9 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
       break;
   }
   
+#ifdef GLES3_RENDERER
+native_drawn:
+#endif
   if(!SUPPORTS_GL_ARB_vertex_buffer_object && IsVarPresent() && !src->m_bFenceSet)
   {
     glSetFenceNV(src->m_fence, GL_ALL_COMPLETED_NV);
@@ -871,23 +953,23 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
   switch(src->m_vertexformat)
   {
     case VERTEX_FORMAT_P3F_TEX2F:
-      glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+      GLR_DisableClientState(GL_TEXTURE_COORD_ARRAY);
       break;
     case VERTEX_FORMAT_P3F_COL4UB_TEX2F:
-      glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-      glDisableClientState(GL_COLOR_ARRAY);
+      GLR_DisableClientState(GL_TEXTURE_COORD_ARRAY);
+      GLR_DisableClientState(GL_COLOR_ARRAY);
       break;
     case VERTEX_FORMAT_P3F_N_COL4UB_TEX2F:
-      glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-      glDisableClientState(GL_COLOR_ARRAY);
-      glDisableClientState(GL_NORMAL_ARRAY);
+      GLR_DisableClientState(GL_TEXTURE_COORD_ARRAY);
+      GLR_DisableClientState(GL_COLOR_ARRAY);
+      GLR_DisableClientState(GL_NORMAL_ARRAY);
       break;
     case VERTEX_FORMAT_P3F_N_TEX2F:
-      glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-      glDisableClientState(GL_NORMAL_ARRAY);
+      GLR_DisableClientState(GL_TEXTURE_COORD_ARRAY);
+      GLR_DisableClientState(GL_NORMAL_ARRAY);
       break;
     case VERTEX_FORMAT_P3F_COL4UB:
-      glDisableClientState(GL_COLOR_ARRAY);
+      GLR_DisableClientState(GL_COLOR_ARRAY);
       break;
   }
 }
@@ -946,13 +1028,13 @@ void CGLRenderer::ReleaseBuffer(CVertexBuffer *bufptr)
     {
       if (bufptr->m_VS[VSF_GENERAL].m_VertBuf.m_nID)
       {
-        glDeleteBuffersARB(1, &bufptr->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
+        GLR_DeleteBuffersARB(1, &bufptr->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
         bufptr->m_VS[VSF_GENERAL].m_VertBuf.m_nID = 0;
         m_CurVertBufferSize -= m_VertexSize[bufptr->m_vertexformat] * bufptr->m_NumVerts;
       }
       if (bufptr->m_VS[VSF_TANGENTS].m_VertBuf.m_nID)
       {
-        glDeleteBuffersARB(1, &bufptr->m_VS[VSF_TANGENTS].m_VertBuf.m_nID);
+        GLR_DeleteBuffersARB(1, &bufptr->m_VS[VSF_TANGENTS].m_VertBuf.m_nID);
         bufptr->m_VS[VSF_TANGENTS].m_VertBuf.m_nID = 0;
         m_CurVertBufferSize -= sizeof(SPipTangents) * bufptr->m_NumVerts;
       }
@@ -1170,14 +1252,14 @@ void CGLRenderer::DrawTriStrip(CVertexBuffer *src, int vert_num)
       {       
         struct_VERTEX_FORMAT_P3F * p = (struct_VERTEX_FORMAT_P3F*)src->m_VS[VSF_GENERAL].m_VData;
         
-        glBegin(GL_TRIANGLE_STRIP);
+        GLR_Begin(GL_TRIANGLE_STRIP);
         
         for (int k=0;k<vert_num;k++)    
         {
-          glVertex3fv(&p[k].xyz.x);     
+          GLR_Vertex3fv(&p[k].xyz.x);     
         }
         
-        glEnd();
+        GLR_End();
       }
       break;
   
@@ -1185,15 +1267,15 @@ void CGLRenderer::DrawTriStrip(CVertexBuffer *src, int vert_num)
       {       
         struct_VERTEX_FORMAT_P3F_TEX2F * p = (struct_VERTEX_FORMAT_P3F_TEX2F*)src->m_VS[VSF_GENERAL].m_VData;
         
-        glBegin(GL_TRIANGLE_STRIP);
+        GLR_Begin(GL_TRIANGLE_STRIP);
         
         for (int k=0;k<vert_num;k++)    
         {
-          glTexCoord2fv(&p[k].st[0]);
-          glVertex3fv(&p[k].xyz.x);     
+          GLR_TexCoord2fv(&p[k].st[0]);
+          GLR_Vertex3fv(&p[k].xyz.x);     
         }
         
-        glEnd();
+        GLR_End();
       }
       break;
 
@@ -1202,15 +1284,15 @@ void CGLRenderer::DrawTriStrip(CVertexBuffer *src, int vert_num)
         EF_SetVertColor();
         struct_VERTEX_FORMAT_P3F_COL4UB * p = (struct_VERTEX_FORMAT_P3F_COL4UB*)src->m_VS[VSF_GENERAL].m_VData;
         
-        glBegin(GL_TRIANGLE_STRIP);
+        GLR_Begin(GL_TRIANGLE_STRIP);
         
         for (int k=0;k<vert_num;k++)    
         {
-          glColor4ubv(&p[k].color.bcolor[0]);
-          glVertex3fv(&p[k].xyz.x);     
+          GLR_Color4ubv(&p[k].color.bcolor[0]);
+          GLR_Vertex3fv(&p[k].xyz.x);     
         }
         
-        glEnd();
+        GLR_End();
       }
       break;
 
@@ -1219,16 +1301,16 @@ void CGLRenderer::DrawTriStrip(CVertexBuffer *src, int vert_num)
         EF_SetVertColor();
         struct_VERTEX_FORMAT_P3F_COL4UB_TEX2F * p = (struct_VERTEX_FORMAT_P3F_COL4UB_TEX2F*)src->m_VS[VSF_GENERAL].m_VData;
         
-        glBegin(GL_TRIANGLE_STRIP);
+        GLR_Begin(GL_TRIANGLE_STRIP);
         
         for (int k=0;k<vert_num;k++)    
         {
-          glTexCoord2fv(&p[k].st[0]);
-          glColor4ubv(&p[k].color.bcolor[0]);
-          glVertex3fv(&p[k].xyz.x);     
+          GLR_TexCoord2fv(&p[k].st[0]);
+          GLR_Color4ubv(&p[k].color.bcolor[0]);
+          GLR_Vertex3fv(&p[k].xyz.x);     
         }
         
-        glEnd();
+        GLR_End();
       }
       break;
 
@@ -1236,17 +1318,17 @@ void CGLRenderer::DrawTriStrip(CVertexBuffer *src, int vert_num)
       {       
         struct_VERTEX_FORMAT_P3F_COL4UB_TEX2F_TEX2F * p = (struct_VERTEX_FORMAT_P3F_COL4UB_TEX2F_TEX2F*)src->m_VS[VSF_GENERAL].m_VData;
 
-        glBegin(GL_TRIANGLE_STRIP);
+        GLR_Begin(GL_TRIANGLE_STRIP);
 
         for (int k=0;k<vert_num;k++)    
         {
-          glMultiTexCoord2fvARB(GL_TEXTURE0_ARB, &p[k].st0[0]);
-          glMultiTexCoord2fvARB(GL_TEXTURE1_ARB, &p[k].st1[0]);
-          glColor4ubv(&p[k].color.bcolor[0]);
-          glVertex3fv(&p[k].xyz.x);     
+          GLR_MultiTexCoord2fvARB(GL_TEXTURE0_ARB, &p[k].st0[0]);
+          GLR_MultiTexCoord2fvARB(GL_TEXTURE1_ARB, &p[k].st1[0]);
+          GLR_Color4ubv(&p[k].color.bcolor[0]);
+          GLR_Vertex3fv(&p[k].xyz.x);     
         }
 
-        glEnd();
+        GLR_End();
       }
       break;
 
@@ -1254,16 +1336,16 @@ void CGLRenderer::DrawTriStrip(CVertexBuffer *src, int vert_num)
       {       
         struct_VERTEX_FORMAT_TRP3F_COL4UB_TEX2F * p = (struct_VERTEX_FORMAT_TRP3F_COL4UB_TEX2F*)src->m_VS[VSF_GENERAL].m_VData;
         
-        glBegin(GL_TRIANGLE_STRIP);
+        GLR_Begin(GL_TRIANGLE_STRIP);
         
         for (int k=0;k<vert_num;k++)    
         {
-          glTexCoord2fv(&p[k].st[0]);
-          glColor4ubv(&p[k].color.bcolor[0]);
-          glVertex3fv(&p[k].x);     
+          GLR_TexCoord2fv(&p[k].st[0]);
+          GLR_Color4ubv(&p[k].color.bcolor[0]);
+          GLR_Vertex3fv(&p[k].x);     
         }
         
-        glEnd();
+        GLR_End();
       }
       break;
 
@@ -1367,7 +1449,7 @@ void CLeafBuffer::DrawImmediately()
   ushort *pInds = GetIndices(&nInds);
 	assert(nInds%3 == 0);
 
-	glBegin(GL_TRIANGLES);
+	GLR_Begin(GL_TRIANGLES);
 	for(int i=0; i<nInds; i+=3)
 	{
 		// get tri vertices
@@ -1383,19 +1465,19 @@ void CLeafBuffer::DrawImmediately()
 		byte * c1 = ((byte*)&pCol[nColStride*pInds[i+1]]);
 		byte * c2 = ((byte*)&pCol[nColStride*pInds[i+2]]);
 
-		glColor4ubv(c0);
-		glTexCoord2fv(t0);
-		glVertex3fv((float*)&v0);
+		GLR_Color4ubv(c0);
+		GLR_TexCoord2fv(t0);
+		GLR_Vertex3fv((float*)&v0);
 
-		glColor4ubv(c1);
-		glTexCoord2fv(t1);
-		glVertex3fv((float*)&v1);
+		GLR_Color4ubv(c1);
+		GLR_TexCoord2fv(t1);
+		GLR_Vertex3fv((float*)&v1);
 
-		glColor4ubv(c2);
-		glTexCoord2fv(t2);
-		glVertex3fv((float*)&v2);
+		GLR_Color4ubv(c2);
+		GLR_TexCoord2fv(t2);
+		GLR_Vertex3fv((float*)&v2);
 
 		gRenDev->m_nPolygons++;
 	}
-	glEnd();
+	GLR_End();
 }

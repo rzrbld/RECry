@@ -12,6 +12,9 @@ extern double g_PortPhaseMs[PORT_PHASE_COUNT];
 // FARCRY_CAPTURE_TIMES and FARCRY_GLES_FRAMELOG_WARMUP count from here, so
 // benchmarks measure gameplay whatever the level's load time.
 extern double g_PortGameplayStartMs;
+// Time demo playback position for frame-exact captures (FARCRY_CAPTURE_DEMO_FRAMES):
+// frame index within the loop being played, and the loop number (-1 = no demo).
+extern int g_PortDemoFrame, g_PortDemoLoop;
 inline bool PortBenchRelative() { static const bool b = getenv("FARCRY_BENCH_RELATIVE") != 0; return b; }
 
 inline double PortNowMs()

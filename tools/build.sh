@@ -5,7 +5,7 @@
 # container). Everything downloaded or built goes to .deps/ and build/.
 #
 #   tools/build.sh            all steps
-#   tools/build.sh engine     one step: toolchain | ffmpeg | engine | launcher | package
+#   tools/build.sh engine     one step: toolchain | ffmpeg | mesa | engine | launcher | package
 set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "$0")/.." && pwd)
 DEPS=$ROOT/.deps
@@ -57,6 +57,15 @@ step_ffmpeg() {
   )
 }
 
+# Mesa 25.0.7, Panfrost only, with the tiler fix (port/mesa/): used on
+# Panfrost devices instead of the firmware's Mesa (launcher: GPU driver).
+MESA_OUT=$BUILD/mesa/libs.mesa
+step_mesa() {
+  [ -f "$MESA_OUT/libgallium-25.0.7.so" ] && return 0
+  echo "== mesa (panfrost)"
+  TOOLCHAIN_ROOT="$TOOLCHAIN_ROOT" MESA_BUILD_DIR="$BUILD/mesa/work" MESA_OUT="$MESA_OUT" "$ROOT/port/mesa/build_mesa.sh" >/dev/null
+}
+
 step_engine() {
   echo "== engine"
   cmake -S "$ROOT" -B "$BUILD/engine" -DCMAKE_TOOLCHAIN_FILE="$ROOT/port/cmake/aarch64-bootlin.cmake" \
@@ -89,12 +98,16 @@ step_package() {
   cp "$ROOT"/port/portmaster/fonts/*.ttf "$r/fonts/"
   cp "$ROOT"/port/portmaster/controls/*.gptk "$r/controls/"
   cp "$ROOT"/port/portmaster/licenses/* "$r/licenses/"
+  mkdir -p "$r/libs.mesa/gbm"
+  cp "$MESA_OUT"/*.so* "$r/libs.mesa/"; cp "$MESA_OUT/gbm/dri_gbm.so" "$r/libs.mesa/gbm/"
+  cp "$ROOT/port/mesa/MESA-LICENSE.rst" "$r/licenses/Mesa-LICENSE.rst"
+  cp "$ROOT/port/mesa/0001-panfrost-tiler-hierarchy-finest-levels.patch" "$r/licenses/Mesa-panfrost-tiler.patch"
   cp "$ROOT/LICENSE" "$r/licenses/CryEngine-SDK.txt"
   cp "$ROOT"/port/portmaster/pm/{README.md,port.json,gameinfo.xml,screenshot.png} "$r/"
   cp "$ROOT/port/portmaster/pm/PUT_THE_GOG_INSTALLER_HERE.txt" "$r/installer/"
   cp "$ROOT/port/portmaster/pm/GAME_FILES_GO_HERE.txt" "$r/gamedata/"
   echo "newest glibc symbol needed:"
-  for b in "$r/farcry.aarch64" "$r/recry-launcher.aarch64" "$r"/libs.aarch64/*; do
+  for b in "$r/farcry.aarch64" "$r/recry-launcher.aarch64" "$r"/libs.aarch64/* "$r"/libs.mesa/*.so* "$r"/libs.mesa/gbm/*.so; do
     printf "  %-24s %s\n" "$(basename "$b")" "$("$CROSS-objdump" -T "$b" | grep -o 'GLIBC_[0-9.]*' | sort -V -u | tail -1)"
   done
   mkdir -p "$ROOT/dist"; rm -f "$ROOT/dist/recry.zip"
@@ -103,11 +116,12 @@ step_package() {
 }
 
 steps=${1:-all}
-[ "$steps" = all ] && steps="toolchain ffmpeg engine launcher package"
+[ "$steps" = all ] && steps="toolchain ffmpeg mesa engine launcher package"
 for s in $steps; do
   case $s in
     toolchain) step_toolchain ;;
     ffmpeg) step_toolchain; step_ffmpeg ;;
+    mesa) step_toolchain; step_mesa ;;
     engine) step_toolchain; step_ffmpeg; step_engine ;;
     launcher) step_toolchain; step_launcher ;;
     package) step_package ;;

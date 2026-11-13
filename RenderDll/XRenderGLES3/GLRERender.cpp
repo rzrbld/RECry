@@ -7,6 +7,7 @@
 
 =============================================================================*/
 
+#include "GLNMesh.h"
 #include "RenderPCH.h"
 #include "GL_Renderer.h"
 #include "I3dengine.h"
@@ -33,7 +34,7 @@ void CREFlareGeom::mfCheckVis(CFColor &col, CCObject *obj)
   int re = 0;//rd->GetRecurseLevel();
   SFlareFrame *ff = &mFlareFr[re];
 
-  glReadPixels(ff->mX, ff->mY, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &Depth);
+  GLR_ReadPixels(ff->mX, ff->mY, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &Depth);
   Depth = (Depth-rd->mMinDepth) / (rd->mMaxDepth-rd->mMinDepth);
 
   f = gRenDev->m_ProjMatrix(3,2)/((Depth+Depth-1.0f)*gRenDev->m_ProjMatrix(2,3)-gRenDev->m_ProjMatrix(2,2)) - ff->mDepth;
@@ -178,7 +179,10 @@ bool CREOcLeaf::mfPreDraw(SShaderPass *sl)
 
   if (SUPPORTS_GL_ARB_vertex_buffer_object)
   {
-    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, m_pBuffer->m_Indices.m_VertBuf.m_nID);
+    GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, m_pBuffer->m_Indices.m_VertBuf.m_nID);
+#ifdef GLES3_RENDERER
+    g_GLNIndexBuffer = m_pBuffer->m_Indices.m_VertBuf.m_nID;
+#endif
     gRenDev->m_RP.m_FlagsPerFlush |= RBSI_INDEXSTREAM;
     gRenDev->m_RP.m_RendIndices = NULL;
   }
@@ -261,13 +265,13 @@ bool CRE2DQuad::mfDraw(SShader *ef, SShaderPass *sfm)
 void GlareQuad()
 {
 	glBegin (GL_QUADS);
-	glTexCoord2f(-1, 1);
+	GLR_TexCoord2f(-1, 1);
 	glVertex3f (0.1f, 1, 1);
-	glTexCoord2f(0, 1);
+	GLR_TexCoord2f(0, 1);
 	glVertex3f (0.1f, -1, 1);
-	glTexCoord2f(0, 0);
+	GLR_TexCoord2f(0, 0);
 	glVertex3f (0.1f, -1, -1);
-	glTexCoord2f(-1, 0);
+	GLR_TexCoord2f(-1, 0);
 	glVertex3f (0.1f, 1, -1);
 	glEnd ();
 }
@@ -298,49 +302,49 @@ bool CREGlare::mfDraw(SShader *ef, SShaderPass *sfm)
 
 void CGLRenderer__Draw3dBBoxSolid(const Vec3d &mins,const Vec3d &maxs)
 {
-  glBegin(GL_QUADS);
-  glVertex3f(mins.x,mins.y,mins.z); //0
-  glVertex3f(mins.x,mins.y,maxs.z); //1
-  glVertex3f(maxs.x,mins.y,maxs.z); //2
-  glVertex3f(maxs.x,mins.y,mins.z); //3
-  glEnd();
+  GLR_Begin(GL_QUADS);
+  GLR_Vertex3f(mins.x,mins.y,mins.z); //0
+  GLR_Vertex3f(mins.x,mins.y,maxs.z); //1
+  GLR_Vertex3f(maxs.x,mins.y,maxs.z); //2
+  GLR_Vertex3f(maxs.x,mins.y,mins.z); //3
+  GLR_End();
 
-  glBegin(GL_QUADS);
-  glVertex3f(mins.x,mins.y,mins.z); //0
-  glVertex3f(mins.x,mins.y,maxs.z); //1
-  glVertex3f(mins.x,maxs.y,maxs.z); //6
-  glVertex3f(mins.x,maxs.y,mins.z); //4
-  glEnd();
+  GLR_Begin(GL_QUADS);
+  GLR_Vertex3f(mins.x,mins.y,mins.z); //0
+  GLR_Vertex3f(mins.x,mins.y,maxs.z); //1
+  GLR_Vertex3f(mins.x,maxs.y,maxs.z); //6
+  GLR_Vertex3f(mins.x,maxs.y,mins.z); //4
+  GLR_End();
 
-  glBegin(GL_QUADS);
-  glVertex3f(mins.x,maxs.y,mins.z); //4
-  glVertex3f(mins.x,maxs.y,maxs.z); //6
-  glVertex3f(maxs.x,maxs.y,maxs.z); //7
-  glVertex3f(maxs.x,maxs.y,mins.z); //5
-  glEnd();
+  GLR_Begin(GL_QUADS);
+  GLR_Vertex3f(mins.x,maxs.y,mins.z); //4
+  GLR_Vertex3f(mins.x,maxs.y,maxs.z); //6
+  GLR_Vertex3f(maxs.x,maxs.y,maxs.z); //7
+  GLR_Vertex3f(maxs.x,maxs.y,mins.z); //5
+  GLR_End();
 
-  glBegin(GL_QUADS);
-  glVertex3f(maxs.x,maxs.y,mins.z); //5
-  glVertex3f(maxs.x,maxs.y,maxs.z); //7
-  glVertex3f(maxs.x,mins.y,maxs.z); //2
-  glVertex3f(maxs.x,mins.y,mins.z); //3
-  glEnd();
+  GLR_Begin(GL_QUADS);
+  GLR_Vertex3f(maxs.x,maxs.y,mins.z); //5
+  GLR_Vertex3f(maxs.x,maxs.y,maxs.z); //7
+  GLR_Vertex3f(maxs.x,mins.y,maxs.z); //2
+  GLR_Vertex3f(maxs.x,mins.y,mins.z); //3
+  GLR_End();
 
   // top
-  glBegin(GL_QUADS);
-  glVertex3f(maxs.x,maxs.y,maxs.z); //5
-  glVertex3f(mins.x,maxs.y,maxs.z); //7
-  glVertex3f(mins.x,mins.y,maxs.z); //3
-  glVertex3f(maxs.x,mins.y,maxs.z); //2
-  glEnd();
+  GLR_Begin(GL_QUADS);
+  GLR_Vertex3f(maxs.x,maxs.y,maxs.z); //5
+  GLR_Vertex3f(mins.x,maxs.y,maxs.z); //7
+  GLR_Vertex3f(mins.x,mins.y,maxs.z); //3
+  GLR_Vertex3f(maxs.x,mins.y,maxs.z); //2
+  GLR_End();
 
   // bottom
-  glBegin(GL_QUADS);
-  glVertex3f(maxs.x,mins.y,mins.z); //2
-  glVertex3f(mins.x,mins.y,mins.z); //3
-  glVertex3f(mins.x,maxs.y,mins.z); //7
-  glVertex3f(maxs.x,maxs.y,mins.z); //5
-  glEnd();
+  GLR_Begin(GL_QUADS);
+  GLR_Vertex3f(maxs.x,mins.y,mins.z); //2
+  GLR_Vertex3f(mins.x,mins.y,mins.z); //3
+  GLR_Vertex3f(mins.x,maxs.y,mins.z); //7
+  GLR_Vertex3f(maxs.x,maxs.y,mins.z); //5
+  GLR_End();
 
 	gRenDev->m_nPolygons+=12;
 }
@@ -356,8 +360,8 @@ bool CREOcLeaf::mfDraw(SShader *ef, SShaderPass *sl)
   {
     fFogStart = gRenDev->m_FS.m_FogStart; 
     fFogEnd = gRenDev->m_FS.m_FogEnd; 
-    glFogf(GL_FOG_START, fFogStart*m_fFogScale); 
-    glFogf(GL_FOG_END  , fFogEnd  *m_fFogScale); 
+    GLR_Fogf(GL_FOG_START, fFogStart*m_fFogScale); 
+    GLR_Fogf(GL_FOG_END  , fFogEnd  *m_fFogScale); 
   }
 
   // Hardware effector
@@ -407,8 +411,8 @@ bool CREOcLeaf::mfDraw(SShader *ef, SShaderPass *sl)
     // restore fog
     if(m_fFogScale)
     {
-      glFogf(GL_FOG_START, fFogStart); 
-      glFogf(GL_FOG_END  , fFogEnd  ); 
+      GLR_Fogf(GL_FOG_START, fFogStart); 
+      GLR_Fogf(GL_FOG_END  , fFogEnd  ); 
     }
 
     return true;
@@ -426,8 +430,8 @@ bool CREOcLeaf::mfDraw(SShader *ef, SShaderPass *sl)
   // restore fog
   if(m_fFogScale)
   {
-    glFogf(GL_FOG_START, fFogStart); 
-    glFogf(GL_FOG_END  , fFogEnd  ); 
+    GLR_Fogf(GL_FOG_START, fFogStart); 
+    GLR_Fogf(GL_FOG_END  , fFogEnd  ); 
   }
 
   return (true);
@@ -444,7 +448,7 @@ bool CRETempMesh::mfPreDraw(SShaderPass *sl)
 {
   if (SUPPORTS_GL_ARB_vertex_buffer_object)
   {
-    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, m_Inds.m_VertBuf.m_nID);
+    GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, m_Inds.m_VertBuf.m_nID);
     gRenDev->m_RP.m_FlagsPerFlush |= RBSI_INDEXSTREAM;
     gRenDev->m_RP.m_RendIndices = NULL;
   }
@@ -511,16 +515,16 @@ bool CREFlare::mfCheckVis(CCObject *obj)
 
     Matrix44 projMatr, camMatr;
     camMatr = rd->m_prevCamera.GetVCMatrixD3D9();
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
+    GLR_MatrixMode(GL_PROJECTION);
+    GLR_PushMatrix();
+    GLR_LoadIdentity();
     // camera.fov is for horizontal -> GL needs it vertical
     // projection.ratio is height/width -> GL needs width/height
     gluPerspective(rd->m_prevCamera.GetFov()/(gf_PI/180.0f)*rd->m_prevCamera.GetProjRatio(), 1.0f/rd->m_prevCamera.GetProjRatio(), rd->m_prevCamera.GetZMin(), rd->m_prevCamera.GetZMax());
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
+    GLR_MatrixMode(GL_MODELVIEW);
+    GLR_PushMatrix();
 
-    glLoadMatrixf(camMatr.GetData());
+    GLR_LoadMatrixf(camMatr.GetData());
     rd->GetProjectionMatrix(projMatr.GetData());
 
     Vec3 camVecs[3];
@@ -566,10 +570,10 @@ bool CREFlare::mfCheckVis(CCObject *obj)
       obj->m_fLightFadeTime = rd->m_RP.m_RealTime;
     if (gRenDev->m_RP.m_RealTime-obj->m_fLightFadeTime < fCheckInterval)
     {
-      glMatrixMode(GL_PROJECTION);
-      glPopMatrix();
-      glMatrixMode(GL_MODELVIEW);
-      glPopMatrix();
+      GLR_MatrixMode(GL_PROJECTION);
+      GLR_PopMatrix();
+      GLR_MatrixMode(GL_MODELVIEW);
+      GLR_PopMatrix();
       return true;
     }
     obj->m_fLightFadeTime = gRenDev->m_RP.m_RealTime;
@@ -607,7 +611,7 @@ bool CREFlare::mfCheckVis(CCObject *obj)
 
       if (!(rd->m_Features & RFT_OCCLUSIONTEST))
       {
-        glReadPixels((GLint)sx, (GLint)sy, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &fDepth);
+        GLR_ReadPixels((GLint)sx, (GLint)sy, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &fDepth);
 
         obj->m_AmbColor[0] = obj->m_AmbColor[1];
         obj->m_AmbColor[1] = obj->m_AmbColor[2];
@@ -668,25 +672,25 @@ bool CREFlare::mfCheckVis(CCObject *obj)
         Vec3d ProjV[4];
         Vec3d vQuad[4];
 
-        glBegin(GL_QUADS);
+        GLR_Begin(GL_QUADS);
 
         vQuad[0] = org + vx0 + vy0;
-        glTexCoord2f(0, 0);
-        glVertex3fv(&vQuad[0][0]);
+        GLR_TexCoord2f(0, 0);
+        GLR_Vertex3fv(&vQuad[0][0]);
 
         vQuad[1] = org + vx0 - vy0;
-        glTexCoord2f(1, 0);
-        glVertex3fv(&vQuad[1][0]);
+        GLR_TexCoord2f(1, 0);
+        GLR_Vertex3fv(&vQuad[1][0]);
 
         vQuad[2] = org - vx0 - vy0;
-        glTexCoord2f(1, 1);
-        glVertex3fv(&vQuad[2][0]);
+        GLR_TexCoord2f(1, 1);
+        GLR_Vertex3fv(&vQuad[2][0]);
 
         vQuad[3] = org - vx0 + vy0;
-        glTexCoord2f(0, 1);
-        glVertex3fv(&vQuad[3][0]);
+        GLR_TexCoord2f(0, 1);
+        GLR_Vertex3fv(&vQuad[3][0]);
 
-        glEnd();
+        GLR_End();
 
         glEndOcclusionQueryNV();
 
@@ -737,36 +741,36 @@ bool CREFlare::mfCheckVis(CCObject *obj)
 
       if (!obj->m_TexId0)
       {
-        glGenTextures(1, (uint *)&obj->m_TexId0);
+        GLR_GenTextures(1, (uint *)&obj->m_TexId0);
         assert(obj->m_TexId0<14000);
         rd->m_TexMan->SetTexture(obj->m_TexId0, eTT_Base);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, sizeMask, sizeMask, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, sizeMask, sizeMask, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
       }
       if (!obj->m_TexId1)
       {
-        glGenTextures(1, (uint *)&obj->m_TexId1);
+        GLR_GenTextures(1, (uint *)&obj->m_TexId1);
         assert(obj->m_TexId0<14000);
         rd->m_TexMan->SetTexture(obj->m_TexId1, eTT_Base);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, sizeTex, sizeTex, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, sizeTex, sizeTex, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
       }
       bool bFog = rd->m_FS.m_bEnable;
       rd->EnableFog(false);
 
-      glMatrixMode(GL_PROJECTION);
-      glPushMatrix();
-      glLoadIdentity();
-      glOrtho(0.0, rd->GetWidth(), 0.0, rd->GetHeight(), -20.0, 0.0);
-      glMatrixMode(GL_MODELVIEW);
-      glPushMatrix();
-      glLoadIdentity();
+      GLR_MatrixMode(GL_PROJECTION);
+      GLR_PushMatrix();
+      GLR_LoadIdentity();
+      GLR_Ortho(0.0, rd->GetWidth(), 0.0, rd->GetHeight(), -20.0, 0.0);
+      GLR_MatrixMode(GL_MODELVIEW);
+      GLR_PushMatrix();
+      GLR_LoadIdentity();
 
       rd->SetCullMode(R_CULL_NONE);
       rd->SetColorOp(eCO_MODULATE, eCO_MODULATE, DEF_TEXARG0, DEF_TEXARG0);
@@ -779,24 +783,24 @@ bool CREFlare::mfCheckVis(CCObject *obj)
       {
         rd->EF_SetState(GS_COLMASKONLYALPHA | GS_NODEPTHTEST);
 
-        glColor4f(0,0,0,0);
-        glDisableClientState(GL_COLOR_ARRAY);
+        GLR_Color4f(0,0,0,0);
+        GLR_DisableClientState(GL_COLOR_ARRAY);
 
-        glBegin(GL_QUADS);
+        GLR_Begin(GL_QUADS);
 
-        glTexCoord2f(0, 0);
-        glVertex2f(fsx-fsizeMask2, fsy-fsizeMask2);
+        GLR_TexCoord2f(0, 0);
+        GLR_Vertex2f(fsx-fsizeMask2, fsy-fsizeMask2);
 
-        glTexCoord2f(1, 0);
-        glVertex2f(fsx+fsizeMask2, fsy-fsizeMask2);
+        GLR_TexCoord2f(1, 0);
+        GLR_Vertex2f(fsx+fsizeMask2, fsy-fsizeMask2);
 
-        glTexCoord2f(1, 1);
-        glVertex2f(fsx+fsizeMask2, fsy+fsizeMask2);
+        GLR_TexCoord2f(1, 1);
+        GLR_Vertex2f(fsx+fsizeMask2, fsy+fsizeMask2);
 
-        glTexCoord2f(0, 1);
-        glVertex2f(fsx-fsizeMask2, fsy+fsizeMask2);
+        GLR_TexCoord2f(0, 1);
+        GLR_Vertex2f(fsx-fsizeMask2, fsy+fsizeMask2);
 
-        glEnd();
+        GLR_End();
 
         rd->m_nPolygons += 2;
       }
@@ -805,23 +809,23 @@ bool CREFlare::mfCheckVis(CCObject *obj)
       {
         rd->EF_SetState(GS_COLMASKONLYALPHA);
 
-        glColor4f(1,1,1,1);
+        GLR_Color4f(1,1,1,1);
 
-        glBegin(GL_QUADS);
+        GLR_Begin(GL_QUADS);
 
-        glTexCoord2f(0, 0);
-        glVertex2f(fsx-fsizeMask2, fsy-fsizeMask2);
+        GLR_TexCoord2f(0, 0);
+        GLR_Vertex2f(fsx-fsizeMask2, fsy-fsizeMask2);
 
-        glTexCoord2f(1, 0);
-        glVertex2f(fsx+fsizeMask2, fsy-fsizeMask2);
+        GLR_TexCoord2f(1, 0);
+        GLR_Vertex2f(fsx+fsizeMask2, fsy-fsizeMask2);
 
-        glTexCoord2f(1, 1);
-        glVertex2f(fsx+fsizeMask2, fsy+fsizeMask2);
+        GLR_TexCoord2f(1, 1);
+        GLR_Vertex2f(fsx+fsizeMask2, fsy+fsizeMask2);
 
-        glTexCoord2f(0, 1);
-        glVertex2f(fsx-fsizeMask2, fsy+fsizeMask2);
+        GLR_TexCoord2f(0, 1);
+        GLR_Vertex2f(fsx-fsizeMask2, fsy+fsizeMask2);
 
-        glEnd();
+        GLR_End();
 
         rd->m_nPolygons += 2;
       }
@@ -829,12 +833,12 @@ bool CREFlare::mfCheckVis(CCObject *obj)
       // Read z-mask to target texture 0 as source for bluring
       rd->SetTexture(obj->m_TexId0, eTT_Base);
 
-  		glReadBuffer(GL_BACK);
+  		GLR_ReadBuffer(GL_BACK);
       if (SUPPORTS_GL_SGIS_generate_mipmap)
-        glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
-      glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, (int)fsx-sizeMask2, (int)fsy-sizeMask2, sizeMask, sizeMask);
+        GLR_TexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+      GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, (int)fsx-sizeMask2, (int)fsy-sizeMask2, sizeMask, sizeMask);
       //if (SUPPORTS_GL_SGIS_generate_mipmap)
-      //  glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
+      //  GLR_TexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
 
 
       /*{
@@ -877,23 +881,23 @@ bool CREFlare::mfCheckVis(CCObject *obj)
       {
         gRenDev->EF_SetState(GS_COLMASKONLYALPHA | GS_NODEPTHTEST);
 
-        glColor4f(1,1,1,0.2f);
+        GLR_Color4f(1,1,1,0.2f);
 
-        glBegin(GL_QUADS);
+        GLR_Begin(GL_QUADS);
 
-        glTexCoord2f(0, 0);
-        glVertex2f(fPosx-fSizeTex2, fPosy-fSizeTex2);
+        GLR_TexCoord2f(0, 0);
+        GLR_Vertex2f(fPosx-fSizeTex2, fPosy-fSizeTex2);
 
-        glTexCoord2f(1, 0);
-        glVertex2f(fPosx+fSizeTex2, fPosy-fSizeTex2);
+        GLR_TexCoord2f(1, 0);
+        GLR_Vertex2f(fPosx+fSizeTex2, fPosy-fSizeTex2);
 
-        glTexCoord2f(1, 1);
-        glVertex2f(fPosx+fSizeTex2, fPosy+fSizeTex2);
+        GLR_TexCoord2f(1, 1);
+        GLR_Vertex2f(fPosx+fSizeTex2, fPosy+fSizeTex2);
 
-        glTexCoord2f(0, 1);
-        glVertex2f(fPosx-fSizeTex2, fPosy+fSizeTex2);
+        GLR_TexCoord2f(0, 1);
+        GLR_Vertex2f(fPosx-fSizeTex2, fPosy+fSizeTex2);
 
-        glEnd();
+        GLR_End();
 
         gRenDev->m_nPolygons += 2;
       }
@@ -904,23 +908,23 @@ bool CREFlare::mfCheckVis(CCObject *obj)
       {
         gRenDev->EF_SetState(GS_COLMASKONLYALPHA | GS_BLSRC_ONE | GS_BLDST_ONE | GS_NODEPTHTEST);
 
-        glBegin(GL_QUADS);
+        GLR_Begin(GL_QUADS);
 
-        glColor4f(1, 1, 1, fDeltAlpha);
+        GLR_Color4f(1, 1, 1, fDeltAlpha);
 
-        glTexCoord2f(0, 0);
-        glVertex3f(fPosx-fCur, fPosy-fCur, 0);
+        GLR_TexCoord2f(0, 0);
+        GLR_Vertex3f(fPosx-fCur, fPosy-fCur, 0);
 
-        glTexCoord2f(1.0f, 0);
-        glVertex3f(fPosx+fCur, fPosy-fCur, 0);
+        GLR_TexCoord2f(1.0f, 0);
+        GLR_Vertex3f(fPosx+fCur, fPosy-fCur, 0);
 
-        glTexCoord2f(1.0f, 1.0f);
-        glVertex3f(fPosx+fCur, fPosy+fCur, 0);
+        GLR_TexCoord2f(1.0f, 1.0f);
+        GLR_Vertex3f(fPosx+fCur, fPosy+fCur, 0);
 
-        glTexCoord2f(0, 1.0f);
-        glVertex3f(fPosx-fCur, fPosy+fCur, 0);
+        GLR_TexCoord2f(0, 1.0f);
+        GLR_Vertex3f(fPosx-fCur, fPosy+fCur, 0);
 
-        glEnd();
+        GLR_End();
 
         fCur += fDelt;
         fCurAlpha += fDeltAlpha;
@@ -930,7 +934,7 @@ bool CREFlare::mfCheckVis(CCObject *obj)
 
       // Generate blured alpha texture without mip-maps
       rd->SetTexture(obj->m_TexId1, eTT_Base);
-      glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, (int)(fPosx-fSizeTex2), (int)(fPosy-fSizeTex2), sizeTex, sizeTex);
+      GLR_CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, (int)(fPosx-fSizeTex2), (int)(fPosy-fSizeTex2), sizeTex, sizeTex);
 
       /*{
         byte *data = new byte [sizeTex * sizeTex];
@@ -949,19 +953,19 @@ bool CREFlare::mfCheckVis(CCObject *obj)
         delete [] data;
       }*/
 
-      glPopMatrix();
-      glMatrixMode(GL_PROJECTION);
-      glPopMatrix();
-      glMatrixMode(GL_MODELVIEW);
+      GLR_PopMatrix();
+      GLR_MatrixMode(GL_PROJECTION);
+      GLR_PopMatrix();
+      GLR_MatrixMode(GL_MODELVIEW);
 
       rd->EnableFog(bFog);
 
       rd->SetTexture(0, eTT_Base);
     }
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
+    GLR_MatrixMode(GL_PROJECTION);
+    GLR_PopMatrix();
+    GLR_MatrixMode(GL_MODELVIEW);
+    GLR_PopMatrix();
   }  
 
   return true;
@@ -1034,27 +1038,27 @@ void CREFlare::mfDrawFlares(SShader *ef, CFColor &col)
 
     CFColor col = fl->m_Color * fDot;
     fl->m_Tex->Set();
-    glColor3fv(&col[0]);
+    GLR_Color3fv(&col[0]);
     
-    glBegin(GL_QUADS);
+    GLR_Begin(GL_QUADS);
     
     v = fl->m_Position + vx + vy;
-    glTexCoord2f(0, 0);
-    glVertex3fv(&v[0]);
+    GLR_TexCoord2f(0, 0);
+    GLR_Vertex3fv(&v[0]);
     
     v = fl->m_Position - vx + vy;
-    glTexCoord2f(1, 0);
-    glVertex3fv(&v[0]);
+    GLR_TexCoord2f(1, 0);
+    GLR_Vertex3fv(&v[0]);
     
     v = fl->m_Position - vx - vy;
-    glTexCoord2f(1, 1);
-    glVertex3fv(&v[0]);
+    GLR_TexCoord2f(1, 1);
+    GLR_Vertex3fv(&v[0]);
     
     v = fl->m_Position + vx - vy;
-    glTexCoord2f(0, 1);
-    glVertex3fv(&v[0]);
+    GLR_TexCoord2f(0, 1);
+    GLR_Vertex3fv(&v[0]);
     
-    glEnd();
+    GLR_End();
 
     gRenDev->m_nPolygons += 2;
   }
@@ -1287,53 +1291,53 @@ void CREFlare::mfDrawCorona(SShader *ef, CFColor &col)
             bFogOverrided = rd->EF_FogCorrection(false, false);
 
           {
-            glColor4fv(&c[0]);
-            glDisableClientState(GL_COLOR_ARRAY);
+            GLR_Color4fv(&c[0]);
+            GLR_DisableClientState(GL_COLOR_ARRAY);
             gRenDev->m_RP.m_FlagsPerFlush |= RBSI_RGBGEN;
 
-            glBegin(GL_TRIANGLE_FAN);
+            GLR_Begin(GL_TRIANGLE_FAN);
 
             v = org;
-            glTexCoord2f(0.5f, 0.5f);
-            glVertex3fv(&v[0]);
+            GLR_TexCoord2f(0.5f, 0.5f);
+            GLR_Vertex3fv(&v[0]);
 
             v = org + vx0 + vy0;
-            glTexCoord2f(0, 0);
-            glVertex3fv(&v[0]);
+            GLR_TexCoord2f(0, 0);
+            GLR_Vertex3fv(&v[0]);
 
             v = org + vx0;
-            glTexCoord2f(0, 0.5f);
-            glVertex3fv(&v[0]);
+            GLR_TexCoord2f(0, 0.5f);
+            GLR_Vertex3fv(&v[0]);
 
             v = org + vx0 + vy1;
-            glTexCoord2f(0, 1);
-            glVertex3fv(&v[0]);
+            GLR_TexCoord2f(0, 1);
+            GLR_Vertex3fv(&v[0]);
 
             v = org + vy1;
-            glTexCoord2f(0.5f, 1);
-            glVertex3fv(&v[0]);
+            GLR_TexCoord2f(0.5f, 1);
+            GLR_Vertex3fv(&v[0]);
 
             v = org + vx1 + vy1;
-            glTexCoord2f(1, 1);
-            glVertex3fv(&v[0]);
+            GLR_TexCoord2f(1, 1);
+            GLR_Vertex3fv(&v[0]);
 
             v = org + vx1;
-            glTexCoord2f(1, 0.5f);
-            glVertex3fv(&v[0]);
+            GLR_TexCoord2f(1, 0.5f);
+            GLR_Vertex3fv(&v[0]);
 
             v = org + vx1 + vy0;
-            glTexCoord2f(1, 0);
-            glVertex3fv(&v[0]);
+            GLR_TexCoord2f(1, 0);
+            GLR_Vertex3fv(&v[0]);
 
             v = org + vy0;
-            glTexCoord2f(0.5f, 0);
-            glVertex3fv(&v[0]);
+            GLR_TexCoord2f(0.5f, 0);
+            GLR_Vertex3fv(&v[0]);
 
             v = org + vx0 + vy0;
-            glTexCoord2f(0, 0);
-            glVertex3fv(&v[0]);
+            GLR_TexCoord2f(0, 0);
+            GLR_Vertex3fv(&v[0]);
 
-            glEnd();
+            GLR_End();
           }
 
           rd->EF_FogCorrectionRestore(bFogOverrided);
@@ -1345,53 +1349,53 @@ void CREFlare::mfDrawCorona(SShader *ef, CFColor &col)
     }
     else
     {
-      glColor4fv(&c[0]);
-      glDisableClientState(GL_COLOR_ARRAY);
+      GLR_Color4fv(&c[0]);
+      GLR_DisableClientState(GL_COLOR_ARRAY);
       gRenDev->m_RP.m_FlagsPerFlush |= RBSI_RGBGEN;
 
-      glBegin(GL_TRIANGLE_FAN);
+      GLR_Begin(GL_TRIANGLE_FAN);
 
       v = org;
-      glTexCoord2f(0.5f, 0.5f);
-      glVertex3fv(&v[0]);
+      GLR_TexCoord2f(0.5f, 0.5f);
+      GLR_Vertex3fv(&v[0]);
 
       v = org + vx0 + vy0;
-      glTexCoord2f(0, 0);
-      glVertex3fv(&v[0]);
+      GLR_TexCoord2f(0, 0);
+      GLR_Vertex3fv(&v[0]);
 
       v = org + vx0;
-      glTexCoord2f(0, 0.5f);
-      glVertex3fv(&v[0]);
+      GLR_TexCoord2f(0, 0.5f);
+      GLR_Vertex3fv(&v[0]);
 
       v = org + vx0 + vy1;
-      glTexCoord2f(0, 1);
-      glVertex3fv(&v[0]);
+      GLR_TexCoord2f(0, 1);
+      GLR_Vertex3fv(&v[0]);
 
       v = org + vy1;
-      glTexCoord2f(0.5f, 1);
-      glVertex3fv(&v[0]);
+      GLR_TexCoord2f(0.5f, 1);
+      GLR_Vertex3fv(&v[0]);
 
       v = org + vx1 + vy1;
-      glTexCoord2f(1, 1);
-      glVertex3fv(&v[0]);
+      GLR_TexCoord2f(1, 1);
+      GLR_Vertex3fv(&v[0]);
 
       v = org + vx1;
-      glTexCoord2f(1, 0.5f);
-      glVertex3fv(&v[0]);
+      GLR_TexCoord2f(1, 0.5f);
+      GLR_Vertex3fv(&v[0]);
 
       v = org + vx1 + vy0;
-      glTexCoord2f(1, 0);
-      glVertex3fv(&v[0]);
+      GLR_TexCoord2f(1, 0);
+      GLR_Vertex3fv(&v[0]);
 
       v = org + vy0;
-      glTexCoord2f(0.5f, 0);
-      glVertex3fv(&v[0]);
+      GLR_TexCoord2f(0.5f, 0);
+      GLR_Vertex3fv(&v[0]);
 
       v = org + vx0 + vy0;
-      glTexCoord2f(0, 0);
-      glVertex3fv(&v[0]);
+      GLR_TexCoord2f(0, 0);
+      GLR_Vertex3fv(&v[0]);
 
-      glEnd();
+      GLR_End();
     }
   }
   //else
@@ -1415,8 +1419,8 @@ void CREFlare::mfDrawCorona(SShader *ef, CFColor &col)
     else
       pRC = rd->m_RP.m_RCSun;
 
-    glColor3fv(&c[0]);
-    glDisableClientState(GL_COLOR_ARRAY);
+    GLR_Color3fv(&c[0]);
+    GLR_DisableClientState(GL_COLOR_ARRAY);
 
     if(pRC)
     {
@@ -1424,59 +1428,59 @@ void CREFlare::mfDrawCorona(SShader *ef, CFColor &col)
       rd->EF_CommitPS();
     }
 
-    glBegin(GL_TRIANGLE_FAN);
+    GLR_Begin(GL_TRIANGLE_FAN);
 
     v = org;
-    glMultiTexCoord2fARB(GL_TEXTURE0_ARB, 0.5f, 0.5f);
-    glMultiTexCoord2fARB(GL_TEXTURE1_ARB, 0.5f, 0.5f);
-    glVertex3fv(&v[0]);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE0_ARB, 0.5f, 0.5f);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE1_ARB, 0.5f, 0.5f);
+    GLR_Vertex3fv(&v[0]);
 
     v = org + vx0 + vy0;
-    glMultiTexCoord2fARB(GL_TEXTURE0_ARB, 1, 1);
-    glMultiTexCoord2fARB(GL_TEXTURE1_ARB, 1, 1);
-    glVertex3fv(&v[0]);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE0_ARB, 1, 1);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE1_ARB, 1, 1);
+    GLR_Vertex3fv(&v[0]);
 
     v = org + vx0;
-    glMultiTexCoord2fARB(GL_TEXTURE0_ARB, 1, 0.5f);
-    glMultiTexCoord2fARB(GL_TEXTURE1_ARB, 1, 0.5f);
-    glVertex3fv(&v[0]);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE0_ARB, 1, 0.5f);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE1_ARB, 1, 0.5f);
+    GLR_Vertex3fv(&v[0]);
 
     v = org + vx0 + vy1;
-    glMultiTexCoord2fARB(GL_TEXTURE0_ARB, 1, 0);
-    glMultiTexCoord2fARB(GL_TEXTURE1_ARB, 1, 0);
-    glVertex3fv(&v[0]);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE0_ARB, 1, 0);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE1_ARB, 1, 0);
+    GLR_Vertex3fv(&v[0]);
 
     v = org + vy1;
-    glMultiTexCoord2fARB(GL_TEXTURE0_ARB, 0.5f, 0);
-    glMultiTexCoord2fARB(GL_TEXTURE1_ARB, 0.5f, 0);
-    glVertex3fv(&v[0]);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE0_ARB, 0.5f, 0);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE1_ARB, 0.5f, 0);
+    GLR_Vertex3fv(&v[0]);
 
     v = org + vx1 + vy1;
-    glMultiTexCoord2fARB(GL_TEXTURE0_ARB, 0, 0);
-    glMultiTexCoord2fARB(GL_TEXTURE1_ARB, 0, 0);
-    glVertex3fv(&v[0]);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE0_ARB, 0, 0);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE1_ARB, 0, 0);
+    GLR_Vertex3fv(&v[0]);
 
     v = org + vx1;
-    glMultiTexCoord2fARB(GL_TEXTURE0_ARB, 0, 0.5f);
-    glMultiTexCoord2fARB(GL_TEXTURE1_ARB, 0, 0.5f);
-    glVertex3fv(&v[0]);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE0_ARB, 0, 0.5f);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE1_ARB, 0, 0.5f);
+    GLR_Vertex3fv(&v[0]);
 
     v = org + vx1 + vy0;
-    glMultiTexCoord2fARB(GL_TEXTURE0_ARB, 0, 1);
-    glMultiTexCoord2fARB(GL_TEXTURE1_ARB, 0, 1);
-    glVertex3fv(&v[0]);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE0_ARB, 0, 1);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE1_ARB, 0, 1);
+    GLR_Vertex3fv(&v[0]);
 
     v = org + vy0;
-    glMultiTexCoord2fARB(GL_TEXTURE0_ARB, 0.5f, 1);
-    glMultiTexCoord2fARB(GL_TEXTURE1_ARB, 0.5f, 1);
-    glVertex3fv(&v[0]);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE0_ARB, 0.5f, 1);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE1_ARB, 0.5f, 1);
+    GLR_Vertex3fv(&v[0]);
 
     v = org + vx0 + vy0;
-    glMultiTexCoord2fARB(GL_TEXTURE0_ARB, 1, 1);
-    glMultiTexCoord2fARB(GL_TEXTURE1_ARB, 1, 1);
-    glVertex3fv(&v[0]);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE0_ARB, 1, 1);
+    GLR_MultiTexCoord2fARB(GL_TEXTURE1_ARB, 1, 1);
+    GLR_Vertex3fv(&v[0]);
 
-    glEnd();
+    GLR_End();
 
     if (pRC)
     {
@@ -1508,7 +1512,7 @@ bool CREFlare::mfDraw(SShader *ef, SShaderPass *sfm)
     return false;
 
   Matrix44 m = gRenDev->GetCamera().GetVCMatrixD3D9();
-  glLoadMatrixf(&m(0,0));
+  GLR_LoadMatrixf(&m(0,0));
 
   obj->m_Color.r = m_Color.r;
   obj->m_Color.g = m_Color.g;
@@ -1525,8 +1529,8 @@ bool CREFlare::mfDraw(SShader *ef, SShaderPass *sfm)
 
 bool CREClearStencil::mfDraw(SShader *ef, SShaderPass *sfm)
 {    
-	glClearStencil(0);
-	glClear(GL_STENCIL_BUFFER_BIT);
+	GLR_ClearStencil(0);
+	GLR_Clear(GL_STENCIL_BUFFER_BIT);
   return true;
 }
 

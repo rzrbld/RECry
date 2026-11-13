@@ -22,6 +22,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include <set>
+#include "GLRCg.h"
 #include <string>
 static CGerror g_GLES3CgError = CG_NO_ERROR;
 // In shader-tier bring-up mode, compiles "succeed" with a placeholder program
@@ -50,9 +51,28 @@ CGprogram cgCreateProgram(CGcontext, CGenum, const char *program, CGprofile prof
       fclose(f);
     }
   }
-  if (g_GLES3CgRequests <= 3 || (g_GLES3CgRequests % 100) == 0)
+  if (!GLR::ProgramsSupported() && (g_GLES3CgRequests <= 3 || (g_GLES3CgRequests % 100) == 0))
     iLog->Log("GLES3: Cg compile request #%d (profile %d, entry %s) - translator not implemented yet",
               g_GLES3CgRequests, (int)profile, entry ? entry : "main");
+  // Native backend: translate to GLSL ES (GLRCg); cgGetProgramString hands
+  // the engine the ARB-style text with the parameter registers.
+  if (GLR::ProgramsSupported())
+  {
+    GLRCg::Program p;
+    if (program && GLRCg::Translate(program, vertex, p))
+    {
+      std::string* text = new std::string(GLRCg::MakeProgramString(p, program));
+      return (CGprogram)text;
+    }
+    fprintf(stderr, "GLES3: Cg program not translated (%s) - the engine uses its fallback\n", p.error.c_str());
+    if (const char* dir = getenv("FARCRY_GLES3_CG_FAILDUMP"))
+    {
+      static int n = 0; char path[512]; snprintf(path, sizeof(path), "%s/fail%03d_p%d.cg", dir, ++n, (int)profile);
+      if (FILE* f = fopen(path, "w")) { fprintf(f, "// profile=%d entry=main\n%s\n", (int)profile, program ? program : ""); fclose(f); }
+    }
+    g_GLES3CgError = CG_COMPILER_ERROR;
+    return NULL;
+  }
   static int s_shaderTier = getenv("FARCRY_GLES3_SHADER_TIER") ? atoi(getenv("FARCRY_GLES3_SHADER_TIER")) : 0;
   if (s_shaderTier)
     return (CGprogram)&g_GLES3CgProgramTag[vertex ? 0 : 1];
@@ -60,9 +80,11 @@ CGprogram cgCreateProgram(CGcontext, CGenum, const char *program, CGprofile prof
   return NULL;
 }
 
-void cgDestroyProgram(CGprogram) {}
+static bool IsTag(CGprogram p) { return p == (CGprogram)&g_GLES3CgProgramTag[0] || p == (CGprogram)&g_GLES3CgProgramTag[1]; }
+void cgDestroyProgram(CGprogram p) { if (p && !IsTag(p) && GLR::ProgramsSupported()) delete (std::string*)p; }
 const char *cgGetProgramString(CGprogram prog, CGenum)
 {
+  if (prog && !IsTag(prog) && GLR::ProgramsSupported()) return ((std::string*)prog)->c_str();
   if (prog == (CGprogram)&g_GLES3CgProgramTag[0]) return "!!ARBvp1.0\nEND\n";
   if (prog == (CGprogram)&g_GLES3CgProgramTag[1]) return "!!ARBfp1.0\nEND\n";
   return "";
@@ -92,7 +114,7 @@ void APIENTRY gluPerspective(GLdouble fovy, GLdouble aspect, GLdouble zNear, GLd
   m[10] = (float)((zFar + zNear) / (zNear - zFar));
   m[11] = -1.0f;
   m[14] = (float)((2.0 * zFar * zNear) / (zNear - zFar));
-  glMultMatrixf(m);
+  GLR_MultMatrixf(m);
 }
 
 void APIENTRY gluLookAt(GLdouble ex, GLdouble ey, GLdouble ez, GLdouble cx, GLdouble cy, GLdouble cz,
@@ -107,9 +129,9 @@ void APIENTRY gluLookAt(GLdouble ex, GLdouble ey, GLdouble ez, GLdouble cx, GLdo
                   (float)s[1], (float)u[1], (float)-f[1], 0,
                   (float)s[2], (float)u[2], (float)-f[2], 0,
                   0, 0, 0, 1 };
-  glMultMatrixf(m);
+  GLR_MultMatrixf(m);
   float t[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, (float)-ex, (float)-ey, (float)-ez, 1 };
-  glMultMatrixf(t);
+  GLR_MultMatrixf(t);
 }
 
 static int g_GLES3QuadricTag;
@@ -143,4 +165,16 @@ HRESULT nvDXTcompress(unsigned char *, unsigned long, unsigned long, DWORD, Comp
 unsigned char *nvDXTdecompress(int &, int &, int &, int &, int &, int &, int)
 {
   return NULL;
+}
+
+// The engine writes its program cache with fopen and reads it back through
+// the pak layer, which looks paths up in lowercase: write the lowercase path
+// (in place) and create its directories.
+void GLES3PrepareCachePath(char* path)
+{
+  if (!path) return;
+  for (char* c = path; *c; ++c) { if (*c == '\\') *c = '/'; *c = (char)tolower((unsigned char)*c); }
+  std::string p(path);
+  for (size_t i = 1; i < p.size(); ++i)
+    if (p[i] == '/') { const std::string d = p.substr(0, i); mkdir(d.c_str(), 0755); }
 }

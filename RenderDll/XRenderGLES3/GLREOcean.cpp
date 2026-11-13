@@ -260,15 +260,15 @@ void CREOcean::DrawOceanSector(SOceanIndicies *oi)
     switch (g->type)
     {
       case PT_STRIP:
-        glDrawElements(GL_TRIANGLE_STRIP, g->numIndices, GL_UNSIGNED_SHORT, &oi->m_pIndicies[g->offsIndex]);
+        GLR_DrawElements(GL_TRIANGLE_STRIP, g->numIndices, GL_UNSIGNED_SHORT, &oi->m_pIndicies[g->offsIndex]);
         break;
 
       case PT_LIST:
-        glDrawElements(GL_TRIANGLES, g->numIndices, GL_UNSIGNED_SHORT, &oi->m_pIndicies[g->offsIndex]);
+        GLR_DrawElements(GL_TRIANGLES, g->numIndices, GL_UNSIGNED_SHORT, &oi->m_pIndicies[g->offsIndex]);
         break;
 
       case PT_FAN:
-        glDrawElements(GL_TRIANGLE_FAN, g->numIndices, GL_UNSIGNED_SHORT, &oi->m_pIndicies[g->offsIndex]);
+        GLR_DrawElements(GL_TRIANGLE_FAN, g->numIndices, GL_UNSIGNED_SHORT, &oi->m_pIndicies[g->offsIndex]);
         break;
     }
     gRenDev->m_nPolygons += g->numTris;
@@ -587,14 +587,14 @@ void CREOcean::mfDrawOceanSectors()
         glVertexAttribPointerNV(1, 2, GL_FLOAT, sizeof(float)*2, pHM);
       if (!bCurNeedBuffer)
       {
-        glEnableClientState(GL_VERTEX_ATTRIB_ARRAY1_NV);
+        GLR_EnableClientState(GL_VERTEX_ATTRIB_ARRAY1_NV);
         bCurNeedBuffer = true;
       }
     }
     else
     if (bCurNeedBuffer)
     {
-      glDisableClientState(GL_VERTEX_ATTRIB_ARRAY1_NV);
+      GLR_DisableClientState(GL_VERTEX_ATTRIB_ARRAY1_NV);
       bCurNeedBuffer = false;
     }
     float param[4];
@@ -650,7 +650,7 @@ void CREOcean::mfDrawOceanSectors()
     //  glSetFenceNV(r->m_RP.mBufs[r->m_RP.m_CurFence].mFence, GL_ALL_COMPLETED_NV);
   }
   if (bCurNeedBuffer)
-    glDisableClientState(GL_VERTEX_ATTRIB_ARRAY1_NV);
+    GLR_DisableClientState(GL_VERTEX_ATTRIB_ARRAY1_NV);
 
   if (glSetFenceNV)
     glSetFenceNV(m_pBuffer->m_fence, GL_ALL_COMPLETED_NV);
@@ -857,11 +857,11 @@ void CREOcean::mfDrawOceanScreenLod()
   r->EF_SetState(GS_DEPTHWRITE | GS_BLSRC_SRCALPHA | GS_BLDST_ONEMINUSSRCALPHA);
 
   glVertexAttribPointerNV(0, 3, GL_FLOAT, sizeof(float)*7, pBuf);
-  glEnableClientState(GL_VERTEX_ATTRIB_ARRAY0_NV);
+  GLR_EnableClientState(GL_VERTEX_ATTRIB_ARRAY0_NV);
   glVertexAttribPointerNV(2, 3, GL_FLOAT, sizeof(float)*7, pBuf+3);
-  glEnableClientState(GL_VERTEX_ATTRIB_ARRAY2_NV);
+  GLR_EnableClientState(GL_VERTEX_ATTRIB_ARRAY2_NV);
   glVertexAttribPointerNV(1, 1, GL_FLOAT, sizeof(float)*7, pBuf+6);
-  glEnableClientState(GL_VERTEX_ATTRIB_ARRAY1_NV);
+  GLR_EnableClientState(GL_VERTEX_ATTRIB_ARRAY1_NV);
 
   CVProgram *vp = m_VPQ;
   if (!vp)
@@ -869,14 +869,14 @@ void CREOcean::mfDrawOceanScreenLod()
   if (vp)
     vp->mfSet(true, NULL);
 
-  glDrawElements(GL_TRIANGLES, m_DWQIndices.Num(), GL_UNSIGNED_SHORT, &m_DWQIndices[0]);
+  GLR_DrawElements(GL_TRIANGLES, m_DWQIndices.Num(), GL_UNSIGNED_SHORT, &m_DWQIndices[0]);
 
   if (vp)
     vp->mfSet(false, NULL);
 
-  glDisableClientState(GL_VERTEX_ATTRIB_ARRAY2_NV);
-  glDisableClientState(GL_VERTEX_ATTRIB_ARRAY1_NV);
-  glDisableClientState(GL_VERTEX_ATTRIB_ARRAY0_NV);
+  GLR_DisableClientState(GL_VERTEX_ATTRIB_ARRAY2_NV);
+  GLR_DisableClientState(GL_VERTEX_ATTRIB_ARRAY1_NV);
+  GLR_DisableClientState(GL_VERTEX_ATTRIB_ARRAY0_NV);
 }
 
 bool CREOcean::mfDraw(SShader *ef, SShaderPass *sfm)

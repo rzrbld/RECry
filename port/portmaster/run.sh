@@ -22,8 +22,10 @@ for pak in scripts.pak objects.pak textures.pak sounds.pak; do
     [[ -n $(find_child "$fcdata" "$pak") ]] || fail "Game archive missing: gamedata/FCData/$pak"
 done
 
-# Launcher settings (conf/recry.cfg); the environment wins for testing.
+# Launcher settings (conf/recry.cfg); RECRY_* already in the environment win (testing).
+_recry_env=$(declare -p $(compgen -v RECRY_) 2>/dev/null)
 [[ ! -f "$BASE/conf/recry.cfg" ]] || source "$BASE/conf/recry.cfg"
+[[ -z $_recry_env ]] || eval "$_recry_env"
 
 # The engine wants one folder with its data and configs. SD cards formatted
 # FAT32/exFAT cannot hold symlinks, so this folder of links lives in RAM; it
@@ -49,8 +51,12 @@ for name in levels shaders languages devmode.lua; do
     [[ -n "$path" ]] && ln -s "$path" "$RUNTIME/$name"
 done
 
-# Engine config: the handheld preset over the saved values, then the
-# launcher's choices. A changed preset (port update) replaces saved files.
+# Engine config: one config, the game's own System.Cfg. The handheld preset
+# is written only when there is none (first start, port update with a
+# changed preset, or the launcher's "Restore default game settings"); after
+# that the in-game Options menu owns it. The launcher adds only what the game
+# cannot set itself (resolution, frame limit, FPS counter), replacing its own
+# previous lines.
 PRESET="$BASE/presets/handheld.cfg"
 preset_id=$(cksum < "$PRESET")
 if [[ $(cat "$BASE/conf/preset.id" 2>/dev/null) != "$preset_id" ]]; then
@@ -59,8 +65,7 @@ if [[ $(cat "$BASE/conf/preset.id" 2>/dev/null) != "$preset_id" ]]; then
 fi
 for name in System.Cfg system.cfg; do
     [[ -f "$BASE/conf/$name" ]] || cp "$PRESET" "$BASE/conf/$name"
-    cp "$BASE/conf/$name" "$RUNTIME/$name"
-    { echo "-- Far Cry port preset (applied over saved values)"; grep -E '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=' "$PRESET"; } >> "$RUNTIME/$name"
+    grep -v -E '^[[:space:]]*(r_Width|r_Height|r_Fullscreen|g_maxfps|r_DisplayInfo)[[:space:]]*=|^-- Far Cry port (settings|preset)' "$BASE/conf/$name" > "$RUNTIME/$name"
 done
 if [[ ! -f "$BASE/conf/game.cfg" ]]; then
     cfg=$(find_child "$ASSETS" game.cfg)
@@ -69,6 +74,21 @@ if [[ ! -f "$BASE/conf/game.cfg" ]]; then
 fi
 cp "$BASE/conf/game.cfg" "$RUNTIME/game.cfg"
 for f in "$BASE/conf"/profiles\\*; do [[ ! -f "$f" ]] || cp "$f" "$RUNTIME/"; done
+
+# ---------------------------------------------------------------- GPU driver
+# Panfrost (Mesa's open-source Mali driver): the package bundles Mesa 25.0.7
+# with a fixed tiler setup in libs.mesa/ (see the comment at the resolution
+# below). RECRY_MESA=patched (default) uses it, system keeps the firmware's
+# Mesa and caps the auto resolution instead. Other GPUs/drivers: untouched.
+PANFROST=0; PANFROST_MESA=none
+if [[ -d /sys/bus/platform/drivers/panfrost ]] && ls /sys/bus/platform/drivers/panfrost/ 2>/dev/null | grep -q '\.gpu$'; then
+    PANFROST=1; PANFROST_MESA=system
+    if [[ ${RECRY_MESA:-patched} != system && -f $BASE/libs.mesa/libgallium-25.0.7.so ]]; then
+        PANFROST_MESA=patched
+        export LD_LIBRARY_PATH="$BASE/libs.mesa${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+        export GBM_BACKENDS_PATH="$BASE/libs.mesa/gbm"
+    fi
+fi
 
 # ---------------------------------------------------------------- display
 # Render resolution: auto = the screen itself up to 480 lines, else 480 lines
@@ -80,6 +100,19 @@ res=${RECRY_RES:-auto}
 if [[ $res =~ ^([0-9]+)x([0-9]+)$ ]]; then RW=${BASH_REMATCH[1]}; RH=${BASH_REMATCH[2]}
 else
     RH=$(( SH <= 480 ? SH : 480 )); RW=$(( (RH * SW / SH + 1) & ~1 ))
+    # Panfrost (Mesa) on Mali GPUs whose tiler has only two hierarchy levels
+    # (e.g. Mali-G52 in the RK3566/RK3568) bins every primitive into tiles of
+    # 256 px or more once the render target's largest side exceeds 496 px
+    # (pan_select_tiler_hierarchy_mask), and each 16x16 tile then re-reads
+    # all of them. RG DS, river: 640x480 69.8 ms GPU per frame, 512x384 62.0,
+    # 496x372 20.9. Auto keeps the largest side at 496 there and scales up.
+    if [[ $PANFROST == 1 && $PANFROST_MESA != patched ]]; then
+        if (( RW > 496 || RH > 496 )); then
+            if (( RW >= RH )); then RH=$(( (496 * RH / RW) & ~1 )); RW=496
+            else RW=$(( (496 * RW / RH) & ~1 )); RH=496; fi
+            PANFROST_CAP=1
+        fi
+    fi
 fi
 export FARCRY_SCALE=${RECRY_SCALE:-fit}
 
@@ -103,9 +136,9 @@ option() { # option <on|off|auto> <weak> <mid> <strong>
     case "${1,,}" in on|1|yes) echo 1; return ;; off|0|no) echo 0; return ;; esac
     case "$DEVCLASS" in weak) echo "$2" ;; mid) echo "$3" ;; *) echo "$4" ;; esac
 }
-export HANDHELD_PHYSICS=${HANDHELD_PHYSICS:-$(option "${RECRY_PHYSICS:-auto}" 1 1 0)}
-export HANDHELD_EFFECTS=${HANDHELD_EFFECTS:-$(option "${RECRY_EFFECTS:-auto}" 1 1 0)}
-export HANDHELD_VIEW=${HANDHELD_VIEW:-$(option "${RECRY_VIEW:-auto}" 1 1 0)}
+export HANDHELD_PHYSICS=${HANDHELD_PHYSICS:-$(option auto 1 1 0)}
+export HANDHELD_EFFECTS=${HANDHELD_EFFECTS:-$(option auto 1 1 0)}
+export HANDHELD_VIEW=${HANDHELD_VIEW:-$(option auto 1 1 0)}
 if [[ $HANDHELD_PHYSICS != 0 ]]; then
     # Ropes and ragdolls settle sooner (Pier: ropes 4.5 %, Steam: ragdolls ~7 % of frame time).
     export FARCRY_ROPE_EMIN_SCALE=${FARCRY_ROPE_EMIN_SCALE:-100}
@@ -117,37 +150,13 @@ if [[ $HANDHELD_EFFECTS != 0 ]]; then export FARCRY_PARTICLE_NEAR_FADE=${FARCRY_
 # are re-tested every third frame.
 if [[ $HANDHELD_VIEW != 0 ]]; then export FARCRY_CHAR_VIEW_RATIO=${FARCRY_CHAR_VIEW_RATIO:-46} FARCRY_TERRAIN_OCCL_HOLD=${FARCRY_TERRAIN_OCCL_HOLD:-2}; fi
 handheld_cvars() {
-    if [[ $HANDHELD_PHYSICS != 0 ]]; then
-        echo 'p_max_substeps = "2"'; echo 'p_max_contacts = "64"'; echo 'p_max_plane_contacts = "4"'
-        echo 'p_max_MC_iters = "2000"'; echo 'p_max_LCPCG_iters = "3"'
-        echo 'p_max_LCPCG_subiters = "40"'; echo 'p_max_LCPCG_microiters = "4000"'
-    else
-        echo 'p_max_substeps = "5"'; echo 'p_max_contacts = "150"'; echo 'p_max_plane_contacts = "8"'
-        echo 'p_max_MC_iters = "6000"'; echo 'p_max_LCPCG_iters = "5"'
-        echo 'p_max_LCPCG_subiters = "120"'; echo 'p_max_LCPCG_microiters = "12000"'
-    fi
-    if [[ $HANDHELD_EFFECTS != 0 ]]; then
-        echo 'e_particles_lod = "0.25"'; echo 'e_particles_max_count = "120"'
-        echo 'e_decals_life_time_scale = "0.5"'; echo 'ca_EnableDecals = "0"'
-        echo 'e_flocks = "0"'; echo 'es_EnableCloth = "0"'; echo 'cl_weapon_fx = "1"'
-        echo 'r_EnvTexUpdateInterval = "0.1"'      # reflections re-render the scene at 10 Hz, not every frame
-        echo 'r_WaterReflections = "0"'            # the ocean reflection re-renders the scene
-    else
-        echo 'e_particles_lod = "1"'; echo 'e_decals_life_time_scale = "1"'; echo 'ca_EnableDecals = "1"'
-        echo 'e_flocks = "1"'; echo 'es_EnableCloth = "1"'; echo 'cl_weapon_fx = "2"'
-        echo 'r_EnvTexUpdateInterval = "0.001"'; echo 'r_WaterReflections = "1"'
-    fi
-    if [[ $HANDHELD_VIEW != 0 ]]; then
-        echo 'e_obj_view_dist_ratio = "36"'
-        echo 'e_terrain_occlusion_culling_precision = "0.3"'
-    fi
     echo "r_Width = \"$RW\""; echo "r_Height = \"$RH\""; echo 'r_Fullscreen = "1"'
     echo "g_maxfps = \"${RECRY_LIMIT:-30}\""                 # 30 / 60 / 0 = uncapped
     # FPS counter: 1 = small counter (FARCRY_SHOW_FPS), 2 = the engine's own statistics
     if [[ ${RECRY_FPS:-0} == 2 ]]; then echo 'r_DisplayInfo = "1"'; else echo 'r_DisplayInfo = "0"'; fi
 }
 for name in System.Cfg system.cfg; do
-    { echo "-- Far Cry port settings: physics=$HANDHELD_PHYSICS effects=$HANDHELD_EFFECTS view=$HANDHELD_VIEW"; handheld_cvars; } >> "$RUNTIME/$name"
+    { echo "-- Far Cry port settings (launcher)"; handheld_cvars; } >> "$RUNTIME/$name"
 done
 
 # Menu text size: auto = bigger on small screens (1.3x at 480 lines and
@@ -162,6 +171,12 @@ export FARCRY_HUD_TEXT_SCALE=${FARCRY_HUD_TEXT_SCALE:-$(awk -v s="$FARCRY_UI_TEX
 
 # ---------------------------------------------------------------- engine
 export FARCRY_DATA="$RUNTIME" FARCRY_GLES=1
+# Renderer (launcher): native = the native GLES3 backend running the game's
+# own shader programs (bump/specular materials, water reflections); classic =
+# the older fixed-function renderer (bump/water cvars: presets/handheld.cfg).
+if [[ ${RECRY_RENDERER:-native} != classic ]]; then
+  export FARCRY_RENDERER=${FARCRY_RENDERER:-native}
+fi
 mkdir -p "$BASE/logs/snaps"; export FARCRY_SNAP_DIR=${FARCRY_SNAP_DIR:-$BASE/logs/snaps} FARCRY_CAPTURE_DIR=${FARCRY_CAPTURE_DIR:-$BASE/logs/snaps}
 export MALLOC_ARENA_MAX=${MALLOC_ARENA_MAX:-2}
 export FARCRY_AUDIO_RATE=${FARCRY_AUDIO_RATE:-22050}
@@ -179,9 +194,9 @@ look=${RECRY_LOOK:-30}; pointer=${RECRY_POINTER:-30}
 export FARCRY_PAD_LOOK_SCALE=${FARCRY_PAD_LOOK_SCALE:-$(( look * 6 ))}
 export FARCRY_PAD_CURSOR_SPEED=${FARCRY_PAD_CURSOR_SPEED:-$(( pointer * 70 / 3 ))}
 # Video, audio and the GL driver come from the firmware through SDL.
-echo "Device: ${DEVICE_NAME:-?} cpu=${DEVICE_CPU:-?} ram=${DEVICE_RAM:-?}GB class=$DEVCLASS screen=${SW}x${SH} render=${RW}x${RH} scale=$FARCRY_SCALE"
+echo "Device: ${DEVICE_NAME:-?} cpu=${DEVICE_CPU:-?} ram=${DEVICE_RAM:-?}GB class=$DEVCLASS screen=${SW}x${SH} render=${RW}x${RH} scale=$FARCRY_SCALE${PANFROST_CAP:+ (Panfrost tiler cap)}"
 echo "Options: physics=$HANDHELD_PHYSICS effects=$HANDHELD_EFFECTS view=$HANDHELD_VIEW text=$FARCRY_UI_TEXT_SCALE limit=${RECRY_LIMIT:-30} fps=${RECRY_FPS:-0}"
-echo "Video driver: ${SDL_VIDEODRIVER:-<SDL default>}  audio driver: ${SDL_AUDIODRIVER:-<SDL default>}"
+echo "Video driver: ${SDL_VIDEODRIVER:-<SDL default>}  audio driver: ${SDL_AUDIODRIVER:-<SDL default>}  GPU driver: $( [[ $PANFROST == 1 ]] && echo "Panfrost, $PANFROST_MESA Mesa" || echo "system" )"
 "$FARCRY_BIN" "$@" &
 child=$!
 [[ -z ${FARCRY_PIDFILE:-} ]] || echo "$child" > "$FARCRY_PIDFILE"

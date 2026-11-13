@@ -203,19 +203,19 @@ void CGLRenderer::DrawObjSprites_NoBend (list2<CStatObjInst*> *pList, float fMax
 
         EF_SelectTMU(1);
         gRenDev->m_TexMan->m_Text_Fog->Set();
-        glTexGenfv(GL_S, GL_OBJECT_PLANE, paramf[0]);
-        glTexGenfv(GL_T, GL_OBJECT_PLANE, paramf[1]);
-        glEnable(GL_TEXTURE_GEN_S);
-        glEnable(GL_TEXTURE_GEN_T);
+        GLR_TexGenfv(GL_S, GL_OBJECT_PLANE, paramf[0]);
+        GLR_TexGenfv(GL_T, GL_OBJECT_PLANE, paramf[1]);
+        GLR_Enable(GL_TEXTURE_GEN_S);
+        GLR_Enable(GL_TEXTURE_GEN_T);
 
         EF_SelectTMU(2);
         gRenDev->m_TexMan->m_Text_Fog_Enter->Set();
-        glTexGenfv(GL_S, GL_OBJECT_PLANE, paramfe[0]);
-        glTexGenfv(GL_T, GL_OBJECT_PLANE, paramfe[1]);
-        glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-        glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-        glEnable(GL_TEXTURE_GEN_S);
-        glEnable(GL_TEXTURE_GEN_T);
+        GLR_TexGenfv(GL_S, GL_OBJECT_PLANE, paramfe[0]);
+        GLR_TexGenfv(GL_T, GL_OBJECT_PLANE, paramfe[1]);
+        GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+        GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+        GLR_Enable(GL_TEXTURE_GEN_S);
+        GLR_Enable(GL_TEXTURE_GEN_T);
 
         EF_SelectTMU(0);
 
@@ -239,13 +239,13 @@ void CGLRenderer::DrawObjSprites_NoBend (list2<CStatObjInst*> *pList, float fMax
 
         EF_SelectTMU(1);
         EnableTMU(false);
-        glDisable(GL_TEXTURE_GEN_S);
-        glDisable(GL_TEXTURE_GEN_T);
+        GLR_Disable(GL_TEXTURE_GEN_S);
+        GLR_Disable(GL_TEXTURE_GEN_T);
 
         EF_SelectTMU(2);
         EnableTMU(false);
-        glDisable(GL_TEXTURE_GEN_S);
-        glDisable(GL_TEXTURE_GEN_T);
+        GLR_Disable(GL_TEXTURE_GEN_S);
+        GLR_Disable(GL_TEXTURE_GEN_T);
 
         EF_SelectTMU(0);
 
@@ -271,23 +271,23 @@ void CGLRenderer::DrawObjSprites_NoBend (list2<CStatObjInst*> *pList, float fMax
     float fX1 = vPos.x-dx;
     float fY0 = vPos.y+dy;
     float fY1 = vPos.y-dy;
-    glColor4ubv(&col.bcolor[0]);
+    GLR_Color4ubv(&col.bcolor[0]);
 
-    glBegin(GL_TRIANGLE_STRIP);
+    GLR_Begin(GL_TRIANGLE_STRIP);
 
-    glTexCoord2f(0, 0);
-    glVertex3f(fX0+vUp.x, fY1+vUp.y, vPos.z+vUp.z);
+    GLR_TexCoord2f(0, 0);
+    GLR_Vertex3f(fX0+vUp.x, fY1+vUp.y, vPos.z+vUp.z);
 
-    glTexCoord2f(-1.0f, 0);
-    glVertex3f(fX1+vUp.x, fY0+vUp.y, vPos.z+vUp.z);
+    GLR_TexCoord2f(-1.0f, 0);
+    GLR_Vertex3f(fX1+vUp.x, fY0+vUp.y, vPos.z+vUp.z);
 
-    glTexCoord2f(0, 1.0f);
-    glVertex3f(fX0-vUp.x, fY1-vUp.y, vPos.z-vUp.z);
+    GLR_TexCoord2f(0, 1.0f);
+    GLR_Vertex3f(fX0-vUp.x, fY1-vUp.y, vPos.z-vUp.z);
 
-    glTexCoord2f(-1.0f, 1.0f);
-    glVertex3f(fX1-vUp.x, fY0-vUp.y, vPos.z-vUp.z);
+    GLR_TexCoord2f(-1.0f, 1.0f);
+    GLR_Vertex3f(fX1-vUp.x, fY0-vUp.y, vPos.z-vUp.z);
 
-    glEnd();
+    GLR_End();
 
     m_nPolygons += 2;
   }
@@ -298,13 +298,13 @@ void CGLRenderer::DrawObjSprites_NoBend (list2<CStatObjInst*> *pList, float fMax
 
     EF_SelectTMU(1);
     EnableTMU(false);
-    glDisable(GL_TEXTURE_GEN_S);
-    glDisable(GL_TEXTURE_GEN_T);
+    GLR_Disable(GL_TEXTURE_GEN_S);
+    GLR_Disable(GL_TEXTURE_GEN_T);
 
     EF_SelectTMU(2);
     EnableTMU(false);
-    glDisable(GL_TEXTURE_GEN_S);
-    glDisable(GL_TEXTURE_GEN_T);
+    GLR_Disable(GL_TEXTURE_GEN_S);
+    GLR_Disable(GL_TEXTURE_GEN_T);
 
     EF_SelectTMU(0);
 
@@ -507,7 +507,7 @@ void CGLRenderer::DrawObjSprites_NoBend_Merge (list2<CStatObjInst*> *pList, floa
     {
       if (nVerts)
       {
-        glEnd();
+        GLR_End();
         nVerts = 0;
       }
       m_TexMan->SetTexture(pSP->m_TexID, eTT_Base);
@@ -564,27 +564,27 @@ void CGLRenderer::DrawObjSprites_NoBend_Merge (list2<CStatObjInst*> *pList, floa
       {
         if (nVerts)
         {
-          glEnd();
+          GLR_End();
           nVerts = 0;
         }
         bVolFog = true;
         EF_SelectTMU(1);
         gRenDev->m_TexMan->m_Text_Fog->Set();
-        glTexGenfv(GL_S, GL_OBJECT_PLANE, paramf[0]);
-        glTexGenfv(GL_T, GL_OBJECT_PLANE, paramf[1]);
-        glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-        glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-        glEnable(GL_TEXTURE_GEN_S);
-        glEnable(GL_TEXTURE_GEN_T);
+        GLR_TexGenfv(GL_S, GL_OBJECT_PLANE, paramf[0]);
+        GLR_TexGenfv(GL_T, GL_OBJECT_PLANE, paramf[1]);
+        GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+        GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+        GLR_Enable(GL_TEXTURE_GEN_S);
+        GLR_Enable(GL_TEXTURE_GEN_T);
 
         EF_SelectTMU(2);
         gRenDev->m_TexMan->m_Text_Fog_Enter->Set();
-        glTexGenfv(GL_S, GL_OBJECT_PLANE, paramfe[0]);
-        glTexGenfv(GL_T, GL_OBJECT_PLANE, paramfe[1]);
-        glTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-        glTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
-        glEnable(GL_TEXTURE_GEN_S);
-        glEnable(GL_TEXTURE_GEN_T);
+        GLR_TexGenfv(GL_S, GL_OBJECT_PLANE, paramfe[0]);
+        GLR_TexGenfv(GL_T, GL_OBJECT_PLANE, paramfe[1]);
+        GLR_TexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+        GLR_TexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+        GLR_Enable(GL_TEXTURE_GEN_S);
+        GLR_Enable(GL_TEXTURE_GEN_T);
 
         EF_SelectTMU(0);
 
@@ -607,20 +607,20 @@ void CGLRenderer::DrawObjSprites_NoBend_Merge (list2<CStatObjInst*> *pList, floa
       {
         if (nVerts)
         {
-          glEnd();
+          GLR_End();
           nVerts = 0;
         }
         bVolFog = false;
 
         EF_SelectTMU(1);
         EnableTMU(false);
-        glDisable(GL_TEXTURE_GEN_S);
-        glDisable(GL_TEXTURE_GEN_T);
+        GLR_Disable(GL_TEXTURE_GEN_S);
+        GLR_Disable(GL_TEXTURE_GEN_T);
 
         EF_SelectTMU(2);
         EnableTMU(false);
-        glDisable(GL_TEXTURE_GEN_S);
-        glDisable(GL_TEXTURE_GEN_T);
+        GLR_Disable(GL_TEXTURE_GEN_S);
+        GLR_Disable(GL_TEXTURE_GEN_T);
 
         EF_SelectTMU(0);
 
@@ -643,39 +643,39 @@ void CGLRenderer::DrawObjSprites_NoBend_Merge (list2<CStatObjInst*> *pList, floa
       vUp = vUp.rotated(Vec3d(-pSP->m_fDX,pSP->m_fDY,0).normalized(), pSP->m_LodAngle/255.f-0.5f);
 
     if (!nVerts)
-      glBegin(GL_TRIANGLES);
+      GLR_Begin(GL_TRIANGLES);
 
-    glColor3ubv(&pSP->m_Color.bcolor[0]);
+    GLR_Color3ubv(&pSP->m_Color.bcolor[0]);
 
     // 0
-    glTexCoord2f(0, 0);
-    glVertex3f(fX0+vUp.x, fY1+vUp.y, pSP->m_vPos.z+vUp.z);
+    GLR_TexCoord2f(0, 0);
+    GLR_Vertex3f(fX0+vUp.x, fY1+vUp.y, pSP->m_vPos.z+vUp.z);
 
     // 1
-    glTexCoord2f(-1.0f, 0);
-    glVertex3f(fX1+vUp.x, fY0+vUp.y, pSP->m_vPos.z+vUp.z);
+    GLR_TexCoord2f(-1.0f, 0);
+    GLR_Vertex3f(fX1+vUp.x, fY0+vUp.y, pSP->m_vPos.z+vUp.z);
 
     // 2
-    glTexCoord2f(0, 1.0f);
-    glVertex3f(fX0-vUp.x, fY1-vUp.y, pSP->m_vPos.z-vUp.z);
+    GLR_TexCoord2f(0, 1.0f);
+    GLR_Vertex3f(fX0-vUp.x, fY1-vUp.y, pSP->m_vPos.z-vUp.z);
 
     // 3
-    glTexCoord2f(-1.0f, 0);
-    glVertex3f(fX1+vUp.x, fY0+vUp.y, pSP->m_vPos.z+vUp.z);
+    GLR_TexCoord2f(-1.0f, 0);
+    GLR_Vertex3f(fX1+vUp.x, fY0+vUp.y, pSP->m_vPos.z+vUp.z);
 
     // 4
-    glTexCoord2f(-1.0f, 1.0f);
-    glVertex3f(fX1-vUp.x, fY0-vUp.y, pSP->m_vPos.z-vUp.z);
+    GLR_TexCoord2f(-1.0f, 1.0f);
+    GLR_Vertex3f(fX1-vUp.x, fY0-vUp.y, pSP->m_vPos.z-vUp.z);
 
     // 5
-    glTexCoord2f(0, 1.0f);
-    glVertex3f(fX0-vUp.x, fY1-vUp.y, pSP->m_vPos.z-vUp.z);
+    GLR_TexCoord2f(0, 1.0f);
+    GLR_Vertex3f(fX0-vUp.x, fY1-vUp.y, pSP->m_vPos.z-vUp.z);
 
     nVerts += 6;
     m_nPolygons += 2;
   }
   if (nVerts)
-    glEnd();
+    GLR_End();
 
   if (bVolFog)
   {
@@ -683,13 +683,13 @@ void CGLRenderer::DrawObjSprites_NoBend_Merge (list2<CStatObjInst*> *pList, floa
 
     EF_SelectTMU(1);
     EnableTMU(false);
-    glDisable(GL_TEXTURE_GEN_S);
-    glDisable(GL_TEXTURE_GEN_T);
+    GLR_Disable(GL_TEXTURE_GEN_S);
+    GLR_Disable(GL_TEXTURE_GEN_T);
 
     EF_SelectTMU(2);
     EnableTMU(false);
-    glDisable(GL_TEXTURE_GEN_S);
-    glDisable(GL_TEXTURE_GEN_T);
+    GLR_Disable(GL_TEXTURE_GEN_S);
+    GLR_Disable(GL_TEXTURE_GEN_T);
 
     EF_SelectTMU(0);
 
@@ -901,7 +901,7 @@ void CGLRenderer::DrawObjSprites (list2<CStatObjInst*> *pList, float fMaxViewDis
     vBright.x *= vWorldColor.x;
     vBright.y *= vWorldColor.y;
     vBright.z *= vWorldColor.z;
-    glColor4f(vBright.x, vBright.y, vBright.z, 1.f);//o->m_ucAlpha/255.f);
+    GLR_Color4f(vBright.x, vBright.y, vBright.z, 1.f);//o->m_ucAlpha/255.f);
 
     float fSpriteScaleV = o->m_fScale*pStatObjLODLowest->GetRadiusVert()*fFadeOut;
     float fSpriteScaleH = o->m_fScale*pStatObjLODLowest->GetRadiusHors()*pObjMan->m_fZoomFactor*fFadeOut;
@@ -1087,22 +1087,22 @@ void CGLRenderer::DrawObjSprites (list2<CStatObjInst*> *pList, float fMaxViewDis
     if(o->m_ucLodAngle!=127) // rotate sprite to much it with 3d object
       vUp = vUp.rotated(Vec3d(-dx,dy,0).normalized(), o->m_ucLodAngle/255.f-0.5f);
 
-    glBegin(GL_TRIANGLE_STRIP);
-    glTexCoord2f( 0, 0); 
+    GLR_Begin(GL_TRIANGLE_STRIP);
+    GLR_TexCoord2f( 0, 0); 
     glVertex3f  ( dx+vPos.x+vUp.x,-dy+vPos.y+vUp.y,vPos.z+vUp.z);
-    glTexCoord2f(  -1, 0); 
+    GLR_TexCoord2f(  -1, 0); 
     glVertex3f  (-dx+vPos.x+vUp.x, dy+vPos.y+vUp.y,vPos.z+vUp.z);  
 
-    glTexCoord2f(  0, 0.5f); 
+    GLR_TexCoord2f(  0, 0.5f); 
     glVertex3f  ( dx+vPos.x,-dy+vPos.y, vPos.z);  
-    glTexCoord2f( -1, 0.5f); 
+    GLR_TexCoord2f( -1, 0.5f); 
     glVertex3f  ( -dx+vPos.x,dy+vPos.y, vPos.z);
 
-    glTexCoord2f( 0, 1); 
+    GLR_TexCoord2f( 0, 1); 
     glVertex3f  ( dx+vPos.x-vUp.x, -dy+vPos.y-vUp.y, vPos.z-vUp.z);  
-    glTexCoord2f(  -1, 1); 
+    GLR_TexCoord2f(  -1, 1); 
     glVertex3f  ( -dx+vPos.x-vUp.x,dy+vPos.y-vUp.y, vPos.z-vUp.z);
-    glEnd();
+    GLR_End();
 
     m_nPolygons += 4;
   }
@@ -1155,14 +1155,14 @@ uint CGLRenderer::MakeSprite(float _fSpriteDistance, int nTexSize, float angle, 
 
   int bFog=0; // remember fog value
   glGetIntegerv(GL_FOG,&bFog);
-  glDisable(GL_FOG);
+  GLR_Disable(GL_FOG);
 
-  glReadBuffer(GL_BACK);
-  glDrawBuffer(GL_BACK);
+  GLR_ReadBuffer(GL_BACK);
+  GLR_DrawBuffer(GL_BACK);
 
   // render object
-  ///glClearColor(0.3f, 0.3f, 0.3f, 1.0);
-  //glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+  ///GLR_ClearColor(0.3f, 0.3f, 0.3f, 1.0);
+  //GLR_Clear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
   ClearColorBuffer(Vec3d(0.15f, 0.15f, 0.15f));
   ClearDepthBuffer();
 
@@ -1178,13 +1178,13 @@ uint CGLRenderer::MakeSprite(float _fSpriteDistance, int nTexSize, float angle, 
 
   float fDrawDist = fRadiusVert*_fSpriteDistance;
 
-  glMatrixMode(GL_PROJECTION);
-  glLoadIdentity();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_LoadIdentity();
   gluPerspective( 0.565f/_fSpriteDistance*200.f, fRadiusHors/fRadiusVert, fDrawDist-fRadiusHors, fDrawDist+fRadiusHors);
-  glMatrixMode(GL_MODELVIEW);
+  GLR_MatrixMode(GL_MODELVIEW);
 
-  glViewport(0, 0, nTexSize, nTexSize);
-  glLoadIdentity();
+  GLR_Viewport(0, 0, nTexSize, nTexSize);
+  GLR_LoadIdentity();
 
   Vec3d vCenter = (pStatObj->GetBoxMax()+pStatObj->GetBoxMin())*0.5f;
 
@@ -1193,11 +1193,11 @@ uint CGLRenderer::MakeSprite(float _fSpriteDistance, int nTexSize, float angle, 
     -1,0,0,
      0,0,1 );
 
-  glColor4f(1,1,1,1);
-  glPushMatrix();
-  glTranslatef(-fDrawDist,0,0);
-  glRotatef(angle, 0,0,1);
-  glTranslatef(-vCenter.x,-vCenter.y,-vCenter.z);  
+  GLR_Color4f(1,1,1,1);
+  GLR_PushMatrix();
+  GLR_Translatef(-fDrawDist,0,0);
+  GLR_Rotatef(angle, 0,0,1);
+  GLR_Translatef(-vCenter.x,-vCenter.y,-vCenter.z);  
   
   ResetToDefault();
   EF_SetWorldColor(0.5f,0.5f,0.5f);
@@ -1214,7 +1214,7 @@ uint CGLRenderer::MakeSprite(float _fSpriteDistance, int nTexSize, float angle, 
 
   gRenDev->SetClipPlane(0,NULL);
 
-  glPopMatrix();    
+  GLR_PopMatrix();    
 
   // read into buffer and make texture
 
@@ -1223,7 +1223,7 @@ uint CGLRenderer::MakeSprite(float _fSpriteDistance, int nTexSize, float angle, 
   if(!pMemBuffer)
     pMemBuffer = new uchar [nTexSize*nTexSize*4];
 
-  glReadPixels(0, 0, nTexSize, nTexSize, GL_BGRA_EXT, GL_UNSIGNED_BYTE, pMemBuffer);
+  GLR_ReadPixels(0, 0, nTexSize, nTexSize, GL_BGRA_EXT, GL_UNSIGNED_BYTE, pMemBuffer);
 		
   SetTextureAlphaChannelFromRGB(pMemBuffer, nTexSize);
 
@@ -1246,16 +1246,16 @@ uint CGLRenderer::MakeSprite(float _fSpriteDistance, int nTexSize, float angle, 
   if(!_pTmpBuffer)  
     delete [] pMemBuffer;
 
-  glMatrixMode(GL_PROJECTION);
-  glLoadIdentity();
-  glMatrixMode(GL_MODELVIEW);
-  glLoadIdentity();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_LoadIdentity();
+  GLR_MatrixMode(GL_MODELVIEW);
+  GLR_LoadIdentity();
   SetViewport();
 
   m_TexMan->SetTexture(0, eTT_Base);
 
   if(bFog)
-    glEnable(GL_FOG);
+    GLR_Enable(GL_FOG);
 
   return tp->m_Bind;
 }

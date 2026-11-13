@@ -11,6 +11,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
+#include "GLN2D.h"
 #include "RenderPCH.h"
 #include "GL_Renderer.h"
 #include "GLCGVProgram.h"
@@ -265,9 +266,9 @@ void CGLRenderer::GLSetDefaultState()
   if (CV_r_fsaa && m_CurrContext->m_bFSAAWasSet && SUPPORTS_GL_NV_multisample_filter_hint)
   {
     if (CV_r_fsaa==2)
-      glHint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_NICEST);
+      GLR_Hint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_NICEST);
     else
-      glHint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_FASTEST);
+      GLR_Hint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_FASTEST);
   }
  
   glPixelStorei (GL_PACK_ALIGNMENT,1);
@@ -285,18 +286,18 @@ void CGLRenderer::GLSetDefaultState()
   glHint      (GL_FOG_HINT,GL_NICEST);
   
   float globalAmbient[] = {1,1,1,1};
-  glLightModelfv(GL_LIGHT_MODEL_AMBIENT, globalAmbient);
-  glLightModeli(GL_LIGHT_MODEL_TWO_SIDE, false);
+  GLR_LightModelfv(GL_LIGHT_MODEL_AMBIENT, globalAmbient);
+  GLR_LightModeli(GL_LIGHT_MODEL_TWO_SIDE, false);
   float emission[] = {0,0,0,0};
-  glMaterialfv(GL_FRONT, GL_EMISSION, emission);
+  GLR_Materialfv(GL_FRONT, GL_EMISSION, emission);
   
   CheckError("Set state2");
   // Set permanent state.
 
   glMatrixMode (GL_MODELVIEW);
-  glLoadIdentity();
+  GLR_LoadIdentity();
 
-  glEnableClientState(GL_VERTEX_ARRAY);
+  GLR_EnableClientState(GL_VERTEX_ARRAY);
 
   m_TexMan->SetFilter(CV_gl_texturefilter->GetString());
 }
@@ -306,17 +307,17 @@ void CGLRenderer::EnableTMU(bool enable)
 { 
   if (CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target && CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target != GL_TEXTURE_2D)
   {
-    glDisable(CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target);   
+    GLR_EnableTexture(CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target, false);   
     CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target = 0;
   }
   if (enable)
   {     
     CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target = GL_TEXTURE_2D;
-    glEnable(GL_TEXTURE_2D);      
+    GLR_EnableTexture(GL_TEXTURE_2D, true);      
   }
   else
   {     
-    glDisable(GL_TEXTURE_2D);   
+    GLR_EnableTexture(GL_TEXTURE_2D, false);   
     CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Bind = 0;
     CGLTexMan::m_TUState[gRenDev->m_TexMan->m_CurStage].m_Target = 0;
   }   
@@ -411,17 +412,17 @@ void CGLRenderer::BeginFrame()
     m_FSAA = CV_r_fsaa;
     if (!m_FSAA)
     {
-      glDisable(GL_MULTISAMPLE_ARB);
+      GLR_Disable(GL_MULTISAMPLE_ARB);
     }
     else
     {
-      glEnable(GL_MULTISAMPLE_ARB);
+      GLR_Enable(GL_MULTISAMPLE_ARB);
       if (SUPPORTS_GL_NV_multisample_filter_hint)
       {
         if (m_FSAA == 2)
-          glHint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_NICEST);
+          GLR_Hint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_NICEST);
         else
-          glHint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_FASTEST);
+          GLR_Hint(GL_MULTISAMPLE_FILTER_HINT_NV, GL_FASTEST);
       }
     }
   }
@@ -441,7 +442,7 @@ void CGLRenderer::BeginFrame()
 	if (CV_r_PolygonMode != m_polygon_mode)
 		SetPolygonMode(CV_r_PolygonMode);	
 
-  glMatrixMode(GL_MODELVIEW); 
+  GLR_MatrixMode(GL_MODELVIEW); 
 
   if (strcmp(CV_gl_texturefilter->GetString(), m_TexMan->m_CurTexFilter) || CV_r_texture_anisotropic_level != m_TexMan->m_CurAnisotropic)
     m_TexMan->SetFilter(CV_gl_texturefilter->GetString());
@@ -471,7 +472,7 @@ void CGLRenderer::BeginFrame()
   if (CRenderer::CV_r_log)
     Logv(0, "******************************* BeginFrame ********************************\n");
 
-  glColor4f(1,1,1,1);
+  GLR_Color4f(1,1,1,1);
   nFrameTexSize = 0;
   glDrawBuffer  (GL_BACK);
   ResetToDefault();
@@ -582,15 +583,15 @@ void CGLRenderer::DrawPoints(Vec3d v[], int nump, CFColor& col, int flags)
     st = flags | GS_NODEPTHTEST;
   EF_SetState(st);
 
-  glColor4fv(&col[0]);
+  GLR_Color4fv(&col[0]);
 
-  glBegin(GL_POINTS);
+  GLR_Begin(GL_POINTS);
 
   for (i=0; i<nump; i++)
   {
-    glVertex3fv(v[i]);
+    GLR_Vertex3fv(v[i]);
   }
-  glEnd();
+  GLR_End();
 }
 
 void CGLRenderer::DrawLines(Vec3d v[], int nump, CFColor& col, int flags, float fGround)
@@ -606,29 +607,29 @@ void CGLRenderer::DrawLines(Vec3d v[], int nump, CFColor& col, int flags, float 
     st = flags | GS_NODEPTHTEST;
   EF_SetState(st);
 
-  glDisableClientState(GL_COLOR_ARRAY);
-  glColor4fv(&col[0]);
+  GLR_DisableClientState(GL_COLOR_ARRAY);
+  GLR_Color4fv(&col[0]);
 
   if (fGround >= 0)
   {
-    glBegin(GL_LINES);
+    GLR_Begin(GL_LINES);
 
     for (i=0; i<nump; i++)
     {
-      glVertex3f(v[i][0], fGround, 0);
-      glVertex3fv(v[i]);
+      GLR_Vertex3f(v[i][0], fGround, 0);
+      GLR_Vertex3fv(v[i]);
     }
-    glEnd();
+    GLR_End();
   }
   else
   {
-    glBegin(GL_LINE_STRIP);
+    GLR_Begin(GL_LINE_STRIP);
 
     for (i=0; i<nump; i++)
     {
-      glVertex3fv(v[i]);
+      GLR_Vertex3fv(v[i]);
     }
-    glEnd();
+    GLR_End();
   }
 }
 
@@ -648,24 +649,24 @@ static void sDrawImage(float xpos,float ypos,float w,float h,int texture_id,floa
 	else
 		gcpOGL->EnableTMU(false);
 
-  glBegin(GL_QUADS);
+  GLR_Begin(GL_QUADS);
   
-  glColor4f(r,g,b,a);
-  glTexCoord2f(s0, t1);  
-  glVertex2f(xpos, ypos);
+  GLR_Color4f(r,g,b,a);
+  GLR_TexCoord2f(s0, t1);  
+  GLR_Vertex2f(xpos, ypos);
 
-  glColor4f(r,g,b,a);
-  glTexCoord2f(s1, t1);  
-  glVertex2f(xpos+w, ypos);
+  GLR_Color4f(r,g,b,a);
+  GLR_TexCoord2f(s1, t1);  
+  GLR_Vertex2f(xpos+w, ypos);
 
-  glColor4f(r,g,b,a);
-  glTexCoord2f(s1, t0);  
-  glVertex2f(xpos+w,ypos+h);
+  GLR_Color4f(r,g,b,a);
+  GLR_TexCoord2f(s1, t0);  
+  GLR_Vertex2f(xpos+w,ypos+h);
 
-  glColor4f(r,g,b,a);
-  glTexCoord2f(s0, t0);  
-  glVertex2f(xpos, ypos+h);
-  glEnd();  
+  GLR_Color4f(r,g,b,a);
+  GLR_TexCoord2f(s0, t0);  
+  GLR_Vertex2f(xpos, ypos+h);
+  GLR_End();  
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -738,7 +739,7 @@ void CGLRenderer::Update()
   if (CV_r_measureoverdraw)
   {
     byte *buf = new byte [m_width*m_height];
-    glReadPixels(0, 0, m_width, m_height, GL_STENCIL_INDEX, GL_UNSIGNED_BYTE, buf);
+    GLR_ReadPixels(0, 0, m_width, m_height, GL_STENCIL_INDEX, GL_UNSIGNED_BYTE, buf);
     
     int size = m_width * m_height;
     int acc = 0;
@@ -752,15 +753,15 @@ void CGLRenderer::Update()
       static uint tBind = 0;
       if (!tBind)
       {
-        glGenTextures(1, &tBind);
+        GLR_GenTextures(1, &tBind);
         if (SUPPORTS_GL_NV_texture_rectangle || SUPPORTS_GL_EXT_texture_rectangle)
         {
-          glBindTexture(GL_TEXTURE_RECTANGLE_NV, tBind);
-          glTexImage2D(GL_TEXTURE_RECTANGLE_NV, 0, GL_RGB8, m_width, m_height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
-          glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-          glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-          glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-          glTexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+          GLR_BindTexture(GL_TEXTURE_RECTANGLE_NV, tBind);
+          GLR_TexImage2D(GL_TEXTURE_RECTANGLE_NV, 0, GL_RGB8, m_width, m_height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+          GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+          GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+          GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+          GLR_TexParameteri(GL_TEXTURE_RECTANGLE_NV, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         }
       }
       byte *bBuf = new byte[m_width*m_height*3];
@@ -777,25 +778,25 @@ void CGLRenderer::Update()
       SetCullMode(R_CULL_NONE);
       if (SUPPORTS_GL_NV_texture_rectangle || SUPPORTS_GL_EXT_texture_rectangle)
       {
-        glBindTexture(GL_TEXTURE_RECTANGLE_NV, tBind);
-        glEnable(GL_TEXTURE_RECTANGLE_NV);
-        glTexSubImage2D(GL_TEXTURE_RECTANGLE_NV, 0, 0, 0, m_width, m_height, GL_RGB, GL_UNSIGNED_BYTE, bBuf);
+        GLR_BindTexture(GL_TEXTURE_RECTANGLE_NV, tBind);
+        GLR_EnableTexture(GL_TEXTURE_RECTANGLE_NV, true);
+        GLR_TexSubImage2D(GL_TEXTURE_RECTANGLE_NV, 0, 0, 0, m_width, m_height, GL_RGB, GL_UNSIGNED_BYTE, bBuf);
       }
       Set2DMode(true, m_width, m_height);
       glBegin (GL_QUADS);
-      glTexCoord2f(0, 0);
+      GLR_TexCoord2f(0, 0);
       glVertex3f (0, (float)m_height, 1);
-      glTexCoord2f(0, (float)m_height);
+      GLR_TexCoord2f(0, (float)m_height);
       glVertex3f (0, 0, 1);
-      glTexCoord2f((float)m_width, (float)m_height);
+      GLR_TexCoord2f((float)m_width, (float)m_height);
       glVertex3f ((float)m_width, 0, 1);
-      glTexCoord2f((float)m_width, 0);
+      GLR_TexCoord2f((float)m_width, 0);
       glVertex3f ((float)m_width, (float)m_height, 1);
       glEnd ();
       if (SUPPORTS_GL_NV_texture_rectangle || SUPPORTS_GL_EXT_texture_rectangle)
       {
-        glDisable(GL_TEXTURE_RECTANGLE_NV);
-        glBindTexture(GL_TEXTURE_RECTANGLE_NV, 0);
+        GLR_EnableTexture(GL_TEXTURE_RECTANGLE_NV, false);
+        GLR_BindTexture(GL_TEXTURE_RECTANGLE_NV, 0);
       }
       Set2DMode(false, m_width, m_height);
 
@@ -989,12 +990,12 @@ void CGLRenderer::Update()
 		switch(rBBox.nPrimType)
 		{
 		case DPRIM_LINE:
-			glDisable(GL_TEXTURE_2D);
-			glBegin(GL_LINE_LOOP);
-			glVertex3f(rBBox.vMins.x,rBBox.vMins.y,rBBox.vMins.z);
-			glVertex3f(rBBox.vMaxs.x,rBBox.vMaxs.y,rBBox.vMaxs.z);
-			glEnd();
-			glEnable(GL_TEXTURE_2D);
+			GLR_EnableTexture(GL_TEXTURE_2D, false);
+			GLR_Begin(GL_LINE_LOOP);
+			GLR_Vertex3f(rBBox.vMins.x,rBBox.vMins.y,rBBox.vMins.z);
+			GLR_Vertex3f(rBBox.vMaxs.x,rBBox.vMaxs.y,rBBox.vMaxs.z);
+			GLR_End();
+			GLR_EnableTexture(GL_TEXTURE_2D, true);
 			break;
 
 		case DPRIM_WHIRE_BOX:
@@ -1338,7 +1339,7 @@ void CGLRenderer::SetTexture(int tnum)
       pImage->SetTextureId(LoadTexture(pImage->GetName(),&pImage->m_type));
     }
 
-    glBindTexture(GL_TEXTURE_2D,pImage->GetTextureId());
+    GLR_BindTexture(GL_TEXTURE_2D,pImage->GetTextureId());
     pImage->m_last_time_used = iTimer->GetCurrTime();
 
     iConsole->Exit("tnum > INT_MAX/2");
@@ -1347,7 +1348,7 @@ void CGLRenderer::SetTexture(int tnum)
   {
     if (tnum>=0 && tnum!=m_lastbind[m_currstage])
     {
-      glBindTexture(GL_TEXTURE_2D,tnum);
+      GLR_BindTexture(GL_TEXTURE_2D,tnum);
       m_lastbind[m_currstage]=tnum;             
     }
   }
@@ -1365,13 +1366,13 @@ void CGLRenderer::SetTexClampMode(bool clamp)
 {
   if (!clamp)
   {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
   }
   else
   {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   }
 }
 
@@ -1439,7 +1440,7 @@ unsigned int CGLRenderer::DownLoadToVideoMemory(unsigned char *data,int w, int h
       eTT = eTT_Rectangle;
   }
   if (tnum == 0)
-    glGenTextures(1,&tnum);
+    GLR_GenTextures(1,&tnum);
   assert(tnum<14000);
   
   SetTexture(tnum, eTT); 
@@ -1487,40 +1488,40 @@ unsigned int CGLRenderer::DownLoadToVideoMemory(unsigned char *data,int w, int h
 
   if (repeat)
   {
-    glTexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_REPEAT);
   }
   else
   {
-    glTexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    GLR_TexParameteri(tgt, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   }
 
   // filter mode
   if (filter==FILTER_BILINEAR)
   {
-    glTexParameteri(tgt, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
-    glTexParameteri(tgt, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    GLR_TexParameteri(tgt, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+    GLR_TexParameteri(tgt, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   }
   else if (filter==FILTER_TRILINEAR)
   {
-    glTexParameteri(tgt, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(tgt, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    GLR_TexParameteri(tgt, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    GLR_TexParameteri(tgt, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   }
   else if(filter==FILTER_LINEAR)
   {
-    glTexParameteri(tgt, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(tgt, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    GLR_TexParameteri(tgt, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    GLR_TexParameteri(tgt, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   }
   else
   {
-    glTexParameteri(tgt, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(tgt, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    GLR_TexParameteri(tgt, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    GLR_TexParameteri(tgt, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   }
 
   if (nummipmap)
   {
-    glTexImage2D( tgt, 
+    GLR_TexImage2D( tgt, 
                   1-nummipmap,
                   dstformat, 
                   w, 
@@ -1534,16 +1535,16 @@ unsigned int CGLRenderer::DownLoadToVideoMemory(unsigned char *data,int w, int h
     if (filter == FILTER_TRILINEAR || filter == FILTER_BILINEAR)
     {
       if (SUPPORTS_GL_SGIS_generate_mipmap)
-        glTexParameteri(tgt, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+        GLR_TexParameteri(tgt, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
     }
     if (eTFDst==eTF_DXT1)
     {
       int blockSize = (eTFDst == eTF_DXT1) ? 8 : 16;
       int size = ((w+3)/4)*((h+3)/4)*blockSize;
-      glCompressedTexImage2DARB(tgt,0,GL_COMPRESSED_RGB_S3TC_DXT1_EXT,w,h,0,size,data);
+      GLR_CompressedTexImage2D(tgt,0,GL_COMPRESSED_RGB_S3TC_DXT1_EXT,w,h,0,size,data);
     }
     else
-      glTexImage2D(tgt, 
+      GLR_TexImage2D(tgt, 
                   0,//1-mlevels,
                   dstformat,
                   w, 
@@ -1587,9 +1588,9 @@ void CGLRenderer::UpdateTextureInVideoMemory(uint tnum, unsigned char *newdata,i
   {
     int blockSize = (eTF == eTF_DXT1) ? 8 : 16;
     int size = ((w+3)/4)*((h+3)/4)*blockSize;
-    //glCompressedTexSubImage2DARB(GL_TEXTURE_2D,0,posx,posy,w,h,GL_COMPRESSED_RGB_S3TC_DXT1_EXT,size,newdata);
-    //glCompressedTexImage2DARB(GL_TEXTURE_2D,0,GL_COMPRESSED_RGB_S3TC_DXT1_EXT,w,h,0,size,newdata);
-    glCompressedTexSubImage2DARB(TargetTex[tnum],0,posx,posy,w,h,GL_COMPRESSED_RGB_S3TC_DXT1_EXT,size,newdata);
+    //GLR_CompressedTexSubImage2D(GL_TEXTURE_2D,0,posx,posy,w,h,GL_COMPRESSED_RGB_S3TC_DXT1_EXT,size,newdata);
+    //GLR_CompressedTexImage2D(GL_TEXTURE_2D,0,GL_COMPRESSED_RGB_S3TC_DXT1_EXT,w,h,0,size,newdata);
+    GLR_CompressedTexSubImage2D(TargetTex[tnum],0,posx,posy,w,h,GL_COMPRESSED_RGB_S3TC_DXT1_EXT,size,newdata);
   }
   else
   {
@@ -1608,7 +1609,7 @@ void CGLRenderer::UpdateTextureInVideoMemory(uint tnum, unsigned char *newdata,i
       if (h != nh)
         return;
     }
-    glTexSubImage2D(TargetTex[tnum],0,posx,posy,w,h,srcformat,GL_UNSIGNED_BYTE,newdata);
+    GLR_TexSubImage2D(TargetTex[tnum],0,posx,posy,w,h,srcformat,GL_UNSIGNED_BYTE,newdata);
   }
 }
 
@@ -1632,7 +1633,7 @@ void CGLRenderer::RemoveTexture(unsigned int nTextureId)
     {
       CGLTexMan::m_TUState[CGLTexMan::m_CurStage].m_Bind = 0;
       CGLTexMan::m_TUState[CGLTexMan::m_CurStage].m_Target = 0;
-      glDeleteTextures(1, &nTextureId);
+      GLR_DeleteTextures(1, &nTextureId);
     }
   }
 }
@@ -1654,13 +1655,13 @@ void CGLRenderer::Draw2dImage(float xpos,float ypos,float w,float h,int texture_
   bool bSaveZTest = ((m_CurState & GS_NODEPTHTEST) == 0);
   SetCullMode(R_CULL_DISABLE);
   
-  glMatrixMode(GL_PROJECTION);
-  glPushMatrix();
-  glLoadIdentity();
-  glOrtho(0.0, m_width, m_height, 0.0, -9999.0, 9999.0);
-  glMatrixMode(GL_MODELVIEW);
-  glPushMatrix();
-  glLoadIdentity();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_PushMatrix();
+  GLR_LoadIdentity();
+  GLR_Ortho(0.0, m_width, m_height, 0.0, -9999.0, 9999.0);
+  GLR_MatrixMode(GL_MODELVIEW);
+  GLR_PushMatrix();
+  GLR_LoadIdentity();
 
   SelectTMU(0);
 
@@ -1690,7 +1691,41 @@ void CGLRenderer::Draw2dImage(float xpos,float ypos,float w,float h,int texture_
 
   EF_SetColorOp(255, 255, DEF_TEXARG0, DEF_TEXARG0);
 
-  glBegin(GL_QUADS);
+  // Native 2D (FARCRY_NATIVE=2d): same corners, texcoords and colour.
+  if (eTT != eTT_Rectangle)
+  {
+    float pos[4][3] = { { xpos, ypos, z }, { xpos + w, ypos, z }, { xpos + w, ypos + h, z }, { xpos, ypos + h, z } };
+    if (angle != 0)
+    {
+      const float xsub = xpos + w / 2, ysub = ypos + h / 2;
+      const float mcos = cry_cosf(DEG2RAD(angle)), msin = cry_sinf(DEG2RAD(angle));
+      for (int i = 0; i < 4; ++i)
+      {
+        const float x = pos[i][0] - xsub, y = pos[i][1] - ysub;
+        pos[i][0] = x * mcos - y * msin + xsub; pos[i][1] = x * msin + y * mcos + ysub;
+      }
+    }
+    const float st[4][2] = { { s0, 1.f - t0 }, { s1, 1.f - t0 }, { s1, 1.f - t1 }, { s0, 1.f - t1 } };
+    const float rgba[4] = { r, g, b, a };
+    int atMode = 0; float atRef = 0;
+    switch (m_CurState & GS_ALPHATEST_MASK)
+    {
+      case GS_ALPHATEST_GREATER0: atMode = 1; atRef = 0.0f; break;
+      case GS_ALPHATEST_LESS128: atMode = 2; atRef = 0.5f; break;
+      case GS_ALPHATEST_GEQUAL128: atMode = 3; atRef = 0.5f; break;
+      case GS_ALPHATEST_GEQUAL64: atMode = 3; atRef = 0.25f; break;
+    }
+    if (GLN2D_DrawQuad(pos, st, rgba, texture_id > 0, atMode, atRef, (float)m_width, (float)m_height, -1.0f / 9999.0f))
+    {
+      GLR_PopMatrix();
+      GLR_MatrixMode(GL_PROJECTION);
+      GLR_PopMatrix();
+      GLR_MatrixMode(GL_MODELVIEW);
+      return;
+    }
+  }
+
+  GLR_Begin(GL_QUADS);
   
   if (angle!=0)
   {
@@ -1706,63 +1741,63 @@ void CGLRenderer::Draw2dImage(float xpos,float ypos,float w,float h,int texture_
     x1=x*mcos-y*msin;
     y1=x*msin+y*mcos;
     x1+=xsub;y1+=ysub;
-		glColor4f(r,g,b,a);
-    glTexCoord2f(s0, 1.f-t0);  
-    glVertex3f(x1, y1, z);
+		GLR_Color4f(r,g,b,a);
+    GLR_TexCoord2f(s0, 1.f-t0);  
+    GLR_Vertex3f(x1, y1, z);
 
     x=xpos+w-xsub;
     y=ypos-ysub;
     x1=x*mcos-y*msin;
     y1=x*msin+y*mcos;
     x1+=xsub;y1+=ysub; 
-		glColor4f(r,g,b,a);
-    glTexCoord2f(s1, 1.f-t0);  
-    glVertex3f(x1, y1, z);
+		GLR_Color4f(r,g,b,a);
+    GLR_TexCoord2f(s1, 1.f-t0);  
+    GLR_Vertex3f(x1, y1, z);
 
     x=xpos+w-xsub;
     y=ypos+h-ysub;
     x1=x*mcos-y*msin;
     y1=x*msin+y*mcos;
     x1+=xsub;y1+=ysub; 
-		glColor4f(r,g,b,a);
-    glTexCoord2f(s1, 1.f-t1);  
-    glVertex3f(x1,y1,z);
+		GLR_Color4f(r,g,b,a);
+    GLR_TexCoord2f(s1, 1.f-t1);  
+    GLR_Vertex3f(x1,y1,z);
 
     x=xpos-xsub;
     y=ypos+h-ysub;
     x1=x*mcos-y*msin;
     y1=x*msin+y*mcos;
     x1+=xsub;y1+=ysub; 
-		glColor4f(r,g,b,a);
-    glTexCoord2f(s0, 1.f-t1);  
-    glVertex3f(x1,y1,z);
+		GLR_Color4f(r,g,b,a);
+    GLR_TexCoord2f(s0, 1.f-t1);  
+    GLR_Vertex3f(x1,y1,z);
 
   }
   else  
   {
-    glColor4f(r,g,b,a);
-    glTexCoord2f(s0*fXSc, (1.f-t0)*fYSc);  
-    glVertex3f((xpos), (ypos), z);
+    GLR_Color4f(r,g,b,a);
+    GLR_TexCoord2f(s0*fXSc, (1.f-t0)*fYSc);  
+    GLR_Vertex3f((xpos), (ypos), z);
 
-    glColor4f(r,g,b,a);
-    glTexCoord2f(s1*fXSc, (1.f-t0)*fYSc);  
-    glVertex3f((xpos+w), (ypos), z);
+    GLR_Color4f(r,g,b,a);
+    GLR_TexCoord2f(s1*fXSc, (1.f-t0)*fYSc);  
+    GLR_Vertex3f((xpos+w), (ypos), z);
 
-    glColor4f(r,g,b,a);
-    glTexCoord2f(s1*fXSc, (1.f-t1)*fYSc);  
-    glVertex3f((xpos+w),(ypos+h),z);
+    GLR_Color4f(r,g,b,a);
+    GLR_TexCoord2f(s1*fXSc, (1.f-t1)*fYSc);  
+    GLR_Vertex3f((xpos+w),(ypos+h),z);
 
-    glColor4f(r,g,b,a);
-    glTexCoord2f(s0*fXSc, (1.f-t1)*fYSc);  
-    glVertex3f((xpos), (ypos+h),z);
+    GLR_Color4f(r,g,b,a);
+    GLR_TexCoord2f(s0*fXSc, (1.f-t1)*fYSc);  
+    GLR_Vertex3f((xpos), (ypos+h),z);
   } 
-  glEnd();  
+  GLR_End();  
   
 
-  glPopMatrix();
-  glMatrixMode(GL_PROJECTION);
-  glPopMatrix();
-  glMatrixMode(GL_MODELVIEW);  
+  GLR_PopMatrix();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_PopMatrix();
+  GLR_MatrixMode(GL_MODELVIEW);  
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -1782,24 +1817,24 @@ void CGLRenderer::DrawImage(float xpos,float ypos,float w,float h,int texture_id
 	else
 		EnableTMU(false);
 
-  glBegin(GL_QUADS);
+  GLR_Begin(GL_QUADS);
   
-  glColor4f(r,g,b,a);
-  glTexCoord2f(s0, 1.f-t0);  
-  glVertex2f((float)(xpos), (float)(ypos));
+  GLR_Color4f(r,g,b,a);
+  GLR_TexCoord2f(s0, 1.f-t0);  
+  GLR_Vertex2f((float)(xpos), (float)(ypos));
 
-  glColor4f(r,g,b,a);
-  glTexCoord2f(s1, 1.f-t0);  
-  glVertex2f((float)(xpos+w), (float)(ypos));
+  GLR_Color4f(r,g,b,a);
+  GLR_TexCoord2f(s1, 1.f-t0);  
+  GLR_Vertex2f((float)(xpos+w), (float)(ypos));
 
-  glColor4f(r,g,b,a);
-  glTexCoord2f(s1, 1.f-t1);  
-  glVertex2f((float)(xpos+w),(float)(ypos+h));
+  GLR_Color4f(r,g,b,a);
+  GLR_TexCoord2f(s1, 1.f-t1);  
+  GLR_Vertex2f((float)(xpos+w),(float)(ypos+h));
 
-  glColor4f(r,g,b,a);
-  glTexCoord2f(s0, 1.f-t1);  
-  glVertex2f((float)(xpos), (float)(ypos+h));
-  glEnd();  
+  GLR_Color4f(r,g,b,a);
+  GLR_TexCoord2f(s0, 1.f-t1);  
+  GLR_Vertex2f((float)(xpos), (float)(ypos+h));
+  GLR_End();  
 }
 
 
@@ -1828,10 +1863,10 @@ void CGLRenderer::SetCullMode(int mode)
 void CGLRenderer::SetFog(float density,float fogstart,float fogend,const float *color,int fogmode)
 {
   if (fogmode==R_FOGMODE_LINEAR)
-    glFogi(GL_FOG_MODE,GL_LINEAR);
+    GLR_Fogi(GL_FOG_MODE,GL_LINEAR);
   else
   if (fogmode==R_FOGMODE_EXP2)
-    glFogi(GL_FOG_MODE,GL_EXP2);
+    GLR_Fogi(GL_FOG_MODE,GL_EXP2);
 
   //fogend = 200;
   m_FS.m_FogDensity = density;
@@ -1843,15 +1878,15 @@ void CGLRenderer::SetFog(float density,float fogstart,float fogend,const float *
     col = CFColor(0.0f, 0.0f, 0.0f, 1.0f);
   m_FS.m_FogColor = col;
 
-  glFogf(GL_FOG_DENSITY,density);
-  glFogf(GL_FOG_START, fogstart); 
-  glFogf(GL_FOG_END, fogend); 
+  GLR_Fogf(GL_FOG_DENSITY,density);
+  GLR_Fogf(GL_FOG_START, fogstart); 
+  GLR_Fogf(GL_FOG_END, fogend); 
 
-  glFogfv(GL_FOG_COLOR,&col[0]);    
+  GLR_Fogfv(GL_FOG_COLOR,&col[0]);    
 
   if (SUPPORTS_GL_NV_fog_distance)
   {
-    glFogi(GL_FOG_DISTANCE_MODE_NV, GL_EYE_RADIAL_NV);
+    GLR_Fogi(GL_FOG_DISTANCE_MODE_NV, GL_EYE_RADIAL_NV);
   }
 }
 
@@ -1861,9 +1896,9 @@ bool CGLRenderer::EnableFog(bool enable)
   bool bPrevFog = m_FS.m_bEnable; // remember fog value
 
   if (enable)
-    glEnable(GL_FOG);
+    GLR_Enable(GL_FOG);
   else
-    glDisable(GL_FOG);
+    GLR_Disable(GL_FOG);
 
   m_FS.m_bEnable = enable;
 
@@ -1879,17 +1914,17 @@ void CGLRenderer::EnableTexGen(bool enable)
 {
   if(enable)
   {
-    glEnable(GL_TEXTURE_GEN_S);
-    glEnable(GL_TEXTURE_GEN_T);  
-//    glEnable(GL_TEXTURE_GEN_R);  
-  //  glEnable(GL_TEXTURE_GEN_Q);  
+    GLR_Enable(GL_TEXTURE_GEN_S);
+    GLR_Enable(GL_TEXTURE_GEN_T);  
+//    GLR_Enable(GL_TEXTURE_GEN_R);  
+  //  GLR_Enable(GL_TEXTURE_GEN_Q);  
   }
   else
   {
-    glDisable(GL_TEXTURE_GEN_S);
-    glDisable(GL_TEXTURE_GEN_T);  
-    glDisable(GL_TEXTURE_GEN_R);
-    glDisable(GL_TEXTURE_GEN_Q);  
+    GLR_Disable(GL_TEXTURE_GEN_S);
+    GLR_Disable(GL_TEXTURE_GEN_T);  
+    GLR_Disable(GL_TEXTURE_GEN_R);
+    GLR_Disable(GL_TEXTURE_GEN_Q);  
   }
 }
 
@@ -1899,11 +1934,11 @@ void CGLRenderer::SetTexgen(float scaleX,float scaleY,float translateX,float tra
   GLfloat eyePlaneT[] = { scaleX, 0.0f, 0.0f, translateX };
   GLfloat eyePlaneS[] = { 0.0f, scaleY, 0.0f, translateY };
 
-  glTexGenfv(GL_S, GL_OBJECT_PLANE, eyePlaneS);
-  glTexGenfv(GL_T, GL_OBJECT_PLANE, eyePlaneT);
+  GLR_TexGenfv(GL_S, GL_OBJECT_PLANE, eyePlaneS);
+  GLR_TexGenfv(GL_T, GL_OBJECT_PLANE, eyePlaneT);
 
-  glTexGenf(GL_S,GL_TEXTURE_GEN_MODE,GL_OBJECT_LINEAR);
-  glTexGenf(GL_T,GL_TEXTURE_GEN_MODE,GL_OBJECT_LINEAR);  
+  GLR_TexGenf(GL_S,GL_TEXTURE_GEN_MODE,GL_OBJECT_LINEAR);
+  GLR_TexGenf(GL_T,GL_TEXTURE_GEN_MODE,GL_OBJECT_LINEAR);  
 }
 
 void CGLRenderer::SetTexgen3D(float x1, float y1, float z1, float x2, float y2, float z2)
@@ -1911,11 +1946,11 @@ void CGLRenderer::SetTexgen3D(float x1, float y1, float z1, float x2, float y2, 
   GLfloat eyePlaneS[] = { x1, y1, z1, 0 };
   GLfloat eyePlaneT[] = { x2, y2, z2, 0 };
 
-  glTexGenfv(GL_S, GL_OBJECT_PLANE, eyePlaneS);
-  glTexGenfv(GL_T, GL_OBJECT_PLANE, eyePlaneT);
+  GLR_TexGenfv(GL_S, GL_OBJECT_PLANE, eyePlaneS);
+  GLR_TexGenfv(GL_T, GL_OBJECT_PLANE, eyePlaneT);
 
-  glTexGenf(GL_S,GL_TEXTURE_GEN_MODE,GL_OBJECT_LINEAR);
-  glTexGenf(GL_T,GL_TEXTURE_GEN_MODE,GL_OBJECT_LINEAR);  
+  GLR_TexGenf(GL_S,GL_TEXTURE_GEN_MODE,GL_OBJECT_LINEAR);
+  GLR_TexGenf(GL_T,GL_TEXTURE_GEN_MODE,GL_OBJECT_LINEAR);  
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1954,57 +1989,57 @@ void CGLRenderer::SelectTMU(int tnum)
 ///////////////////////////////////////////
 void CGLRenderer::PushMatrix()
 {
-  glPushMatrix();
+  GLR_PushMatrix();
 }
 
 ///////////////////////////////////////////
 void CGLRenderer::RotateMatrix(float a,float x,float y,float z)
 {
-  glRotatef(a,x,y,z);
+  GLR_Rotatef(a,x,y,z);
 }
 
 void CGLRenderer::RotateMatrix(const Vec3d & angles)
 {
-  glRotatef(angles.z,0,0,1);
-  glRotatef(angles.y,0,1,0);
-  glRotatef(angles.x,1,0,0);
+  GLR_Rotatef(angles.z,0,0,1);
+  GLR_Rotatef(angles.y,0,1,0);
+  GLR_Rotatef(angles.x,1,0,0);
 }
 
 ///////////////////////////////////////////
 void CGLRenderer::TranslateMatrix(float x,float y,float z)
 {
-  glTranslatef(x,y,z);
+  GLR_Translatef(x,y,z);
 }
 
 void CGLRenderer::MultMatrix(float * mat)
 {
-  glMultMatrixf(mat);
+  GLR_MultMatrixf(mat);
 }
 
 void CGLRenderer::TranslateMatrix(const Vec3d &pos)
 {
-  glTranslatef(pos.x,pos.y,pos.z);
+  GLR_Translatef(pos.x,pos.y,pos.z);
 }
 
 ///////////////////////////////////////////
 void CGLRenderer::ScaleMatrix(float x,float y,float z)
 {
-  glScalef(x,y,z);
+  GLR_Scalef(x,y,z);
 }
 
 ///////////////////////////////////////////
 void CGLRenderer::PopMatrix()
 {
-  glPopMatrix();
+  GLR_PopMatrix();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 void CGLRenderer::LoadMatrix(const Matrix44 *src)
 {
   if(src)
-    glLoadMatrixf((float *)src);
+    GLR_LoadMatrixf((float *)src);
   else
-    glLoadIdentity();
+    GLR_LoadIdentity();
 }
 
 void CGLRenderer::Flush3dBBox(const Vec3d &mins,const Vec3d &maxs,const bool bSolid)
@@ -2014,33 +2049,33 @@ void CGLRenderer::Flush3dBBox(const Vec3d &mins,const Vec3d &maxs,const bool bSo
     EnableTMU(false);
     SetCullMode(R_CULL_NONE);
 
-		glBegin(GL_QUADS);
-		glVertex3f(maxs.x,mins.y,mins.z); //3
-		glVertex3f(maxs.x,mins.y,maxs.z); //2
-		glVertex3f(mins.x,mins.y,maxs.z); //1
-		glVertex3f(mins.x,mins.y,mins.z); //0
-		glEnd();
+		GLR_Begin(GL_QUADS);
+		GLR_Vertex3f(maxs.x,mins.y,mins.z); //3
+		GLR_Vertex3f(maxs.x,mins.y,maxs.z); //2
+		GLR_Vertex3f(mins.x,mins.y,maxs.z); //1
+		GLR_Vertex3f(mins.x,mins.y,mins.z); //0
+		GLR_End();
 
-		glBegin(GL_QUADS);
-		glVertex3f(mins.x,mins.y,mins.z); //0
-		glVertex3f(mins.x,mins.y,maxs.z); //1
-		glVertex3f(mins.x,maxs.y,maxs.z); //6
-		glVertex3f(mins.x,maxs.y,mins.z); //4
-		glEnd();
+		GLR_Begin(GL_QUADS);
+		GLR_Vertex3f(mins.x,mins.y,mins.z); //0
+		GLR_Vertex3f(mins.x,mins.y,maxs.z); //1
+		GLR_Vertex3f(mins.x,maxs.y,maxs.z); //6
+		GLR_Vertex3f(mins.x,maxs.y,mins.z); //4
+		GLR_End();
 
-		glBegin(GL_QUADS);
-		glVertex3f(mins.x,maxs.y,mins.z); //4
-		glVertex3f(mins.x,maxs.y,maxs.z); //6
-		glVertex3f(maxs.x,maxs.y,maxs.z); //7
-		glVertex3f(maxs.x,maxs.y,mins.z); //5
-		glEnd();
+		GLR_Begin(GL_QUADS);
+		GLR_Vertex3f(mins.x,maxs.y,mins.z); //4
+		GLR_Vertex3f(mins.x,maxs.y,maxs.z); //6
+		GLR_Vertex3f(maxs.x,maxs.y,maxs.z); //7
+		GLR_Vertex3f(maxs.x,maxs.y,mins.z); //5
+		GLR_End();
 
-		glBegin(GL_QUADS);
-		glVertex3f(maxs.x,maxs.y,mins.z); //54
-		glVertex3f(maxs.x,maxs.y,maxs.z); //73
-		glVertex3f(maxs.x,mins.y,maxs.z); //22
-		glVertex3f(maxs.x,mins.y,mins.z); //31
-		glEnd();
+		GLR_Begin(GL_QUADS);
+		GLR_Vertex3f(maxs.x,maxs.y,mins.z); //54
+		GLR_Vertex3f(maxs.x,maxs.y,maxs.z); //73
+		GLR_Vertex3f(maxs.x,mins.y,maxs.z); //22
+		GLR_Vertex3f(maxs.x,mins.y,mins.z); //31
+		GLR_End();
 
     EnableTMU(true);
 	}
@@ -2049,33 +2084,33 @@ void CGLRenderer::Flush3dBBox(const Vec3d &mins,const Vec3d &maxs,const bool bSo
     EnableTMU(false);
     SetCullMode(R_CULL_NONE);
 
-		glBegin(GL_LINE_LOOP);
-		glVertex3f(mins.x,mins.y,mins.z); //0
-		glVertex3f(mins.x,mins.y,maxs.z); //1
-		glVertex3f(maxs.x,mins.y,maxs.z); //2
-		glVertex3f(maxs.x,mins.y,mins.z); //3
-		glEnd();
+		GLR_Begin(GL_LINE_LOOP);
+		GLR_Vertex3f(mins.x,mins.y,mins.z); //0
+		GLR_Vertex3f(mins.x,mins.y,maxs.z); //1
+		GLR_Vertex3f(maxs.x,mins.y,maxs.z); //2
+		GLR_Vertex3f(maxs.x,mins.y,mins.z); //3
+		GLR_End();
 
-		glBegin(GL_LINE_LOOP);
-		glVertex3f(mins.x,mins.y,mins.z); //0
-		glVertex3f(mins.x,mins.y,maxs.z); //1
-		glVertex3f(mins.x,maxs.y,maxs.z); //6
-		glVertex3f(mins.x,maxs.y,mins.z); //4
-		glEnd();
+		GLR_Begin(GL_LINE_LOOP);
+		GLR_Vertex3f(mins.x,mins.y,mins.z); //0
+		GLR_Vertex3f(mins.x,mins.y,maxs.z); //1
+		GLR_Vertex3f(mins.x,maxs.y,maxs.z); //6
+		GLR_Vertex3f(mins.x,maxs.y,mins.z); //4
+		GLR_End();
 
-		glBegin(GL_LINE_LOOP);
-		glVertex3f(mins.x,maxs.y,mins.z); //4
-		glVertex3f(mins.x,maxs.y,maxs.z); //6
-		glVertex3f(maxs.x,maxs.y,maxs.z); //7
-		glVertex3f(maxs.x,maxs.y,mins.z); //5
-		glEnd();
+		GLR_Begin(GL_LINE_LOOP);
+		GLR_Vertex3f(mins.x,maxs.y,mins.z); //4
+		GLR_Vertex3f(mins.x,maxs.y,maxs.z); //6
+		GLR_Vertex3f(maxs.x,maxs.y,maxs.z); //7
+		GLR_Vertex3f(maxs.x,maxs.y,mins.z); //5
+		GLR_End();
 
-		glBegin(GL_LINE_LOOP);
-		glVertex3f(maxs.x,mins.y,mins.z); //3
-		glVertex3f(maxs.x,mins.y,maxs.z); //2
-		glVertex3f(maxs.x,maxs.y,maxs.z); //7
-		glVertex3f(maxs.x,maxs.y,mins.z); //5
-		glEnd();
+		GLR_Begin(GL_LINE_LOOP);
+		GLR_Vertex3f(maxs.x,mins.y,mins.z); //3
+		GLR_Vertex3f(maxs.x,mins.y,maxs.z); //2
+		GLR_Vertex3f(maxs.x,maxs.y,maxs.z); //7
+		GLR_Vertex3f(maxs.x,maxs.y,mins.z); //5
+		GLR_End();
 
     EnableTMU(true);
 	}
@@ -2099,7 +2134,7 @@ void CGLRenderer::Draw3dPrim(const Vec3d &mins,const Vec3d &maxs, int nPrimType,
 			info.fColor[i] = pRGBA[i];
 	}
 	else
-		glGetFloatv(GL_CURRENT_COLOR, (float*)info.fColor);
+		GLR_GetFloatv(GL_CURRENT_COLOR, (float*)info.fColor);
 	m_arrBoxesToDraw.push_back(info);
 }
 
@@ -2110,9 +2145,9 @@ int CGLRenderer::SetPolygonMode(int mode)
   m_polygon_mode = mode;
 
   if (mode==R_WIREFRAME_MODE)
-    glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
+    GLR_PolygonMode(GL_FRONT_AND_BACK,GL_LINE);
   else
-    glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
+    GLR_PolygonMode(GL_FRONT_AND_BACK,GL_FILL);
 
   return prev_mode;
 }
@@ -2127,15 +2162,15 @@ void CGLRenderer::SetPerspective(const CCamera &cam)
 ///////////////////////////////////////////
 void CGLRenderer::SetCamera(const CCamera &cam)
 {
-  glMatrixMode(GL_PROJECTION);
-  glLoadIdentity();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_LoadIdentity();
   // camera.fov is for horizontal -> GL needs it vertical
   // projection.ratio is height/width -> GL needs width/height
   gluPerspective(cam.GetFov()/(gf_PI/180.0f)*cam.GetProjRatio(), 1.0f/cam.GetProjRatio(), cam.GetZMin(), cam.GetZMax());
-  glMatrixMode(GL_MODELVIEW);
+  GLR_MatrixMode(GL_MODELVIEW);
 
   Matrix44 mat = cam.GetVCMatrixD3D9();
-  glLoadMatrixf(mat.GetData());
+  GLR_LoadMatrixf(mat.GetData());
 
   EF_SetCameraInfo();
 	
@@ -2147,12 +2182,12 @@ void CGLRenderer::SetViewport(int x, int y, int width, int height)
   if (!x && !y && !width && !height)
   {
     if(glViewport)
-      glViewport(m_VX, m_VY, m_VWidth, m_VHeight);
+      GLR_Viewport(m_VX, m_VY, m_VWidth, m_VHeight);
     return;
   }
 
   if(glViewport)
-    glViewport(x, y, width, height);
+    GLR_Viewport(x, y, width, height);
 
   m_VX = x;
   m_VY = y;
@@ -2171,25 +2206,25 @@ void CGLRenderer::SetScissor(int x, int y, int width, int height)
 //////////////////////////////////////////////////////////////////////
 void CGLRenderer::GetModelViewMatrix(float * mat)
 {
-  glGetFloatv(GL_MODELVIEW_MATRIX, mat);
+  GLR_GetFloatv(GL_MODELVIEW_MATRIX, mat);
 }
 
 //////////////////////////////////////////////////////////////////////
 void CGLRenderer::GetModelViewMatrix(double *mat)
 {
-  glGetDoublev(GL_MODELVIEW_MATRIX, mat);
+  GLR_GetDoublev(GL_MODELVIEW_MATRIX, mat);
 }
 
 //////////////////////////////////////////////////////////////////////
 void CGLRenderer::GetProjectionMatrix(double *mat)
 {
-  glGetDoublev(GL_PROJECTION_MATRIX, mat);
+  GLR_GetDoublev(GL_PROJECTION_MATRIX, mat);
 }
 
 //////////////////////////////////////////////////////////////////////
 void CGLRenderer::GetProjectionMatrix(float *mat)
 {
-  glGetFloatv(GL_PROJECTION_MATRIX, mat);
+  GLR_GetFloatv(GL_PROJECTION_MATRIX, mat);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -2217,23 +2252,23 @@ void CGLRenderer::DrawQuad(float x0, float y0, float x1, float y1, const CFColor
 {
   PROFILE_FRAME(Draw_2DImage);
 
-  glColor4fv(&color[0]);
+  GLR_Color4fv(&color[0]);
 
-  glBegin(GL_QUADS);
+  GLR_Begin(GL_QUADS);
 
-  glTexCoord2f(0,0);
-  glVertex3f(x0, y1, z);
+  GLR_TexCoord2f(0,0);
+  GLR_Vertex3f(x0, y1, z);
 
-  glTexCoord2f(1,0);
-  glVertex3f(x1, y1, z);
+  GLR_TexCoord2f(1,0);
+  GLR_Vertex3f(x1, y1, z);
 
-  glTexCoord2f(1,1);
-  glVertex3f(x1, y0, z);
+  GLR_TexCoord2f(1,1);
+  GLR_Vertex3f(x1, y0, z);
 
-  glTexCoord2f(0,1);
-  glVertex3f(x0, y0, z);
+  GLR_TexCoord2f(0,1);
+  GLR_Vertex3f(x0, y0, z);
 
-  glEnd();
+  GLR_End();
 
   m_nPolygons += 2;
 }
@@ -2241,67 +2276,67 @@ void CGLRenderer::DrawQuad(float x0, float y0, float x1, float y1, const CFColor
 //////////////////////////////////////////////////////////////////////
 void CGLRenderer::DrawQuad(const Vec3d &right, const Vec3d &up, const Vec3d &origin,int nFlipmode/*=0*/)
 {
-  glBegin(GL_QUADS);
+  GLR_Begin(GL_QUADS);
 
 	Vec3d curr;
 
 	if (nFlipmode==1)	
 	{
 	  curr=origin+(-right-up);
-	  glTexCoord2f(1,0);
-	  glVertex3fv((float *)&curr);
+	  GLR_TexCoord2f(1,0);
+	  GLR_Vertex3fv((float *)&curr);
 
 	  curr=origin+(right-up);
-	  glTexCoord2f(0,0);
-	  glVertex3fv((float *)&curr);
+	  GLR_TexCoord2f(0,0);
+	  GLR_Vertex3fv((float *)&curr);
 
 	  curr=origin+(right+up);
-	  glTexCoord2f(0,1);
-	  glVertex3fv((float *)&curr);
+	  GLR_TexCoord2f(0,1);
+	  GLR_Vertex3fv((float *)&curr);
 
 	  curr=origin+(-right+up);
-	  glTexCoord2f(1,1);
-	  glVertex3fv((float *)&curr);
+	  GLR_TexCoord2f(1,1);
+	  GLR_Vertex3fv((float *)&curr);
 	}
 	else
 	if (nFlipmode==2)	
 	{
 	  curr=origin+(-right-up);
-	  glTexCoord2f(0,1);
-	  glVertex3fv((float *)&curr);
+	  GLR_TexCoord2f(0,1);
+	  GLR_Vertex3fv((float *)&curr);
 
 	  curr=origin+(right-up);
-	  glTexCoord2f(1,1);
-	  glVertex3fv((float *)&curr);
+	  GLR_TexCoord2f(1,1);
+	  GLR_Vertex3fv((float *)&curr);
 
 	  curr=origin+(right+up);
-	  glTexCoord2f(1,0);
-	  glVertex3fv((float *)&curr);
+	  GLR_TexCoord2f(1,0);
+	  GLR_Vertex3fv((float *)&curr);
 
 	  curr=origin+(-right+up);
-	  glTexCoord2f(0,0);
-	  glVertex3fv((float *)&curr);
+	  GLR_TexCoord2f(0,0);
+	  GLR_Vertex3fv((float *)&curr);
 	}
 	else
 	{
 	  curr=origin+(-right-up);
-	  glTexCoord2f(0,0);
-	  glVertex3fv((float *)&curr);
+	  GLR_TexCoord2f(0,0);
+	  GLR_Vertex3fv((float *)&curr);
 
 	  curr=origin+(right-up);
-	  glTexCoord2f(1,0);
-	  glVertex3fv((float *)&curr);
+	  GLR_TexCoord2f(1,0);
+	  GLR_Vertex3fv((float *)&curr);
 
 	  curr=origin+(right+up);
-	  glTexCoord2f(1,1);
-	  glVertex3fv((float *)&curr);
+	  GLR_TexCoord2f(1,1);
+	  GLR_Vertex3fv((float *)&curr);
 
 	  curr=origin+(-right+up);
-	  glTexCoord2f(0,1);
-	  glVertex3fv((float *)&curr);
+	  GLR_TexCoord2f(0,1);
+	  GLR_Vertex3fv((float *)&curr);
 	}
 
-  glEnd();
+  GLR_End();
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -2312,8 +2347,8 @@ void CGLRenderer::ProjectToScreen( float ptx, float pty, float ptz,
   float g_ModelMatrix[16];
   int   g_Viewport[4];
 
-  glGetFloatv(GL_PROJECTION_MATRIX,g_ProjectionMatrix);
-  glGetFloatv(GL_MODELVIEW_MATRIX,g_ModelMatrix);
+  GLR_GetFloatv(GL_PROJECTION_MATRIX,g_ProjectionMatrix);
+  GLR_GetFloatv(GL_MODELVIEW_MATRIX,g_ModelMatrix);
   glGetIntegerv(GL_VIEWPORT,g_Viewport);
 
   SGLFuncs::gluProject(ptx,pty,ptz,
@@ -2346,8 +2381,8 @@ int CGLRenderer::UnProjectFromScreen( float  sx, float  sy, float  sz,
   float g_ModelMatrix[16];
   int    g_Viewport[4];
 
-  glGetFloatv(GL_MODELVIEW_MATRIX,   g_ModelMatrix);
-  glGetFloatv(GL_PROJECTION_MATRIX,  g_ProjectionMatrix);
+  GLR_GetFloatv(GL_MODELVIEW_MATRIX,   g_ModelMatrix);
+  GLR_GetFloatv(GL_PROJECTION_MATRIX,  g_ProjectionMatrix);
   glGetIntegerv(GL_VIEWPORT,          g_Viewport);
 
   int res=SGLFuncs::gluUnProject(sx,sy,sz,
@@ -2371,27 +2406,27 @@ void CGLRenderer::Draw2dLine	(float x1,float y1,float x2,float y2)
   SetState(GS_NODEPTHTEST);
   SetCullMode(R_CULL_NONE);
 
-  glMatrixMode(GL_PROJECTION);
-  glPushMatrix();
-  glLoadIdentity();
-  glOrtho(0.0, m_width, m_height, 0.0, -9999.0, 9999.0);
-  glMatrixMode(GL_MODELVIEW);
-  glPushMatrix();
-  glLoadIdentity();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_PushMatrix();
+  GLR_LoadIdentity();
+  GLR_Ortho(0.0, m_width, m_height, 0.0, -9999.0, 9999.0);
+  GLR_MatrixMode(GL_MODELVIEW);
+  GLR_PushMatrix();
+  GLR_LoadIdentity();
 
 	Vec3d Start(x1pos, y1pos, 0.0f);
 	Vec3d End(x2pos, y2pos, 0.0f);
   EnableTMU(false);
-  glBegin(GL_LINES);
-  glVertex3fv(&Start.x);
-  glVertex3fv(&End.x);
-  glEnd();  
+  GLR_Begin(GL_LINES);
+  GLR_Vertex3fv(&Start.x);
+  GLR_Vertex3fv(&End.x);
+  GLR_End();  
   EnableTMU(true);
 
-  glPopMatrix();
-  glMatrixMode(GL_PROJECTION);
-  glPopMatrix();
-  glMatrixMode(GL_MODELVIEW);
+  GLR_PopMatrix();
+  GLR_MatrixMode(GL_PROJECTION);
+  GLR_PopMatrix();
+  GLR_MatrixMode(GL_MODELVIEW);
 }
 
 void CGLRenderer::DrawLine(const Vec3d & vPos1, const Vec3d & vPos2)
@@ -2399,22 +2434,22 @@ void CGLRenderer::DrawLine(const Vec3d & vPos1, const Vec3d & vPos2)
   SetCullMode(R_CULL_DISABLE);
   EnableTMU(true);
   gRenDev->m_TexMan->m_Text_White->Set();
-  glColor4f(1,1,1,1);
-  glBegin(GL_LINES);
-  glVertex3fv(&vPos1.x);
-  glVertex3fv(&vPos2.x);
-  glEnd();  
+  GLR_Color4f(1,1,1,1);
+  GLR_Begin(GL_LINES);
+  GLR_Vertex3fv(&vPos1.x);
+  GLR_Vertex3fv(&vPos2.x);
+  GLR_End();  
 }
 
 void CGLRenderer::DrawLineColor(const Vec3d & vPos1, const CFColor & vColor1, const Vec3d & vPos2, const CFColor & vColor2)
 {
   EnableTMU(false);
-  glBegin(GL_LINES);
-  glColor4fv(&vColor1.r);
-  glVertex3fv(&vPos1.x);
-  glColor4fv(&vColor2.r);
-  glVertex3fv(&vPos2.x);
-  glEnd();  
+  GLR_Begin(GL_LINES);
+  GLR_Color4fv(&vColor1.r);
+  GLR_Vertex3fv(&vPos1.x);
+  GLR_Color4fv(&vColor2.r);
+  GLR_Vertex3fv(&vPos2.x);
+  GLR_End();  
   EnableTMU(true);
 }
 
@@ -2453,7 +2488,7 @@ void CGLRenderer::ScreenShot(const char *filename)
 
   iLog->Log("ScreenShot %s\n",scname);
   unsigned char *pic=new unsigned char [m_width*m_height*4];
-  glReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
+  GLR_ReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, pic);
   byte *src = pic;
   byte *dst = new byte[m_width*m_height*4];
   for (i=0; i<m_height; i++)
@@ -2468,7 +2503,7 @@ void CGLRenderer::ScreenShot(const char *filename)
   ::WriteJPG(dst, m_width, m_height,scname);
     //CImage::SaveTga(pic,FORMAT_24_BIT,m_width,m_height,scname,false); 
     //unsigned char *pic=new unsigned char [m_width*m_height*FORMAT_8_BIT];
-    //glReadPixels(0, 0, m_width, m_height, GL_ALPHA, GL_UNSIGNED_BYTE, pic);
+    //GLR_ReadPixels(0, 0, m_width, m_height, GL_ALPHA, GL_UNSIGNED_BYTE, pic);
   //CImage::SaveTga(pic,FORMAT_8_BIT,m_width,m_height,scname,false); 
   delete [] pic;    
   delete [] dst;
@@ -2478,15 +2513,15 @@ int CGLRenderer::ScreenToTexture()
 {
   // for death effects
   unsigned char * pic = new unsigned char [m_width*m_height*3];
-  glReadPixels(0, 0, m_width, m_height, GL_RGB, GL_UNSIGNED_BYTE, pic);
+  GLR_ReadPixels(0, 0, m_width, m_height, GL_RGB, GL_UNSIGNED_BYTE, pic);
   uint tid;
-  glGenTextures(1,&tid);
+  GLR_GenTextures(1,&tid);
   m_TexMan->SetTexture(tid, eTT_Base);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m_width, m_height, 0, GL_RGB, GL_UNSIGNED_BYTE, pic);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+  GLR_TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  GLR_TexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m_width, m_height, 0, GL_RGB, GL_UNSIGNED_BYTE, pic);
   delete [] pic;    
   return tid;
 }
@@ -2527,26 +2562,26 @@ void CGLRenderer::Print(CXFont *currfont,float x, float y, const char *buf,float
   float g1=g+0.25f;if (g1>1) g1=1;
   float b1=b+0.25f;if (b1>1) b1=1;
 
-  glBegin(GL_QUADS); 
+  GLR_Begin(GL_QUADS); 
   for (size_t i = strlen(buf); i; i--, x += xsize, buf++)	//AMD Port
   {
     float xot = (float)(*buf & 15)*currfont->m_char_inc;     
     float yot = 1.f-(-(float)(*buf >> 4)*currfont->m_char_inc);     
 
     glColor4f (r1,g1,b1,a);
-    glTexCoord2f(xot, yot);
+    GLR_TexCoord2f(xot, yot);
     glVertex2i  ((int)(x), (int)(y));
     glColor4f (r1,g1,b1,a);
-    glTexCoord2f(xot+currfont->m_char_inc , yot);
+    GLR_TexCoord2f(xot+currfont->m_char_inc , yot);
     glVertex2i  ((int)(x+xsize),(int)(y));
     glColor4f (r,g,b,a);
-    glTexCoord2f(xot+currfont->m_char_inc, yot+currfont->m_char_inc);
+    GLR_TexCoord2f(xot+currfont->m_char_inc, yot+currfont->m_char_inc);
     glVertex2i  ((int)(x+xsize),(int)(y+ysize));
     glColor4f (r,g,b,a);
-    glTexCoord2f(xot, yot+currfont->m_char_inc);    
+    GLR_TexCoord2f(xot, yot+currfont->m_char_inc);    
     glVertex2i  ((int)(x),(int)(y+ysize));
   }
-  glEnd();             
+  GLR_End();             
 
 }
 
@@ -2558,17 +2593,17 @@ void CGLRenderer::ResetToDefault()
   EF_Scissor(false, 0, 0, 0, 0);
 
   if (SUPPORTS_GL_ATI_fragment_shader)
-    glDisable(GL_FRAGMENT_SHADER_ATI);
+    GLR_Disable(GL_FRAGMENT_SHADER_ATI);
   if (SUPPORTS_GL_ARB_fragment_program)
-    glDisable(GL_FRAGMENT_PROGRAM_ARB);
+    GLR_Disable(GL_FRAGMENT_PROGRAM_ARB);
   if (SUPPORTS_GL_NV_register_combiners)
-    glDisable(GL_REGISTER_COMBINERS_NV);
+    GLR_Disable(GL_REGISTER_COMBINERS_NV);
   if (SUPPORTS_GL_NV_texture_shader && m_RP.m_ClipPlaneEnabled != 1)
-    glDisable(GL_TEXTURE_SHADER_NV);
+    GLR_Disable(GL_TEXTURE_SHADER_NV);
   if (SUPPORTS_GL_NV_vertex_program)
-    glDisable(GL_VERTEX_PROGRAM_NV);
+    GLR_Disable(GL_VERTEX_PROGRAM_NV);
   if (SUPPORTS_GL_ARB_vertex_program)
-    glDisable(GL_VERTEX_PROGRAM_ARB);
+    GLR_Disable(GL_VERTEX_PROGRAM_ARB);
 
   if (m_RP.m_ClipPlaneWasOverrided == 1)
   {
@@ -2587,7 +2622,7 @@ void CGLRenderer::ResetToDefault()
     m_fCurRGBScale[i] = -1.0f;
     CGLTexMan::m_TUState[i].m_Bind = 0;
     SArrayPointer_Texture::m_pLastPointer[i] = NULL;
-    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
+    GLR_TexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
     
     // tiago: added
     SetLodBias(CRenderer::CV_r_maxtexlod_bias);  
@@ -2596,21 +2631,21 @@ void CGLRenderer::ResetToDefault()
     {
       CGLTexMan::m_TUState[i].m_Target = GL_TEXTURE_2D;
       if (m_RP.m_ClipPlaneEnabled == 1 && SUPPORTS_GL_NV_texture_shader)
-        glTexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, CGLTexMan::m_TUState[i].m_Target);
-      glEnable(GL_TEXTURE_2D);
-      glDisable(GL_TEXTURE_CUBE_MAP_EXT);
+        GLR_TexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, CGLTexMan::m_TUState[i].m_Target);
+      GLR_EnableTexture(GL_TEXTURE_2D, true);
+      GLR_EnableTexture(GL_TEXTURE_CUBE_MAP_EXT, false);
       if (SUPPORTS_GL_NV_texture_rectangle || SUPPORTS_GL_EXT_texture_rectangle)
-        glDisable(GL_TEXTURE_RECTANGLE_NV);
+        GLR_EnableTexture(GL_TEXTURE_RECTANGLE_NV, false);
       EnableTexGen(false);    
       EF_SetColorOp(eCO_MODULATE, eCO_MODULATE, 255, 255);
     }
     else
     {
       CGLTexMan::m_TUState[i].m_Target = 0;
-      //glDisable(GL_TEXTURE_CUBE_MAP_EXT);
-      glDisable(GL_TEXTURE_2D);
+      //GLR_EnableTexture(GL_TEXTURE_CUBE_MAP_EXT, false);
+      GLR_EnableTexture(GL_TEXTURE_2D, false);
       if (SUPPORTS_GL_NV_texture_rectangle || SUPPORTS_GL_EXT_texture_rectangle)
-        glDisable(GL_TEXTURE_RECTANGLE_NV);
+        GLR_EnableTexture(GL_TEXTURE_RECTANGLE_NV, false);
       if (m_RP.m_ClipPlaneEnabled!=1 || i!=3)
       {
         EnableTexGen(false);    
@@ -2619,10 +2654,10 @@ void CGLRenderer::ResetToDefault()
       if (m_RP.m_ClipPlaneEnabled == 1 && SUPPORTS_GL_NV_texture_shader)
       {
         if (i == 3)
-          glTexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, GL_CULL_FRAGMENT_NV);
+          GLR_TexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, GL_CULL_FRAGMENT_NV);
         else
         {
-          glTexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, GL_NONE);
+          GLR_TexEnvi(GL_TEXTURE_SHADER_NV, GL_SHADER_OPERATION_NV, GL_NONE);
           EnableTexGen(false);    
         }
       }
@@ -2634,21 +2669,21 @@ void CGLRenderer::ResetToDefault()
   EF_SelectTMU(0);
   gRenDev->m_TexMan->m_nCurStages = 1;
 
-  glEnable(GL_DEPTH_TEST);
-  glDisable(GL_ALPHA_TEST); 
-  glDisable(GL_CULL_FACE);
-  glDisable(GL_BLEND);
-  glDepthFunc(GL_LEQUAL); 
-  glDepthMask(GL_TRUE); 
+  GLR_Enable(GL_DEPTH_TEST);
+  GLR_Disable(GL_ALPHA_TEST); 
+  GLR_Disable(GL_CULL_FACE);
+  GLR_Disable(GL_BLEND);
+  GLR_DepthFunc(GL_LEQUAL); 
+  GLR_DepthMask(GL_TRUE); 
   SetMaterialColor(1,1,1,1);
-  glDisable(GL_COLOR_MATERIAL);
-  glDisable(GL_NORMALIZE);
+  GLR_Disable(GL_COLOR_MATERIAL);
+  GLR_Disable(GL_NORMALIZE);
 
-  glDisable(GL_POLYGON_OFFSET_FILL);
-  glDisable(GL_POLYGON_OFFSET_LINE);
-  glColorMask(1,1,1,1);
+  GLR_Disable(GL_POLYGON_OFFSET_FILL);
+  GLR_Disable(GL_POLYGON_OFFSET_LINE);
+  GLR_ColorMask(1,1,1,1);
 
-  glDisable(GL_POINT_SMOOTH);
+  GLR_Disable(GL_POINT_SMOOTH);
 
   m_CurState = GS_DEPTHWRITE;
   m_RP.m_eCull = (ECull)-1;
@@ -2657,9 +2692,9 @@ void CGLRenderer::ResetToDefault()
   SArrayPointer_Normal::m_pLastPointer = NULL;
   SArrayPointer_Color::m_pLastPointer = NULL;
   SArrayPointer_SecColor::m_pLastPointer = NULL;
-  glEnableClientState(GL_VERTEX_ARRAY);
-  glDisableClientState(GL_TEXTURE_COORD_ARRAY);
-  glDisableClientState(GL_COLOR_ARRAY);     
+  GLR_EnableClientState(GL_VERTEX_ARRAY);
+  GLR_DisableClientState(GL_TEXTURE_COORD_ARRAY);
+  GLR_DisableClientState(GL_COLOR_ARRAY);     
 
   m_RP.m_FlagsPerFlush &= ~(RBSI_ALPHAGEN | RBSI_RGBGEN);
   m_RP.m_PersFlags &= ~(RBPF_PS1NEEDSET | RBPF_PS1NEEDSET | RBPF_TSNEEDSET | RBPF_VSNEEDSET);
@@ -2864,27 +2899,27 @@ char * CGLRenderer::GetStatusText(ERendStats type)
 
 void CGLRenderer::DrawBall(float x, float y, float z, float radius )
 {
-//  glColor3f(1,0,0);
+//  GLR_Color3f(1,0,0);
   EnableTMU(true);
   gRenDev->m_TexMan->m_Text_White->Set();
-  glPushMatrix();
-  glTranslatef(x,y,z);
+  GLR_PushMatrix();
+  GLR_Translatef(x,y,z);
   GLUquadricObj * q = gluNewQuadric();
   gluSphere( q, radius, 16, 16 );
   gluDeleteQuadric(q);
-  glPopMatrix();
+  GLR_PopMatrix();
 }
 
 void CGLRenderer::DrawBall(const Vec3d & pos, float radius )
 {
   EnableTMU(true);
   gRenDev->m_TexMan->m_Text_White->Set();
-  glPushMatrix();
-  glTranslatef(pos.x,pos.y,pos.z);
+  GLR_PushMatrix();
+  GLR_Translatef(pos.x,pos.y,pos.z);
   GLUquadricObj * q = gluNewQuadric();
   gluSphere( q, radius, 16, 16 );
   gluDeleteQuadric(q);
-  glPopMatrix();
+  GLR_PopMatrix();
 }
 
 void CGLRenderer::DrawPoint(float x, float y, float z, float fSize)
@@ -2892,15 +2927,15 @@ void CGLRenderer::DrawPoint(float x, float y, float z, float fSize)
   EnableTMU(true);
   gRenDev->m_TexMan->m_Text_White->Set();
   glPointSize(fSize);
-  glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
+  GLR_Hint(GL_POINT_SMOOTH_HINT, GL_NICEST);
 
-  glEnable(GL_POINT_SMOOTH);
+  GLR_Enable(GL_POINT_SMOOTH);
 
-  glBegin(GL_POINTS);
-    glVertex3f(x, y, z);
-  glEnd();
+  GLR_Begin(GL_POINTS);
+    GLR_Vertex3f(x, y, z);
+  GLR_End();
 
-  glDisable(GL_POINT_SMOOTH);
+  GLR_Disable(GL_POINT_SMOOTH);
 }
 
 void CGLRenderer::SetClipPlane( int id, float * params )
@@ -2921,15 +2956,15 @@ void CGLRenderer::ClearDepthBuffer()
   m_bWasCleared = true;
 
   EF_SetState(GS_DEPTHWRITE);
-  glClear(GL_DEPTH_BUFFER_BIT);
+  GLR_Clear(GL_DEPTH_BUFFER_BIT);
 }
 
 void CGLRenderer::ClearColorBuffer(const Vec3d vColor)
 {
   m_bWasCleared = true;
 
-  glClearColor(vColor.x,vColor.y,vColor.z,1.f);
-  glClear(GL_COLOR_BUFFER_BIT);
+  GLR_ClearColor(vColor.x,vColor.y,vColor.z,1.f);
+  GLR_Clear(GL_COLOR_BUFFER_BIT);
 }
 
 void CGLRenderer::ReadFrameBuffer(unsigned char * pRGB, int nSizeX, int nSizeY, bool bBackBuffer, bool bRGBA, int nScaledX, int nScaledY)
@@ -2937,9 +2972,9 @@ void CGLRenderer::ReadFrameBuffer(unsigned char * pRGB, int nSizeX, int nSizeY, 
   glFinish();
 
 	if(bBackBuffer)
-		glReadBuffer(GL_BACK);
+		GLR_ReadBuffer(GL_BACK);
 	else
-		glReadBuffer(GL_FRONT);
+		GLR_ReadBuffer(GL_FRONT);
 
   if (nScaledX <= 0)
   {
@@ -2947,47 +2982,47 @@ void CGLRenderer::ReadFrameBuffer(unsigned char * pRGB, int nSizeX, int nSizeY, 
     nScaledY = nSizeY;
   }
 
-	glReadPixels(0, 0, nScaledX, nScaledY, bRGBA ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, pRGB);
-  glReadBuffer(GL_BACK);
+	GLR_ReadPixels(0, 0, nScaledX, nScaledY, bRGBA ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, pRGB);
+  GLR_ReadBuffer(GL_BACK);
 }
 
 void CGLRenderer::SetFogColor(float * color)
 {
   m_FS.m_FogColor = CFColor(color);
-  glFogfv(GL_FOG_COLOR,color);
+  GLR_Fogfv(GL_FOG_COLOR,color);
 }
 
 void CGLRenderer::TransformTextureMatrix(float x, float y, float angle, float scale)
 {
-  glMatrixMode(GL_TEXTURE);
-  glTranslatef(x,y,0);
-  glTranslatef(0.5,0.5,0);
-  glRotatef(angle,0,0,1);
-  glScalef(scale,scale,scale);
-  glTranslatef(-0.5,-0.5,0);
-  glMatrixMode(GL_MODELVIEW);
+  GLR_MatrixMode(GL_TEXTURE);
+  GLR_Translatef(x,y,0);
+  GLR_Translatef(0.5,0.5,0);
+  GLR_Rotatef(angle,0,0,1);
+  GLR_Scalef(scale,scale,scale);
+  GLR_Translatef(-0.5,-0.5,0);
+  GLR_MatrixMode(GL_MODELVIEW);
 }
 
 void CGLRenderer::ResetTextureMatrix()
 {
-  glMatrixMode(GL_TEXTURE);
-  glLoadIdentity();
-  glMatrixMode(GL_MODELVIEW);
+  GLR_MatrixMode(GL_TEXTURE);
+  GLR_LoadIdentity();
+  GLR_MatrixMode(GL_MODELVIEW);
 }
 
 
 void CGLRenderer::DrawQuad(float dy,float dx, float dz, float x, float y, float z)
 {
-  glBegin(GL_TRIANGLE_FAN);
-    glTexCoord2f( -1, 0 ); 
+  GLR_Begin(GL_TRIANGLE_FAN);
+    GLR_TexCoord2f( -1, 0 ); 
     glVertex3f  (-dx+x, dy+y,-dz+z);
-    glTexCoord2f(  0, 0 ); 
+    GLR_TexCoord2f(  0, 0 ); 
     glVertex3f  ( dx+x,-dy+y,-dz+z);  
-    glTexCoord2f(  0, 1 ); 
+    GLR_TexCoord2f(  0, 1 ); 
     glVertex3f  ( dx+x,-dy+y, dz+z);  
-    glTexCoord2f( -1, 1 ); 
+    GLR_TexCoord2f( -1, 1 ); 
     glVertex3f  (-dx+x, dy+y, dz+z);
-  glEnd();                                  
+  GLR_End();                                  
 
   m_nPolygons+=2;
 }
@@ -3018,26 +3053,26 @@ void CGLRenderer::Set2DMode(bool enable, int ortox, int ortoy)
   if(enable)
   {
     glGetIntegerv(GL_FOG, &bOldFog);
-    glDisable(GL_FOG);
+    GLR_Disable(GL_FOG);
 
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    //glOrtho(0.0, ortox, ortoy, 0.0, -19999.0, 19999.0);
-		glOrtho(0.0, ortox, ortoy, 0.0, -1e30, 1e30 );
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
+    GLR_MatrixMode(GL_PROJECTION);
+    GLR_PushMatrix();
+    GLR_LoadIdentity();
+    //GLR_Ortho(0.0, ortox, ortoy, 0.0, -19999.0, 19999.0);
+		GLR_Ortho(0.0, ortox, ortoy, 0.0, -1e30, 1e30 );
+    GLR_MatrixMode(GL_MODELVIEW);
+    GLR_PushMatrix();
+    GLR_LoadIdentity();
   }
   else
   {
-    glPopMatrix();
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
+    GLR_PopMatrix();
+    GLR_MatrixMode(GL_PROJECTION);
+    GLR_PopMatrix();
+    GLR_MatrixMode(GL_MODELVIEW);
 
     if(bOldFog)
-      glEnable(GL_FOG);
+      GLR_Enable(GL_FOG);
   }
   EF_SetCameraInfo();
 }
@@ -3124,12 +3159,12 @@ void CGLRenderer::EF_PolygonOffset(bool bEnable, float fFactor, float fUnits)
 {
   if (bEnable)
   {
-    glEnable(GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset(fFactor, fUnits);
+    GLR_Enable(GL_POLYGON_OFFSET_FILL);
+    GLR_PolygonOffset(fFactor, fUnits);
   }
   else
   {
-    glDisable(GL_POLYGON_OFFSET_FILL);
+    GLR_Disable(GL_POLYGON_OFFSET_FILL);
   }
 }
 
