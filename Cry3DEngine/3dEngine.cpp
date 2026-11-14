@@ -14,6 +14,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "StdAfx.h"
+#include "../port/platform/PortSlowScope.h"
 
 #include "3dEngine.h"
 #include "VisAreas.h"
@@ -660,12 +661,14 @@ bool C3DEngine::UnRegisterInAllSectors(IEntityRender * pEntityRS)
 
 void C3DEngine::SpawnParticles( const ParticleParams & SpawnParticleParams )
 {
+	SPortSlowScope portSlow("particles");
   if(m_pPartManager)
     m_pPartManager->Spawn( SpawnParticleParams,m_fMaxViewDist, m_pObjManager);
 }
 
 void C3DEngine::CreateDecal( const CryEngineDecalInfo& DecalInfo )
 {
+	SPortSlowScope portSlow("decal", DecalInfo.pDecalOwner ? DecalInfo.pDecalOwner->GetName() : (DecalInfo.pStatObj ? "static object" : "terrain"));
 	if(!GetCVars()->e_decals)
 		return;
 

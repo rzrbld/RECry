@@ -13,6 +13,7 @@
 
 #include "StdAfx.h"
 #include "System.h"
+#include "../port/platform/PortTiming.h"
 #include <time.h>
 //#include "ini_vars.h"
 #include "CryLibrary.h"
@@ -775,9 +776,14 @@ void CSystem::UpdateScriptSink()
 // nPauseMode: 1=menu/pause
 // nPauseMode: 2=cutscene
 //////////////////////////////////////////////////////////////////////
+// Port diagnostic: FARCRY_SLOW_UPDATE_MS=<ms> logs each update slower than
+// that with its parts (physics, AI, entities, scripts, the rest).
+static double s_portUpd[6];   // start, scripts, physics, ai, entities (accumulated ms where noted)
+static const double s_portSlowUpdMs = getenv("FARCRY_SLOW_UPDATE_MS") ? atof(getenv("FARCRY_SLOW_UPDATE_MS")) : 0.0;
 bool CSystem::Update( int updateFlags, int nPauseMode )
 {
 	FUNCTION_PROFILER( this,PROFILE_SYSTEM );
+	if (s_portSlowUpdMs > 0) { s_portUpd[0] = PortNowMs(); s_portUpd[1] = s_portUpd[2] = s_portUpd[3] = s_portUpd[4] = 0; }
 
 	if (m_pGame)
 	{
@@ -886,7 +892,7 @@ bool CSystem::Update( int updateFlags, int nPauseMode )
 	{
 		FRAME_PROFILER( "SysUpdate:ScriptSink",this,PROFILE_SYSTEM );
 
-		UpdateScriptSink();
+		{ const double t = s_portSlowUpdMs > 0 ? PortNowMs() : 0; UpdateScriptSink(); if (s_portSlowUpdMs > 0) s_portUpd[1] += PortNowMs() - t; }
 	}
 	
 	if (m_pIInput)
@@ -923,6 +929,7 @@ bool CSystem::Update( int updateFlags, int nPauseMode )
 	if ((nPauseMode!=1) && !(updateFlags&ESYSUPDATE_IGNORE_PHYSICS))
 	{
 		FRAME_PROFILER( "SysUpdate:physics",this,PROFILE_SYSTEM );
+		struct SPortT { double t; SPortT() : t(s_portSlowUpdMs > 0 ? PortNowMs() : 0) {} ~SPortT() { if (s_portSlowUpdMs > 0) s_portUpd[2] += PortNowMs() - t; } } portT;
 
 		float fCurTime = m_Time.GetCurrTime();
 		float fPrevTime = m_pIPhysicalWorld->GetPhysicsTime();
@@ -971,7 +978,7 @@ bool CSystem::Update( int updateFlags, int nPauseMode )
 		//////////////////////////////////////////////////////////////////////
 		//update AI system
 		if (m_pAISystem && !m_cvAIUpdate->GetIVal())
-			m_pAISystem->Update();
+		{ const double t = s_portSlowUpdMs > 0 ? PortNowMs() : 0; m_pAISystem->Update(); if (s_portSlowUpdMs > 0) s_portUpd[3] += PortNowMs() - t; }
 		m_Time.MeasureTime("AISys Up");
 	}
 
@@ -980,7 +987,7 @@ bool CSystem::Update( int updateFlags, int nPauseMode )
 		//////////////////////////////////////////////////////////////////////
 		//update entity system	
 		if (m_pEntitySystem && !bNoUpdate)
-			m_pEntitySystem->Update();
+		{ const double t = s_portSlowUpdMs > 0 ? PortNowMs() : 0; m_pEntitySystem->Update(); if (s_portSlowUpdMs > 0) s_portUpd[4] += PortNowMs() - t; }
 		m_Time.MeasureTime("EntSys Up");
 	}
 
@@ -1072,6 +1079,13 @@ bool CSystem::Update( int updateFlags, int nPauseMode )
 			m_nStrangeRatio += (1 + (10*rand())/RAND_MAX);
 	}
 
+	if (s_portSlowUpdMs > 0)
+	{
+		const double total = PortNowMs() - s_portUpd[0];
+		if (total >= s_portSlowUpdMs)
+			fprintf(stderr, "PORT slow update %.1f ms: physics %.1f, AI %.1f, entities %.1f, scripts %.1f, other %.1f\n", total,
+				s_portUpd[2], s_portUpd[3], s_portUpd[4], s_portUpd[1], total - s_portUpd[1] - s_portUpd[2] - s_portUpd[3] - s_portUpd[4]);
+	}
 	return !m_bQuit;	
 }
 

@@ -11,6 +11,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "StdAfx.h"
+#include "../port/platform/PortTiming.h"
 
 #include "XPlayer.h"
 #include "WeaponClass.h"
@@ -5106,12 +5107,15 @@ void CPlayer::OnDraw(const SRendParams & _RendParams)
 					pInst->RenderShadowVolumes(&RendParams);
 			}
 			else {
-				// Port: draw the local first-person view once per frame. Indoors (in a
+				// Port (classic renderer): draw the local first-person view once per frame. Indoors (in a
 				// vis area) from the game render callback, lit by the ambient at the
 				// player's position (the engine pass uses one flat room ambient, which
 				// looked shaded); outdoors from the engine pass, which includes the
 				// outdoor ambient. Two copies with different lighting flickered.
-				const bool bIndoor = m_pEntity->GetEntityVisArea() != NULL;
+				// Native renderer: the engine pass lights the view correctly everywhere
+				// (checked indoors on the H700); the callback is for the classic renderer.
+				static const bool s_engineOnly = []{ const char* r = getenv("FARCRY_RENDERER"); return r && !strcmp(r, "native"); }();
+				const bool bIndoor = !s_engineOnly && m_pEntity->GetEntityVisArea() != NULL;
 				if (!IsMyPlayer() || g_PortFPWeaponFromCallback == bIndoor)
 					pInst->Draw(RendParams,m_pEntity->GetPos());
 			}

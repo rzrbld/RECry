@@ -1282,12 +1282,24 @@ void CSystem::RenderStats()
 		static const bool s_bShowFps = getenv("FARCRY_SHOW_FPS") && atoi(getenv("FARCRY_SHOW_FPS")) != 0;
 		if (s_bShowFps && !m_rDisplayInfo->GetIVal() && m_pRenderer)
 		{
-			static float s_fAccum = 0.f, s_fShown = 0.f; static int s_nFrames = 0;
-			const float ft = m_Time.GetFrameTime();
-			if (ft > 0.f && ft < 1.f) { s_fAccum += ft; ++s_nFrames; }
-			if (s_fAccum >= 0.5f) { s_fShown = s_nFrames / s_fAccum; s_fAccum = 0.f; s_nFrames = 0; }
+			// Wall-clock time between frames (the engine's frame time is smoothed
+			// and clamped, so it hid stutters), plus the slowest frame of the window.
+			static double s_last = 0, s_winStart = 0, s_worst = 0, s_shownWorst = 0; static int s_nFrames = 0; static float s_fShown = 0.f;
+			const double now = PortNowMs();
+			if (s_last > 0)
+			{
+				const double dt = now - s_last;
+				if (dt < 1000.0) { ++s_nFrames; if (dt > s_worst) s_worst = dt; }
+			}
+			s_last = now;
+			if (s_winStart == 0) s_winStart = now;
+			if (now - s_winStart >= 500.0 && s_nFrames)
+			{
+				s_fShown = (float)(s_nFrames * 1000.0 / (now - s_winStart)); s_shownWorst = s_worst;
+				s_winStart = now; s_nFrames = 0; s_worst = 0;
+			}
 			if (s_fShown > 0.f)
-				m_pRenderer->TextToScreen(90.f, 1.f, "%.0f FPS", s_fShown);
+				m_pRenderer->TextToScreen(82.f, 1.f, "%.0f FPS  max %.0f ms", s_fShown, s_shownWorst);
 		}
 	}
 

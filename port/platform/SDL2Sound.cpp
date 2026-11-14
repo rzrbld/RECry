@@ -1,4 +1,8 @@
 #include <memory>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <deque>
 #include <set>
 // SDL2 audio backend for the Linux/AArch64 port.
 //
@@ -255,6 +259,15 @@ public:
 
     // backend internals
     bool EnsureLoaded();
+    // Background decoding (see CSDL2SoundSystem::QueueDecode): the decoded
+    // samples arrive in Update(); a Play() made before that starts then.
+    void StartPlay(float fVolumeScale);
+    void OnDecoded(const std::shared_ptr<std::vector<short> >& pcm, int channels, bool ok);
+    std::string SampleKey() const { return m_szName + (m_nChannels == 1 ? "#mono" : "#stereo"); }
+    int Channels() const { return m_nChannels; }
+    bool m_bQueued = false, m_bPlayPending = false;
+    float m_fPendingVolume = 1.0f;
+    Uint32 m_nPendingAt = 0;
     const std::vector<short>* Samples() const { return m_pcm.get(); }
     void Mix(int* pOut, int nFrames, const Vec3& vListenerPos, float fMaster, float fMusic);
     bool IsFinished() const { return m_bFinished; }
@@ -375,6 +388,23 @@ private:
     std::map<std::string, std::weak_ptr<std::vector<short> > > m_sampleCache;
     size_t m_nLoadedBytes;
     bool m_bLoggedOgg;
+public:
+    // Background decoder: reading a sound from the paks and decoding it took
+    // 10-50 ms on the H700 (ambient loops up to a second), on the main thread
+    // at the sound's first play - a frame hitch for every new sound in a fight.
+    // FARCRY_SOUND_SYNC=1: the old synchronous loading.
+    bool QueueDecode(CSDL2Sound* pSound);
+private:
+    struct SDecodeJob { int id; std::string name, key; int channels; };
+    struct SDecodeResult { int id; std::string key; std::shared_ptr<std::vector<short> > pcm; int channels; bool ok; Uint32 ms; std::string name; };
+    void DecodeWorker();
+    void DrainDecoded();
+    std::thread m_decodeThread;
+    std::mutex m_decodeMx;
+    std::condition_variable m_decodeCv;
+    std::deque<SDecodeJob> m_decodeJobs;
+    std::vector<SDecodeResult> m_decodeDone;
+    bool m_decodeQuit = false;
 };
 
 // ---------------------------------------------------------------------------
@@ -477,6 +507,12 @@ CSDL2SoundSystem::CSDL2SoundSystem(ISystem* pSystem)
 
 CSDL2SoundSystem::~CSDL2SoundSystem()
 {
+    if (m_decodeThread.joinable())
+    {
+        { std::lock_guard<std::mutex> lk(m_decodeMx); m_decodeQuit = true; m_decodeJobs.clear(); }
+        m_decodeCv.notify_all();
+        m_decodeThread.join();
+    }
     if (m_nDevice)
     {
         SDL_PauseAudioDevice(m_nDevice, 1);
@@ -555,6 +591,7 @@ void CSDL2SoundSystem::AudioCallback(Sint16* pStream, int nLenBytes)
 
 void CSDL2SoundSystem::Update()
 {
+    DrainDecoded();
     if (getenv("FARCRY_MEMORY_TRACE")) {
         static Uint32 last = 0;
         if (SDL_GetTicks() - last > 2000) {
@@ -707,6 +744,89 @@ void CSDL2SoundSystem::RemoveVoice(CSDL2Sound* pSound)
     }
 }
 
+bool CSDL2SoundSystem::QueueDecode(CSDL2Sound* pSound)
+{
+    static const bool s_sync = PortSndEnvFlag("FARCRY_SOUND_SYNC", false);
+    if (s_sync || !pSound || !m_pSystem) return false;
+    if (pSound->m_bQueued) return true;
+    if (FindSamples(pSound->SampleKey())) return false;   // cached: loads instantly
+    if (!m_decodeThread.joinable())
+        m_decodeThread = std::thread(&CSDL2SoundSystem::DecodeWorker, this);
+    pSound->m_bQueued = true;
+    {
+        std::lock_guard<std::mutex> lk(m_decodeMx);
+        m_decodeJobs.push_back(SDecodeJob{ pSound->GetId(), pSound->GetName(), pSound->SampleKey(), pSound->Channels() });
+    }
+    m_decodeCv.notify_one();
+    return true;
+}
+
+void CSDL2SoundSystem::DecodeWorker()
+{
+    for (;;)
+    {
+        SDecodeJob job;
+        {
+            std::unique_lock<std::mutex> lk(m_decodeMx);
+            m_decodeCv.wait(lk, [this] { return m_decodeQuit || !m_decodeJobs.empty(); });
+            if (m_decodeQuit) return;
+            job = m_decodeJobs.front(); m_decodeJobs.pop_front();
+        }
+        SDecodeResult res; res.id = job.id; res.key = job.key; res.name = job.name; res.channels = job.channels; res.ok = false;
+        const Uint32 t0 = SDL_GetTicks();
+        std::vector<unsigned char> data;
+        if (SndReadFile(m_pSystem, job.name.c_str(), data) && !data.empty())
+        {
+            res.pcm.reset(new std::vector<short>);
+            res.ok = SndDecodeWav(&data[0], data.size(), m_nDeviceFreq, *res.pcm, res.channels) ||
+                     SndDecodeOgg(&data[0], data.size(), m_nDeviceFreq, *res.pcm, res.channels);
+        }
+        res.ms = SDL_GetTicks() - t0;
+        std::lock_guard<std::mutex> lk(m_decodeMx);
+        m_decodeDone.push_back(res);
+    }
+}
+
+void CSDL2SoundSystem::DrainDecoded()
+{
+    std::vector<SDecodeResult> done;
+    { std::lock_guard<std::mutex> lk(m_decodeMx); done.swap(m_decodeDone); }
+    static const bool s_debug = PortSndEnvFlag("FARCRY_SDL_AUDIO_DEBUG", false);
+    for (size_t i = 0; i < done.size(); ++i)
+    {
+        const SDecodeResult& r = done[i];
+        if (s_debug) Log("decoded in background '%s': %s in %u ms", r.name.c_str(), r.ok ? "ok" : "FAILED", (unsigned)r.ms);
+        std::map<int, CSDL2Sound*>::iterator it = m_mapSounds.find(r.id);
+        if (it == m_mapSounds.end() || !it->second) continue;   // released meanwhile
+        it->second->OnDecoded(r.pcm, r.channels, r.ok);
+    }
+}
+
+void CSDL2Sound::OnDecoded(const std::shared_ptr<std::vector<short> >& pcm, int channels, bool ok)
+{
+    m_bQueued = false;
+    if (m_bLoaded) { m_bPlayPending = false; return; }   // loaded synchronously meanwhile
+    if (!ok || !pcm)
+    {
+        m_bLoadFailed = true; m_bLoading = false; m_bPlayPending = false;
+        if (m_pOwner) m_pOwner->Log("unsupported, corrupt or missing audio: %s", m_szName.c_str());
+        NotifyEvent(SOUND_EVENT_ON_LOAD_FAILED);
+        return;
+    }
+    m_pcm = pcm;
+    m_nChannels = channels;
+    if (m_pOwner) { m_pOwner->CacheSamples(SampleKey(), m_pcm); m_nFreq = m_pOwner->GetDeviceFreq(); }
+    m_bLoaded = true; m_bLoading = false;
+    NotifyEvent(SOUND_EVENT_ON_LOADED);
+    // A play requested while decoding starts now, unless it would be too late
+    // to belong to its event (a shot or impact from well over half a second ago).
+    if (m_bPlayPending)
+    {
+        m_bPlayPending = false;
+        if (m_bLoop || SDL_GetTicks() - m_nPendingAt < 700) StartPlay(m_fPendingVolume);
+    }
+}
+
 void CSDL2SoundSystem::OnSoundReleased(CSDL2Sound* pSound)
 {
     RemoveVoice(pSound);
@@ -844,7 +964,26 @@ bool CSDL2Sound::Preload()
 
 void CSDL2Sound::Play(float fVolumeScale, bool, bool)
 {
+    if (!m_bLoaded && !m_bLoadFailed && !m_bStream && m_pOwner)
+    {
+        // Not decoded yet: already cached by another sound object, else start
+        // it when the background decoder delivers (see OnDecoded).
+        std::shared_ptr<std::vector<short> > cached = m_pOwner->FindSamples(SampleKey());
+        if (cached) EnsureLoaded();
+        else if (m_pOwner->QueueDecode(this))
+        {
+            m_bPlayPending = true;
+            m_fPendingVolume = fVolumeScale;
+            m_nPendingAt = SDL_GetTicks();
+            return;
+        }
+    }
     if (!EnsureLoaded()) return;
+    StartPlay(fVolumeScale);
+}
+
+void CSDL2Sound::StartPlay(float fVolumeScale)
+{
     m_fPlayVolume = (fVolumeScale > 0.0f) ? fVolumeScale : 0.0f;
     m_fPos = 0.0f;
     m_bFinished = false;
@@ -862,6 +1001,7 @@ void CSDL2Sound::Play(float fVolumeScale, bool, bool)
 
 void CSDL2Sound::Stop()
 {
+    m_bPlayPending = false;
     if (!m_bPlaying) return;
     m_bPlaying = false;
     m_bFinished = true;

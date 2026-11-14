@@ -72,7 +72,12 @@ struct Current
 } s_cur;
 CgParams s_cgEnv;                     // program env registers (current)
 bool s_cgDirty = true;                // changed since the last snapshot
-std::vector<CgParams> s_cgSnaps;      // this segment's snapshots
+// Snapshots hold only registers up to the highest one written (most programs
+// use the first ~30 of 96 vertex registers): a full copy per draw was 2 KB.
+int s_cgVHigh = 0, s_cgFHigh = 0;     // registers written so far: [0, high)
+struct CgSnap { uint32_t off; uint16_t nv, nf; };
+std::vector<CgSnap> s_cgSnaps;        // this segment's snapshots
+std::vector<float> s_cgArena;         // their register data
 
 void DefaultRaster(Raster& r)
 {
@@ -447,8 +452,8 @@ void Fogfv(unsigned pname, const float* v)
 void ProgramEnvParameter(unsigned target, unsigned index, const float v[4])
 {
   float* d;
-  if (target == 0x8620 /*GL_VERTEX_PROGRAM_ARB*/) { if (index >= (unsigned)kCgVRegs) return; d = s_cgEnv.v[index]; }
-  else { if (index >= (unsigned)kCgFRegs) return; d = s_cgEnv.f[index]; }
+  if (target == 0x8620 /*GL_VERTEX_PROGRAM_ARB*/) { if (index >= (unsigned)kCgVRegs) return; d = s_cgEnv.v[index]; if ((int)index >= s_cgVHigh) s_cgVHigh = index + 1; }
+  else { if (index >= (unsigned)kCgFRegs) return; d = s_cgEnv.f[index]; if ((int)index >= s_cgFHigh) s_cgFHigh = index + 1; }
   if (memcmp(d, v, 16)) { memcpy(d, v, 16); s_cgDirty = true; }
 }
 void SetColor(const float c[4]) { memcpy(s_cur.u.curColor, c, 16); }
@@ -756,7 +761,13 @@ bool PrepareDraw(Cmd& c, uint16_t attrMask, int colorSemantic)
   c.cgParams = ~0u;
   if (vp || fp)
   {
-    if (s_cgDirty || s_cgSnaps.empty()) { s_cgSnaps.push_back(s_cgEnv); s_cgDirty = false; }
+    if (s_cgDirty || s_cgSnaps.empty())
+    {
+      CgSnap sn; sn.off = (uint32_t)s_cgArena.size(); sn.nv = (uint16_t)s_cgVHigh; sn.nf = (uint16_t)s_cgFHigh;
+      s_cgArena.insert(s_cgArena.end(), &s_cgEnv.v[0][0], &s_cgEnv.v[0][0] + sn.nv * 4);
+      s_cgArena.insert(s_cgArena.end(), &s_cgEnv.f[0][0], &s_cgEnv.f[0][0] + sn.nf * 4);
+      s_cgSnaps.push_back(sn); s_cgDirty = false;
+    }
     c.cgParams = (uint32_t)s_cgSnaps.size() - 1;
   }
   c.uniforms = RecordUniforms();
@@ -1279,9 +1290,11 @@ static void Playback()
       if (p.lastCg != tag)
       {
         p.lastCg = tag;
-        const CgParams& cp = s_cgSnaps[c.cgParams];
-        if (p.uCv >= 0 && p.nCv) ++s_profUniformCalls, gl.glUniform4fv(p.uCv, p.nCv, &cp.v[0][0]);
-        if (p.uCf >= 0 && p.nCf) ++s_profUniformCalls, gl.glUniform4fv(p.uCf, p.nCf, &cp.f[0][0]);
+        const CgSnap& sn = s_cgSnaps[c.cgParams];
+        const float* regs = s_cgArena.data() + sn.off;
+        const int nv = std::min(p.nCv, (int)sn.nv), nf = std::min(p.nCf, (int)sn.nf);   // registers never written stay 0
+        if (p.uCv >= 0 && nv > 0) ++s_profUniformCalls, gl.glUniform4fv(p.uCv, nv, regs);
+        if (p.uCf >= 0 && nf > 0) ++s_profUniformCalls, gl.glUniform4fv(p.uCf, nf, regs + sn.nv * 4);
       }
     }
     const uint64_t t2 = s_prof ? SDL_GetPerformanceCounter() : 0;
@@ -1333,10 +1346,10 @@ static void Playback()
     gl.glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &fb); gl.glGetIntegerv(GL_VIEWPORT, vp);
     Log("GLR debug: %zu commands, GL error 0x%x, draw framebuffer %d, viewport %d,%d %dx%d", s_cmds.size(), gl.glGetError(), fb, vp[0], vp[1], vp[2], vp[3]);
   }
-  s_cmds.clear(); s_uniforms.clear(); s_arena.clear(); s_cgSnaps.clear(); s_cgDirty = true;
+  s_cmds.clear(); s_uniforms.clear(); s_arena.clear(); s_cgSnaps.clear(); s_cgArena.clear(); s_cgDirty = true;
   // Give back what a load spike grew (kept capacity is RSS on 1 GB devices).
   if (s_arena.capacity() > ((size_t)8 << 20)) std::vector<uint8_t>().swap(s_arena);
-  if (s_cgSnaps.capacity() > 256) std::vector<CgParams>().swap(s_cgSnaps);
+  if (s_cgArena.capacity() > ((size_t)1 << 20)) { std::vector<float>().swap(s_cgArena); std::vector<CgSnap>().swap(s_cgSnaps); }
   if (s_cmds.capacity() > 8192) std::vector<Cmd>().swap(s_cmds);
   s_pendingTex.clear(); s_pendingBuf.clear();
   ++s_statSegments;
@@ -1402,7 +1415,7 @@ void FrameStats()
       Log("GLR mem: buffer shadows %.1f MB (%zu buffers), ring cpu %.1f+%.1f MB, cmds %.1f MB, uniforms %.1f MB, cg snapshots %.1f MB, arena %.1f MB, engine programs %d (GLSL %.1f MB), linked pairs %d, generated programs %zu",
           shadow / 1048576.0, s_bufs.size(), s_vring.cpu.capacity() / 1048576.0, s_iring.cpu.capacity() / 1048576.0,
           s_cmds.capacity() * sizeof(Cmd) / 1048576.0, s_uniforms.capacity() * sizeof(DrawUniforms) / 1048576.0,
-          s_cgSnaps.capacity() * sizeof(CgParams) / 1048576.0, s_arena.capacity() / 1048576.0, progs, glsl / 1048576.0, pairs, ProgramCount());
+          (s_cgArena.capacity() * sizeof(float) + s_cgSnaps.capacity() * sizeof(CgSnap)) / 1048576.0, s_arena.capacity() / 1048576.0, progs, glsl / 1048576.0, pairs, ProgramCount());
     }
   }
   if (s_statRejected || s_statCgDraws || s_statNoArrays) Log("GLR: last 120 frames: %u draws with engine programs, %u draws rejected, %u without position array", s_statCgDraws, s_statRejected, s_statNoArrays);

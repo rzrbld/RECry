@@ -257,7 +257,8 @@ static int g_look = 30, g_pointer = 30;   /* stick speeds in %: 30 = the port's 
    fixed tiler setup in libs.mesa/. Shown only where Panfrost drives the GPU
    and the bundle exists; 1 = bundled (patched) Mesa, 0 = the firmware's. */
 static int g_panfrost = 0, g_mesa_patched = 1;
-static int g_native = 1;   /* renderer: 1 native (engine shader programs), 0 classic */
+static int g_native = 1;
+static int g_water_refl = 1;  /* water: 1 reflections, 0 simple (fixed-function water) */   /* renderer: 1 native (engine shader programs), 0 classic */
 static void detect_panfrost(const char *root) {
     char p[4200]; struct stat st;
     snprintf(p, sizeof p, "%s/libs.mesa/libgallium-25.0.7.so", root);
@@ -288,6 +289,7 @@ static void cfg_load(void) {
         else if (sscanf(line, "RECRY_POINTER=%d", &n) == 1) g_pointer = n < 5 ? 5 : n > 200 ? 200 : n;
         else if (sscanf(line, "RECRY_MESA=%63s", v) == 1) g_mesa_patched = strcmp(v, "system") != 0;
         else if (sscanf(line, "RECRY_RENDERER=%63s", v) == 1) g_native = strcmp(v, "classic") != 0;
+        else if (sscanf(line, "RECRY_WATER=%63s", v) == 1) g_water_refl = strcmp(v, "simple") != 0;
     }
     fclose(f);
 }
@@ -299,9 +301,9 @@ static int cfg_save(void) {
     char txt[16]; if (g_text) snprintf(txt, sizeof txt, "%d", g_text); else snprintf(txt, sizeof txt, "auto");
     fprintf(f, "# RECry settings (written by the launcher)\n"
                "RECRY_RES=%s\nRECRY_SCALE=%s\nRECRY_PHYSICS=%s\nRECRY_EFFECTS=%s\nRECRY_VIEW=%s\n"
-               "RECRY_TEXT=%s\nRECRY_LIMIT=%d\nRECRY_FPS=%d\nRECRY_CPU=%s\nRECRY_CONTROLS=%s\nRECRY_LOOK=%d\nRECRY_POINTER=%d\nRECRY_MESA=%s\nRECRY_RENDERER=%s\n",
+               "RECRY_TEXT=%s\nRECRY_LIMIT=%d\nRECRY_FPS=%d\nRECRY_CPU=%s\nRECRY_CONTROLS=%s\nRECRY_LOOK=%d\nRECRY_POINTER=%d\nRECRY_MESA=%s\nRECRY_RENDERER=%s\nRECRY_WATER=%s\n",
             g_res, g_stretch ? "stretch" : "fit", tri(g_phys), tri(g_fx), tri(g_view), txt, g_limit, g_fps, g_cpu_perf ? "perf" : "system",
-            g_controls ? "modern" : "classic", g_look, g_pointer, g_mesa_patched ? "patched" : "system", g_native ? "native" : "classic");
+            g_controls ? "modern" : "classic", g_look, g_pointer, g_mesa_patched ? "patched" : "system", g_native ? "native" : "classic", g_water_refl ? "reflections" : "simple");
     if (fclose(f) || rename(t, p)) return -1;
     return 0;
 }
@@ -372,9 +374,9 @@ static int page_controls(void) {
 }
 
 static int page_settings(void) {
-    enum { S_RES, S_SCALE, S_TEXT, S_LIMIT, S_FPS, S_CPU, S_REN, S_GPU, S_LOOK, S_POINTER, S_CTRL, S_RESET, S_RUN, S_N };
+    enum { S_RES, S_SCALE, S_TEXT, S_LIMIT, S_FPS, S_CPU, S_REN, S_WATER, S_GPU, S_LOOK, S_POINTER, S_CTRL, S_RESET, S_RUN, S_N };
     static const char *lab[S_N] = { "Resolution", "Picture", "Menu text size",
-                                    "Frame limit", "FPS counter", "CPU", "Renderer", "GPU driver", "Look speed", "Pointer speed", "Controls", "Restore default game settings", "START GAME" };
+                                    "Frame limit", "FPS counter", "CPU", "Renderer", "Water", "GPU driver", "Look speed", "Pointer speed", "Controls", "Restore default game settings", "START GAME" };
 #define ROW_HIDDEN(i) ((i) == S_GPU && !g_panfrost)
     int sel = S_RUN, ri = res_index(), reset_state = 0;   /* 1: asked, 2: done */
     for (;;) {
@@ -388,6 +390,7 @@ static int page_settings(void) {
         snprintf(v[S_FPS], 48, "%s", g_fps == 1 ? "On" : g_fps == 2 ? "Built-in" : "Off");
         snprintf(v[S_CPU], 48, "%s", g_cpu_perf ? "Performance" : "System");
         snprintf(v[S_REN], 48, "%s", g_native ? "Native" : "Classic");
+        snprintf(v[S_WATER], 48, "%s", g_water_refl ? "Reflections" : "Simple");
         snprintf(v[S_GPU], 48, "%s", g_mesa_patched ? "Patched Mesa" : "System Mesa");
         snprintf(v[S_CTRL], 48, "%s", k_layout_name[g_controls]);
         snprintf(v[S_LOOK], 48, "%d %%", g_look); snprintf(v[S_POINTER], 48, "%d %%", g_pointer);
@@ -429,6 +432,7 @@ static int page_settings(void) {
             sel == S_FPS ? (g_fps == 2 ? "Built-in: the engine's own statistics (FPS, draw calls, memory)" : "On: a small frame rate counter in the top right corner") :
             sel == S_CPU ? "Performance: CPU at full rated speed while playing (restored on exit)" :
             sel == S_REN ? (g_native ? "Native: full materials (bump, specular, water) via the game's shaders" : "Classic: the older fixed-function renderer") :
+            sel == S_WATER ? (g_water_refl ? "Reflections: the sky and shore mirrored in the water" : "Simple: textured water without reflections, a little faster") :
             sel == S_GPU ? (g_mesa_patched ? "Patched: bundled Mesa with a Mali tiler fix, full resolution at speed" : "System: the firmware's Mesa; Auto resolution drops to 496 px wide for speed") :
             sel == S_CTRL ? (g_controls ? "Modern shooter: B crouch, RB grenade, LB layer. A shows the layout" : "Classic: the port's original layout. A shows the layout") :
             sel == S_LOOK ? "Right stick turning speed in the game (30 % = default)" :
@@ -454,6 +458,7 @@ static int page_settings(void) {
             case S_CPU: g_cpu_perf = !g_cpu_perf; break;
             case S_GPU: g_mesa_patched = !g_mesa_patched; break;
             case S_REN: g_native = !g_native; break;
+            case S_WATER: g_water_refl = !g_water_refl; break;
             case S_CTRL: g_controls = !g_controls; break;
             case S_LOOK: g_look += d * 5; if (g_look < 5) g_look = 5; if (g_look > 200) g_look = 200; break;
             case S_POINTER: g_pointer += d * 5; if (g_pointer < 5) g_pointer = 5; if (g_pointer > 200) g_pointer = 200; break;

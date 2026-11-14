@@ -748,7 +748,8 @@ bool CXGame::Init(struct ISystem *pSystem,bool bDedicatedSrv,bool bInEditor,cons
     // sectors by CPlayer::Update. Submit it at the scene callback instead.
 #if defined(CRY_PORT_UNIX)
     m_p3DEngine->SetRenderCallback([](void* context) {
-        if (([]{ static const bool b = getenv("FARCRY_DIAGNOSTIC_NO_PLAYER_DRAW") != NULL; return b; }())) return;
+        if (([]{ static const bool b = getenv("FARCRY_DIAGNOSTIC_NO_PLAYER_DRAW") != NULL ||
+                                            (getenv("FARCRY_RENDERER") && !strcmp(getenv("FARCRY_RENDERER"), "native")); return b; }())) return;   // native: engine pass only
         CXGame* game = static_cast<CXGame*>(context);
         IEntity* entity = game->GetMyPlayer();
         if (!entity || !entity->GetContainer() || entity->IsHidden()) return;

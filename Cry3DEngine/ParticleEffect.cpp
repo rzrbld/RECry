@@ -14,6 +14,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "StdAfx.h"
+#include "../port/platform/PortSlowScope.h"
 #include "ParticleEffect.h"
 #include "ParticleEmitter.h"
 #include "partman.h"
@@ -257,6 +258,7 @@ void CParticleEffect::GetSoundParams( SoundParams &params ) const
 //////////////////////////////////////////////////////////////////////////
 void CParticleEffect::Spawn( const Vec3 &pos,const Vec3 &dir,float fScale )
 {
+	SPortSlowScope portSlow("particle effect", GetName());
 	if (m_bEnabled)
 	{
 		// Spawn emitter for this particle.

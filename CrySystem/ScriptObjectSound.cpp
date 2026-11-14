@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "StdAfx.h"
+#include "../port/platform/PortSlowScope.h"
 #include "ScriptObjectSound.h"
 #include <ScriptObjectVector.h>
 #include <ISystem.h>
@@ -199,6 +200,7 @@ int CScriptObjectSound::LoadSound(IFunctionHandler *pH)
 */
 int CScriptObjectSound::Load3DSound(IFunctionHandler *pH)
 {
+	SPortSlowScope portSlow("Sound:Load3DSound");
 	int nParamCount=pH->GetParamCount();
 	if(nParamCount<1)
 	{
@@ -588,6 +590,7 @@ int CScriptObjectSound::LoadStreamSoundLocalized(IFunctionHandler *pH)
 */
 int CScriptObjectSound::PlaySound(IFunctionHandler *pH)
 {
+	SPortSlowScope portSlow("Sound:PlaySound");
 	int nCookie=0;
 	float fVolumeScale=1.0f;
 	ISound *pSound=NULL;

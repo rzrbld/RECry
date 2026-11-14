@@ -14,6 +14,7 @@
 
 
 #include "stdafx.h"
+#include "../port/platform/PortTiming.h"
 #include <Cry_Math.h>
 #include <list2.h>
 #include "EntitySystem.h"
@@ -656,13 +657,20 @@ void CEntitySystem::GetEntitiesInRadius( const Vec3d &origin,float radius,std::v
 
 // update the entity
 //////////////////////////////////////////////////////////////////////////
+// Port diagnostic: FARCRY_SLOW_ENTITY_MS=<ms> logs each entity update or
+// deletion slower than that (name, class).
+static const double s_portSlowEntMs = getenv("FARCRY_SLOW_ENTITY_MS") ? atof(getenv("FARCRY_SLOW_ENTITY_MS")) : 0.0;
 void CEntitySystem::UpdateEntity(CEntity *ce,SEntityUpdateContext &ctx)
 {
 	if (ce->m_bGarbage)
 	{
 		if (ce->IsDestroyable())
 		{
+			const double t = s_portSlowEntMs > 0 ? PortNowMs() : 0;
+			string nm = s_portSlowEntMs > 0 ? string(ce->GetName()) + " / " + ce->GetEntityClassName() : string();
 			DeleteEntity(ce);
+			if (s_portSlowEntMs > 0 && PortNowMs() - t >= s_portSlowEntMs)
+				fprintf(stderr, "PORT slow entity delete %.1f ms: %s\n", PortNowMs() - t, nm.c_str());
 		}
 		else
 		{	// [kirill] we must be in editor gamemode (Timur assures it wil newer happen in game)
@@ -696,7 +704,10 @@ void CEntitySystem::UpdateEntity(CEntity *ce,SEntityUpdateContext &ctx)
 		bool bNeedUpdate = (ce->m_bUpdate && !ce->m_bSleeping) || (ce->m_awakeCounter > 0);
 		if (bNeedUpdate)
 		{
+			const double t = s_portSlowEntMs > 0 ? PortNowMs() : 0;
 			ce->Update(ctx);
+			if (s_portSlowEntMs > 0 && PortNowMs() - t >= s_portSlowEntMs)
+				fprintf(stderr, "PORT slow entity update %.1f ms: %s / %s\n", PortNowMs() - t, ce->GetName(), ce->GetEntityClassName());
 		}
 
 		// If have childs.

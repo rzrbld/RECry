@@ -65,7 +65,7 @@ if [[ $(cat "$BASE/conf/preset.id" 2>/dev/null) != "$preset_id" ]]; then
 fi
 for name in System.Cfg system.cfg; do
     [[ -f "$BASE/conf/$name" ]] || cp "$PRESET" "$BASE/conf/$name"
-    grep -v -E '^[[:space:]]*(r_Width|r_Height|r_Fullscreen|g_maxfps|r_DisplayInfo)[[:space:]]*=|^-- Far Cry port (settings|preset)' "$BASE/conf/$name" > "$RUNTIME/$name"
+    grep -v -E '^[[:space:]]*(r_Width|r_Height|r_Fullscreen|g_maxfps|r_DisplayInfo|r_WaterReflections)[[:space:]]*=|^-- Far Cry port (settings|preset)' "$BASE/conf/$name" > "$RUNTIME/$name"
 done
 if [[ ! -f "$BASE/conf/game.cfg" ]]; then
     cfg=$(find_child "$ASSETS" game.cfg)
@@ -151,6 +151,7 @@ if [[ $HANDHELD_EFFECTS != 0 ]]; then export FARCRY_PARTICLE_NEAR_FADE=${FARCRY_
 if [[ $HANDHELD_VIEW != 0 ]]; then export FARCRY_CHAR_VIEW_RATIO=${FARCRY_CHAR_VIEW_RATIO:-46} FARCRY_TERRAIN_OCCL_HOLD=${FARCRY_TERRAIN_OCCL_HOLD:-2}; fi
 handheld_cvars() {
     echo "r_Width = \"$RW\""; echo "r_Height = \"$RH\""; echo 'r_Fullscreen = "1"'
+    if [[ ${RECRY_WATER:-reflections} == simple ]]; then echo 'r_WaterReflections = "0"'; else echo 'r_WaterReflections = "1"'; fi
     echo "g_maxfps = \"${RECRY_LIMIT:-30}\""                 # 30 / 60 / 0 = uncapped
     # FPS counter: 1 = small counter (FARCRY_SHOW_FPS), 2 = the engine's own statistics
     if [[ ${RECRY_FPS:-0} == 2 ]]; then echo 'r_DisplayInfo = "1"'; else echo 'r_DisplayInfo = "0"'; fi
