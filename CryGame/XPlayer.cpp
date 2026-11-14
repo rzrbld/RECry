@@ -4921,6 +4921,14 @@ CWeaponClass *CPlayer::DeselectWeapon()
 	if (m_nSelectedWeaponID != -1)
 	{
 			CWeaponClass *pSelectedWeapon = GetSelectedWeapon();
+			// AI shooters skip OnDeactivate in single-player. Stop their firing
+			// effects before detaching the weapon (death also deselects it).
+			if (m_stats.firing || m_stats.LastFiringType != eNotFiring)
+			{
+			    pSelectedWeapon->ScriptOnStopFiring(m_pEntity);
+			    m_stats.firing = false;
+			    m_stats.LastFiringType = eNotFiring;
+			}
 			//this script event is called only for the local client
 			if(IsMyPlayer() || m_pGame->IsMultiplayer())
 			{

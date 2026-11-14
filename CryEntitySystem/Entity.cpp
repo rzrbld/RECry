@@ -898,8 +898,12 @@ void CEntity::PlaySound(ISound *pSound, float fSoundScale, Vec3d &Offset)
 
 			m_pISystem->GetILog()->Log("\005   %d. %s",ddd,pDbg->GetName());
 		}
-		// let's clear it, to restore from an erroneous situation
-		m_lstAttachedSounds.clear();
+		// Stop before dropping ownership, or looping sounds lose their entity
+		// position updates and shutdown cleanup. Keep references across callbacks.
+		SoundsList sounds;
+		sounds.swap(m_lstAttachedSounds);
+		for (SoundsList::iterator it = sounds.begin(); it != sounds.end(); ++it)
+			it->pSound->Stop();
 	}
 }
 

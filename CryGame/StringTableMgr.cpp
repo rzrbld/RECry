@@ -519,7 +519,9 @@ void CStringTableMgr::AppendToUnicodeString(const string& sSource, wstring &sDes
 	swTemp.resize(sSource.size()+1);
 
 #if defined(LINUX)
-	swprintf (&swTemp[0], swTemp.size(), L"%S", sSource.c_str());
+	// glibc %S expects wchar_t*, unlike the Windows wide-printf extension.
+	// The unlocalized UI fragments (including checkpoint timestamps) are bytes.
+	swprintf (&swTemp[0], swTemp.size(), L"%hs", sSource.c_str());
 #else
 	swprintf (&swTemp[0], L"%S", sSource.c_str());
 #endif
@@ -530,10 +532,6 @@ void CStringTableMgr::AppendToUnicodeString(const string& sSource, wstring &sDes
 //////////////////////////////////////////////////////////////////////////
 void CStringTableMgr::AppendToAsciiString(const string& sSource, string &sDest)
 {
-	std::vector<char> sTemp;
-	sTemp.resize(sSource.size()+1);
-
-	sprintf (&sTemp[0], "%S", sSource.c_str());
-	string tmp(&sTemp[0]);
-	sDest += tmp;
+    // This is already a narrow string; no printf character-width conversion.
+    sDest += sSource;
 }

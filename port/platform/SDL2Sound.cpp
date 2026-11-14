@@ -265,18 +265,19 @@ public:
     bool EnsureLoaded();
     // Background decoding (see CSDL2SoundSystem::QueueDecode): the decoded
     // samples arrive in Update(); a Play() made before that starts then.
-    void StartPlay(float fVolumeScale);
+    void StartPlay();
     void OnDecoded(const std::shared_ptr<std::vector<short> >& pcm, int channels, bool ok);
     std::string SampleKey() const { return m_szName + (m_nChannels == 1 ? "#mono" : "#stereo"); }
     int Channels() const { return m_nChannels; }
     bool m_bQueued = false, m_bPlayPending = false;
-    float m_fPendingVolume = 1.0f;
     Uint32 m_nPendingAt = 0;
+    Uint32 m_nLastPlayTicks = 0;
     const std::vector<short>* Samples() const { return m_pcm.get(); }
     void Mix(int* pOut, int nFrames, const Vec3& vListenerPos, float fMaster, float fMusic);
     bool IsFinished() const { return m_bFinished; }
     void ResetFinished() { m_bFinished = false; }
     bool IsMusic() const { return m_bMusic; }
+    bool IsLoop() const { return m_bLoop; }
     void DetachOwner() { m_pOwner = NULL; m_bPlaying = false; }
     unsigned int GetScaleGroupMask() const { return m_nScaleGroup; }
     float GetFading() const { return m_fFading; }
@@ -300,10 +301,9 @@ private:
     bool m_bRelative;
     bool m_bMusic;
     bool m_bStream;
-    float m_fPlayVolume;
     float m_fPitch;      // 1.0 = normal
     float m_fPitching;
-    float m_fRatio;
+    float m_fRatio;      // volume ratio, as in CSound::SetRatio (not pitch)
     float m_fPan;        // -1..1
     float m_fMinDist;
     float m_fMaxDist;
@@ -368,6 +368,8 @@ public:
     void CacheSamples(const std::string& name, const std::shared_ptr<std::vector<short> >& samples);
     void AddVoice(CSDL2Sound* pSound);
     void RemoveVoice(CSDL2Sound* pSound);
+    void RetainOneShot(CSDL2Sound* pSound);
+    void CollectOneShots();
     float GetGroupScale(unsigned int nMask) const;
     int GetDeviceFreq() const { return m_nDeviceFreq; }
     bool IsAudioReady() const { return m_nDevice != 0; }
@@ -387,6 +389,8 @@ private:
     float m_groupScale[32];
     Vec3 m_vListenerPos, m_vListenerVel;
     std::vector<CSDL2Sound*> m_vecVoices;
+    typedef std::set<_smart_ptr<CSDL2Sound> > OneShots;
+    OneShots m_oneShots;
     std::map<int, CSDL2Sound*> m_mapSounds;
     std::vector<int> m_vecScratch;
     std::map<std::string, std::weak_ptr<std::vector<short> > > m_sampleCache;
@@ -529,6 +533,7 @@ CSDL2SoundSystem::~CSDL2SoundSystem()
         if (it->second) it->second->DetachOwner();
     m_mapSounds.clear();
     m_vecVoices.clear();
+    m_oneShots.clear();
 }
 
 void CSDL2SoundSystem::SDLCallback(void* pUserData, Uint8* pStream, int nLen)
@@ -608,7 +613,7 @@ void CSDL2SoundSystem::Update()
     // Remove finished voices under the audio lock, but deliver the STOP events
     // after unlocking: listeners (scripts/HUD/subtitles) may do non-trivial work
     // and must never block the audio callback thread.
-    std::vector<CSDL2Sound*> finished;
+    std::vector<_smart_ptr<CSDL2Sound> > finished;
     SDL_LockAudioDevice(m_nDevice);
     for (size_t i = 0; i < m_vecVoices.size(); )
     {
@@ -624,6 +629,7 @@ void CSDL2SoundSystem::Update()
     SDL_UnlockAudioDevice(m_nDevice);
     for (size_t i = 0; i < finished.size(); ++i)
         finished[i]->NotifyEvent(SOUND_EVENT_ON_STOP);
+    CollectOneShots();
 }
 
 ISound* CSDL2SoundSystem::LoadSound(const char* szFile, int nFlags)
@@ -673,13 +679,14 @@ float CSDL2SoundSystem::GetGroupScale(unsigned int nMask) const
 
 void CSDL2SoundSystem::Silence()
 {
-    if (!m_nDevice) return;
-    std::vector<CSDL2Sound*> voices;
-    SDL_LockAudioDevice(m_nDevice);
-    voices.swap(m_vecVoices);
-    SDL_UnlockAudioDevice(m_nDevice);
-    for (size_t i = 0; i < voices.size(); ++i)
-        voices[i]->Stop();
+    // Pending decodes are not in the voice list yet. Cancel every requested
+    // sound, otherwise an old loop can start after the level/reset silence.
+    // Retain the snapshot: stop listeners may release sounds or change the map.
+    std::vector<CSDL2Sound*> sounds;
+    for (std::map<int, CSDL2Sound*>::iterator it = m_mapSounds.begin(); it != m_mapSounds.end(); ++it)
+        if (it->second) { it->second->AddRef(); sounds.push_back(it->second); }
+    for (size_t i = 0; i < sounds.size(); ++i) sounds[i]->Stop();
+    for (size_t i = 0; i < sounds.size(); ++i) sounds[i]->Release();
 }
 
 static std::string SampleKey(const std::string& name)
@@ -718,9 +725,47 @@ int CSDL2SoundSystem::GetUsedVoices()
     return nUsed;
 }
 
+// One-shots can outlive the particle emitter that triggered them. The original
+// sound system's auto-stop list retains them until completion, including while
+// loading. Loops retain their entity/script ownership and explicit stop rules.
+void CSDL2SoundSystem::RetainOneShot(CSDL2Sound* pSound)
+{
+    if (IsAudioReady() && pSound && !pSound->IsLoop())
+    {
+        bool added = m_oneShots.insert(pSound).second;
+        if (added && PortSndEnvFlag("FARCRY_SDL_AUDIO_DEBUG", false))
+            Log("retain one-shot #%d '%s'", pSound->GetId(), pSound->GetName());
+    }
+}
+
+void CSDL2SoundSystem::CollectOneShots()
+{
+    // Keep removed references until after unlocking: the last Release can
+    // destroy the sound, which removes its voice under the same audio lock.
+    std::vector<_smart_ptr<CSDL2Sound> > expired;
+    if (m_nDevice) SDL_LockAudioDevice(m_nDevice);
+    for (OneShots::iterator it = m_oneShots.begin(); it != m_oneShots.end(); )
+    {
+        if (!(*it)->IsPlaying() || (*it)->IsLoop())
+        {
+            expired.push_back(*it);
+            m_oneShots.erase(it++);
+        }
+        else ++it;
+    }
+    if (m_nDevice) SDL_UnlockAudioDevice(m_nDevice);
+    if (PortSndEnvFlag("FARCRY_SDL_AUDIO_DEBUG", false))
+        for (size_t i = 0; i < expired.size(); ++i)
+            Log("release one-shot #%d '%s': finished=%d playing=%d loop=%d",
+                expired[i]->GetId(), expired[i]->GetName(), expired[i]->IsFinished(),
+                expired[i]->IsPlaying(), expired[i]->IsLoop());
+}
+
 void CSDL2SoundSystem::AddVoice(CSDL2Sound* pSound)
 {
     if (!pSound) return;
+    _smart_ptr<CSDL2Sound> stolen;
+    SDL_LockAudioDevice(m_nDevice);
     bool bFound = false;
     for (size_t i = 0; i < m_vecVoices.size(); ++i)
         if (m_vecVoices[i] == pSound) { bFound = true; break; }
@@ -728,12 +773,15 @@ void CSDL2SoundSystem::AddVoice(CSDL2Sound* pSound)
     {
         if (m_vecVoices.size() >= SDL2SND_MAX_VOICES)
         {
-            // steal the oldest voice
-            m_vecVoices[0]->Stop();
+            stolen = m_vecVoices.front();
             m_vecVoices.erase(m_vecVoices.begin());
         }
         m_vecVoices.push_back(pSound);
     }
+    SDL_UnlockAudioDevice(m_nDevice);
+    // Stop locks the audio device and notifies listeners. Do this unlocked;
+    // Stop also removes the voice, so do not erase a second voice afterward.
+    if (stolen) stolen->Stop();
 }
 
 void CSDL2SoundSystem::RemoveVoice(CSDL2Sound* pSound)
@@ -827,7 +875,7 @@ void CSDL2Sound::OnDecoded(const std::shared_ptr<std::vector<short> >& pcm, int 
     if (m_bPlayPending)
     {
         m_bPlayPending = false;
-        if (m_bLoop || SDL_GetTicks() - m_nPendingAt < 700) StartPlay(m_fPendingVolume);
+        if (m_bLoop || SDL_GetTicks() - m_nPendingAt < 700) StartPlay();
     }
 }
 
@@ -851,7 +899,7 @@ CSDL2Sound::CSDL2Sound(CSDL2SoundSystem* pOwner, const char* szName, int nFlags,
       m_bRelative((nFlags & FLAG_SOUND_RELATIVE) != 0),
       m_bMusic((nFlags & FLAG_SOUND_MUSIC) != 0),
       m_bStream((nFlags & FLAG_SOUND_STREAM) != 0),
-      m_fPlayVolume(1.0f), m_fPitch(1.0f), m_fPitching(0.0f), m_fRatio(1.0f), m_fPan(0.0f),
+      m_fPitch(1.0f), m_fPitching(0.0f), m_fRatio(1.0f), m_fPan(0.0f),
       m_fMinDist(1.0f), m_fMaxDist(10000.0f), m_fFading(1.0f), m_fPos(0.0f), m_nScaleGroup(0),
       m_nFreq(22050), m_nChannels((nFlags & FLAG_SOUND_3D) && !(nFlags & FLAG_SOUND_STEREO) && PortSndEnvFlag("FARCRY_AUDIO_MONO_3D", false) ? 1 : 2), m_pcm(new std::vector<short>)
 {
@@ -966,8 +1014,23 @@ bool CSDL2Sound::Preload()
     return EnsureLoaded();
 }
 
-void CSDL2Sound::Play(float fVolumeScale, bool, bool)
+void CSDL2Sound::Play(float fVolumeScale, bool, bool bSetRatio)
 {
+    // Play's ratio and SetRatio control the same gain. Scripts can fade while
+    // decoding is pending; StartPlay must preserve their latest ratio.
+    if (bSetRatio) SetRatio(fVolumeScale);
+    // As the original sound system (CrySoundSystem CSound::Play): a looping
+    // sound that already plays keeps playing (scripts re-request engine and
+    // rotor loops), and a one-shot replayed within s_MinRepeatSoundTimeout
+    // (200 ms) is ignored. Restarting them made loops audibly start over.
+    const Uint32 now = SDL_GetTicks();
+    if (m_bPlaying || m_bPlayPending)
+    {
+        if (m_bLoop) return;
+        if (now - m_nLastPlayTicks < 200) return;
+    }
+    m_nLastPlayTicks = now;
+    if (m_pOwner) m_pOwner->RetainOneShot(this);
     if (!m_bLoaded && !m_bLoadFailed && !m_bStream && m_pOwner)
     {
         // Not decoded yet: already cached by another sound object, else start
@@ -977,18 +1040,16 @@ void CSDL2Sound::Play(float fVolumeScale, bool, bool)
         else if (m_pOwner->QueueDecode(this))
         {
             m_bPlayPending = true;
-            m_fPendingVolume = fVolumeScale;
             m_nPendingAt = SDL_GetTicks();
             return;
         }
     }
     if (!EnsureLoaded()) return;
-    StartPlay(fVolumeScale);
+    StartPlay();
 }
 
-void CSDL2Sound::StartPlay(float fVolumeScale)
+void CSDL2Sound::StartPlay()
 {
-    m_fPlayVolume = (fVolumeScale > 0.0f) ? fVolumeScale : 0.0f;
     m_fPos = 0.0f;
     m_bFinished = false;
     m_bPlaying = true;
@@ -996,9 +1057,7 @@ void CSDL2Sound::StartPlay(float fVolumeScale)
         m_pOwner->Log("play '%s': stream=%d length=%d ms", m_szName.c_str(), (m_nFlags & FLAG_SOUND_STREAM) ? 1 : 0, GetLengthMs());
     if (m_pOwner && m_pOwner->IsAudioReady())
     {
-        SDL_LockAudioDevice(m_pOwner->GetDevice());
         m_pOwner->AddVoice(this);
-        SDL_UnlockAudioDevice(m_pOwner->GetDevice());
     }
     NotifyEvent(SOUND_EVENT_ON_PLAY);
 }
@@ -1020,7 +1079,7 @@ void CSDL2Sound::Stop()
 
 void CSDL2Sound::SetRatio(float fRatio)
 {
-    m_fRatio = (fRatio > 0.01f) ? fRatio : 0.01f;
+    m_fRatio = (fRatio > 0.0f) ? fRatio : 0.0f;
 }
 
 void CSDL2Sound::SetPitch(int nPitch)
@@ -1094,7 +1153,7 @@ void CSDL2Sound::Mix(int* pOut, int nFrames, const Vec3& vListenerPos, float fMa
     if (nTotalFrames <= 1) return;
 
     // per-frame volume (constant during this callback)
-    float fVol = (float)m_nVolume / 255.0f * m_fPlayVolume * m_fFading;
+    float fVol = (float)m_nVolume / 255.0f * m_fRatio * m_fFading;
     if (m_bMusic) fVol *= fMusic;
     if (m_pOwner) fVol *= m_pOwner->GetGroupScale(m_nScaleGroup);
     fVol *= fMaster;
@@ -1110,7 +1169,7 @@ void CSDL2Sound::Mix(int* pOut, int nFrames, const Vec3& vListenerPos, float fMa
     if (fVol <= 0.0001f)
     {
         // still advance playback so looping/ambient sounds stay in sync
-        m_fPos += (float)nFrames * (m_fRatio * m_fPitch);
+        m_fPos += (float)nFrames * m_fPitch;
         if (m_fPos >= (float)nTotalFrames)
         {
             if (m_bLoop) m_fPos = fmodf(m_fPos, (float)nTotalFrames);
@@ -1122,7 +1181,7 @@ void CSDL2Sound::Mix(int* pOut, int nFrames, const Vec3& vListenerPos, float fMa
     const float fGainL = fVol * (m_fPan > 0.0f ? (1.0f - m_fPan) : 1.0f);
     const float fGainR = fVol * (m_fPan < 0.0f ? (1.0f + m_fPan) : 1.0f);
 
-    const double fStep = (double)m_fRatio * (double)m_fPitch;
+    const double fStep = (double)m_fPitch;
     double fPos = (double)m_fPos;
 
     for (int i = 0; i < nFrames; ++i)
