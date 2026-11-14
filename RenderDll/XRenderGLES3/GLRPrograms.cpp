@@ -221,7 +221,8 @@ bool BuildProgram(Program& p, const char* name, const std::string& vs, const std
 {
   const uint64_t t0 = SDL_GetPerformanceCounter();
   bool fromCache = false;
-  const bool ok = BuildProgramImpl(p, name, vs, fs, fromCache);
+  bool ok = false;
+  Sync([&] { ok = BuildProgramImpl(p, name, vs, fs, fromCache); });   // GL lives on the render thread
   const double ms = (SDL_GetPerformanceCounter() - t0) * 1000.0 / (double)SDL_GetPerformanceFrequency();
   ++g_GLRBuilds; g_GLRBuildMs += ms;
   const double gt = g_PortGameplayStartMs > 0 ? (PortNowMs() - g_PortGameplayStartMs) / 1000.0 : -1.0;
@@ -375,7 +376,7 @@ Program* ProgramFor(const char* name, const std::string& vs, const std::string& 
   auto it = s_byContent.find(h);
   if (it != s_byContent.end()) return it->second;
   Program* p = new Program();
-  if (BuildProgram(*p, name, vs, fs) && meta) ApplyMeta(*p, *meta);
+  if (BuildProgram(*p, name, vs, fs) && meta) Sync([p, meta] { ApplyMeta(*p, *meta); });
   s_byContent[h] = p;
   // Built while playing: remember it for this level's next load.
   const std::string dir = CacheDir();

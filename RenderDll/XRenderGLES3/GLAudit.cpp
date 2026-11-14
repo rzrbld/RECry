@@ -2,6 +2,7 @@
   GLAudit.cpp : GL call audit (see GLAudit.h).
 =============================================================================*/
 #include "GLAudit.h"
+#include "GLR.h"
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +20,7 @@ struct Entry
 {
   const char* name = nullptr;
   bool forward = false;      // native mode: forwarded although audited
+  bool platform = false, getError = false;   // render thread: wgl* run here, glGetError answers no error
   uint64_t calls = 0;
   std::unordered_map<void*, uint64_t> sites;
 };
@@ -95,6 +97,8 @@ void GLAudit_Name(int id, const char* name)
   s_entries[id].name = name;
   const char* n = name[0] == 'p' ? name + 1 : name;
   s_entries[id].forward = !strncmp(n, "glGet", 5) || !strncmp(n, "glIs", 4) || !strncmp(n, "wgl", 3);
+  s_entries[id].platform = !strncmp(n, "wgl", 3);
+  s_entries[id].getError = !strcmp(n, "glGetError");
 }
 
 void GLAudit_Hit(int id, void* site)
@@ -104,5 +108,26 @@ void GLAudit_Hit(int id, void* site)
   ++e.calls;
   ++e.sites[site];
 }
+
+static unsigned s_remoteCalls = 0;
+int GLAudit_Remote(int id)
+{
+  if (!GLR::Threaded() || GLR::OnRenderThread()) return 0;
+  if (!s_entries || id < 0 || id >= kMaxIds) return 1;
+  const Entry& e = s_entries[id];
+  if (e.platform) return 0;      // wgl*: SDL/context bookkeeping, no GL
+  if (e.getError) return 2;      // the backend owns GL; engine error checks see none
+  return 1;
+}
+void GLAudit_RunRemote(int id, void* site, void (*fn)(void*), void* arg)
+{
+  ++s_remoteCalls;
+  // Each call waits for the render thread: name every new site once.
+  static std::unordered_map<void*, int> s_seen;
+  if (s_seen.size() < 64 && s_seen.emplace(site, 1).second)
+    fprintf(stderr, "GLAudit: %s (site %p) waits for the render thread\n", s_entries && id >= 0 && id < kMaxIds && s_entries[id].name ? s_entries[id].name : "?", site);
+  GLR::Sync([fn, arg] { fn(arg); });
+}
+unsigned GLAudit_RemoteCalls() { return s_remoteCalls; }
 
 void GLAudit_Frame() { if (s_entries && ++s_frames % 600 == 0) Report(); }   // periodic: device runs may be killed

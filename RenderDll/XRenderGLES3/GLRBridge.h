@@ -53,43 +53,43 @@ inline void GLR_EnableTexture(GLenum cap, bool on)
 // ---------------------------------------------------------------- texture objects
 inline void GLR_GenTextures(GLsizei n, GLuint* out)
 {
-  if (GLR::Active()) GLTex::GenNames(n, out);
+  if (GLR::Active()) GLR::TexGenNames(n, out);
   else glGenTextures(n, out);
 }
 inline void GLR_DeleteTextures(GLsizei n, const GLuint* tex)
 {
-  if (GLR::Active()) { for (GLsizei i = 0; i < n; ++i) GLR::TextureDeleted(tex[i]); GLTex::DeleteNames(n, tex); }
+  if (GLR::Active()) GLR::TexDeleteNames(n, tex);
   else glDeleteTextures(n, tex);
 }
 inline unsigned GLR_Bound(GLenum target) { return GLR::BoundTexture(GLRBridgeDetail::Target(target)); }
 inline void GLR_TexParameteri(GLenum target, GLenum pname, GLint v)
 {
-  if (GLR::Active()) GLTex::Param(GLR_Bound(target), target, pname, v);
+  if (GLR::Active()) GLR::TexParam(GLR_Bound(target), target, pname, v);
   else glTexParameteri(target, pname, v);
 }
 inline void GLR_TexParameterf(GLenum target, GLenum pname, GLfloat v)
 {
-  if (GLR::Active()) GLTex::ParamF(GLR_Bound(target), target, pname, v);
+  if (GLR::Active()) GLR::TexParamF(GLR_Bound(target), target, pname, v);
   else glTexParameterf(target, pname, v);
 }
 inline void GLR_TexImage2D(GLenum target, GLint level, GLint internal, GLsizei w, GLsizei h, GLint border, GLenum format, GLenum type, const GLvoid* pixels)
 {
-  if (GLR::Active()) GLTex::Image2D(GLR_Bound(target), target, level, internal, w, h, border, format, type, pixels);
+  if (GLR::Active()) GLR::TexImage2D(GLR_Bound(target), target, level, internal, w, h, border, format, type, pixels);
   else glTexImage2D(target, level, internal, w, h, border, format, type, pixels);
 }
 inline void GLR_TexSubImage2D(GLenum target, GLint level, GLint x, GLint y, GLsizei w, GLsizei h, GLenum format, GLenum type, const GLvoid* pixels)
 {
-  if (GLR::Active()) GLTex::SubImage2D(GLR_Bound(target), target, level, x, y, w, h, format, type, pixels);
+  if (GLR::Active()) GLR::TexSubImage2D(GLR_Bound(target), target, level, x, y, w, h, format, type, pixels);
   else glTexSubImage2D(target, level, x, y, w, h, format, type, pixels);
 }
 inline void GLR_CompressedTexImage2D(GLenum target, GLint level, GLenum internal, GLsizei w, GLsizei h, GLint border, GLsizei size, const GLvoid* data)
 {
-  if (GLR::Active()) GLTex::CompressedImage2D(GLR_Bound(target), target, level, internal, w, h, border, size, data);
+  if (GLR::Active()) GLR::TexCompressedImage2D(GLR_Bound(target), target, level, internal, w, h, border, size, data);
   else glCompressedTexImage2DARB(target, level, internal, w, h, border, size, data);
 }
 inline void GLR_CompressedTexSubImage2D(GLenum target, GLint level, GLint x, GLint y, GLsizei w, GLsizei h, GLenum format, GLsizei size, const GLvoid* data)
 {
-  if (GLR::Active()) GLTex::CompressedSubImage2D(GLR_Bound(target), target, level, x, y, w, h, format, size, data);
+  if (GLR::Active()) GLR::TexCompressedSubImage2D(GLR_Bound(target), target, level, x, y, w, h, format, size, data);
   else glCompressedTexSubImage2DARB(target, level, x, y, w, h, format, size, data);
 }
 
@@ -312,11 +312,11 @@ inline void GLR_Hint(GLenum t, GLenum m) { if (!GLR::Active()) glHint(t, m); }
 // ---------------------------------------------------------------- reads and copies of the frame
 // The recorded frame is played back first, so they see everything drawn so far.
 inline void GLR_ReadPixels(GLint x, GLint y, GLsizei w, GLsizei h, GLenum f, GLenum t, GLvoid* p)
-{ if (GLR::Active()) { GLR::Flush(); GLTex::ReadPixels(x, y, w, h, f, t, p); } else glReadPixels(x, y, w, h, f, t, p); }
+{ if (GLR::Active()) GLR::ReadPixels(x, y, w, h, f, t, p); else glReadPixels(x, y, w, h, f, t, p); }
 inline void GLR_CopyTexSubImage2D(GLenum t, GLint l, GLint xo, GLint yo, GLint x, GLint y, GLsizei w, GLsizei h)
-{ if (GLR::Active()) { GLR::Flush(); GLTex::CopyTexSubImage2D(GLR_Bound(t), t, l, xo, yo, x, y, w, h); } else glCopyTexSubImage2D(t, l, xo, yo, x, y, w, h); }
+{ if (GLR::Active()) GLR::CopyTexSubImage2D(GLR_Bound(t), t, l, xo, yo, x, y, w, h); else glCopyTexSubImage2D(t, l, xo, yo, x, y, w, h); }
 inline void GLR_CopyTexImage2D(GLenum t, GLint l, GLenum i, GLint x, GLint y, GLsizei w, GLsizei h, GLint b)
-{ if (GLR::Active()) { GLR::Flush(); GLTex::CopyTexImage2D(GLR_Bound(t), t, l, i, x, y, w, h, b); } else glCopyTexImage2D(t, l, i, x, y, w, h, b); }
+{ if (GLR::Active()) GLR::CopyTexImage2D(GLR_Bound(t), t, l, i, x, y, w, h, b); else glCopyTexImage2D(t, l, i, x, y, w, h, b); }
 inline void GLR_ReadBuffer(GLenum b) { if (!GLR::Active()) glReadBuffer(b); }   // always the frame being drawn
 
 // ---------------------------------------------------------------- ARB programs (engine Cg programs)

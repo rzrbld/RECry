@@ -1299,7 +1299,7 @@ void CSystem::RenderStats()
 				s_winStart = now; s_nFrames = 0; s_worst = 0;
 			}
 			if (s_fShown > 0.f)
-				m_pRenderer->TextToScreen(82.f, 1.f, "%.0f FPS  max %.0f ms", s_fShown, s_shownWorst);
+				m_pRenderer->TextToScreen(82.f, 1.f, "%.0f FPS  slowest frame %.0f ms", s_fShown, s_shownWorst);
 		}
 	}
 

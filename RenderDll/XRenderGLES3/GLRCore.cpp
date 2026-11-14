@@ -22,9 +22,15 @@
 #include <stdlib.h>
 #include <math.h>
 #include <unordered_set>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <deque>
+#include <memory>
 #include "GLTexUpload.h"
 #include "../../port/platform/PortTiming.h"
 
+unsigned GLAudit_RemoteCalls();   // GLAudit.cpp
 namespace GLR
 {
 Funcs gl;
@@ -35,6 +41,117 @@ void Log(const char* fmt, ...)
   char b[1024];
   va_list a; va_start(a, fmt); vsnprintf(b, sizeof(b), fmt, a); va_end(a);
   fprintf(stderr, "%s\n", b);
+}
+
+// ---------------------------------------------------------------- render thread
+static bool MapRing();
+namespace
+{
+struct RenderThread
+{
+  bool on = false;
+  std::thread th;
+  std::thread::id id;
+  std::mutex mx;
+  std::condition_variable cv, doneCv;
+  std::deque<std::function<void()> > q;
+  uint64_t posted = 0, done = 0, frameTicket[2] = { 0, 0 };
+  bool quit = false;
+  SDL_Window* win = nullptr; SDL_GLContext ctx = nullptr;
+};
+// Never destroyed: exit() (time demo end, console quit paths) runs static
+// destructors, and destroying the queue's condition variables while the
+// render thread waits on them blocks forever. StopThread runs at exit instead.
+RenderThread& s_rt = *new RenderThread();
+unsigned s_syncCalls = 0;
+double s_frameWaitMs = 0;
+bool OnRenderThreadNow() { return !s_rt.on || std::this_thread::get_id() == s_rt.id; }
+
+void RenderLoop()
+{
+  s_rt.id = std::this_thread::get_id();
+  if (SDL_GL_MakeCurrent(s_rt.win, s_rt.ctx)) Log("GLR: render thread could not take the GL context: %s", SDL_GetError());
+  for (;;)
+  {
+    std::function<void()> job;
+    {
+      std::unique_lock<std::mutex> lk(s_rt.mx);
+      s_rt.cv.wait(lk, [] { return s_rt.quit || !s_rt.q.empty(); });
+      if (s_rt.q.empty() && s_rt.quit) break;
+      job = std::move(s_rt.q.front()); s_rt.q.pop_front();
+    }
+    job();
+    { std::lock_guard<std::mutex> lk(s_rt.mx); ++s_rt.done; }
+    s_rt.doneCv.notify_all();
+  }
+  SDL_GL_MakeCurrent(s_rt.win, nullptr);
+}
+uint64_t Enqueue(std::function<void()>&& fn)
+{
+  uint64_t t;
+  { std::lock_guard<std::mutex> lk(s_rt.mx); s_rt.q.push_back(std::move(fn)); t = ++s_rt.posted; }
+  s_rt.cv.notify_one();
+  return t;
+}
+void WaitTicket(uint64_t t)
+{
+  std::unique_lock<std::mutex> lk(s_rt.mx);
+  s_rt.doneCv.wait(lk, [t] { return s_rt.done >= t; });
+}
+} // namespace
+
+bool Threaded() { return s_rt.on; }
+
+bool OnRenderThread() { return OnRenderThreadNow(); }
+void Post(std::function<void()> fn)
+{
+  if (OnRenderThread()) { fn(); return; }
+  Enqueue(std::move(fn));
+}
+void Sync(std::function<void()> fn)
+{
+  if (OnRenderThread()) { fn(); return; }
+  ++s_syncCalls;
+  { // diagnostics: name every new waiting caller once (resolve with addr2line)
+    static std::unordered_set<void*> s_seen;
+    void* site = __builtin_return_address(0);
+    if (s_seen.size() < 64 && s_seen.insert(site).second) Log("GLR thread: new waiting caller %p", site);
+  }
+  WaitTicket(Enqueue(std::move(fn)));
+}
+void PostFrameEnd(std::function<void()> present)
+{
+  if (!s_rt.on) { present(); return; }
+  // One frame in flight: the render thread draws frame N while the game
+  // records N+1; at the end of N+1 wait until N has been presented.
+  const uint64_t t0 = SDL_GetPerformanceCounter();
+  WaitTicket(s_rt.frameTicket[1]);
+  s_frameWaitMs += (SDL_GetPerformanceCounter() - t0) * 1000.0 / (double)SDL_GetPerformanceFrequency();
+  s_rt.frameTicket[1] = Enqueue(std::move(present));
+}
+void StartThread(void* window, void* context)
+{
+  if (s_rt.on || !window || !context) return;
+  const char* e = getenv("FARCRY_GLR_THREAD");
+  if (e && !atoi(e)) return;
+  if (MapRing()) { Log("GLR: no render thread with FARCRY_GLR_RING=map (the ring is mapped while recording)"); return; }
+  s_rt.win = (SDL_Window*)window; s_rt.ctx = (SDL_GLContext)context;
+  gl.glFlush();
+  SDL_GL_MakeCurrent(s_rt.win, nullptr);   // the render thread owns GL from here
+  s_rt.th = std::thread(RenderLoop);
+  s_rt.id = s_rt.th.get_id();
+  s_rt.on = true;
+  atexit([] { StopThread(); });
+  Log("GLR: render thread started (FARCRY_GLR_THREAD=0 disables it)");
+}
+void StopThread()
+{
+  if (!s_rt.on) return;
+  { std::lock_guard<std::mutex> lk(s_rt.mx); s_rt.quit = true; }
+  s_rt.cv.notify_all();
+  s_rt.th.join();
+  s_rt.on = false;
+  SDL_GL_MakeCurrent(s_rt.win, s_rt.ctx);  // back to the caller for shutdown
 }
 
 bool Active()
@@ -96,6 +213,7 @@ std::vector<Layout> s_layouts;
 // ---------------------------------------------------------------- recording
 std::vector<Cmd> s_cmds;
 std::vector<DrawUniforms> s_uniforms;
+std::vector<std::function<void()> > s_calls;   // CMD_CALL bodies (render thread: texture work in draw order)
 std::unordered_set<unsigned> s_pendingTex, s_pendingBuf;   // used by recorded draws
 
 // ---------------------------------------------------------------- frame ring
@@ -113,6 +231,10 @@ struct Ring
 };
 Ring s_vring, s_iring;
 bool s_mapMode = false;
+} // namespace
+static bool MapRing() { return s_mapMode; }
+namespace
+{
 
 void RingInit(Ring& r, GLenum target, size_t cap)
 {
@@ -140,7 +262,7 @@ void RingBeginSegment(Ring& r)
   r.mapped = (uint8_t*)gl.glMapBufferRange(r.target, 0, (GLsizeiptr)r.cap, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 }
 // Make this segment's data visible to the GPU; returns the buffer to draw from.
-GLuint RingEndSegment(Ring& r)
+GLuint RingEndSegment(Ring& r, const uint8_t* data, size_t used)
 {
   if (s_mapMode)
   {
@@ -151,7 +273,7 @@ GLuint RingEndSegment(Ring& r)
   }
   r.slot = (r.slot + 1) % kSlots;
   gl.glBindBuffer(r.target, r.buf[r.slot]);
-  if (r.used) gl.glBufferData(r.target, (GLsizeiptr)r.used, r.cpu.data(), GL_STREAM_DRAW);
+  if (used) gl.glBufferData(r.target, (GLsizeiptr)used, data, GL_STREAM_DRAW);
   return r.buf[r.slot];
 }
 void RingFence(Ring& r)
@@ -418,8 +540,8 @@ void SetTexture(int u, TexTarget t, unsigned name)
 void TextureWillChange(unsigned name) { if (s_pendingTex.count(name)) Flush(); }
 void TextureDeleted(unsigned name)
 {
-  if (s_pendingTex.count(name)) Flush();
-  StateForgetTexture(name);
+  if (!Threaded() && s_pendingTex.count(name)) Flush();
+  Record([name] { StateForgetTexture(name); });
   for (int u = 0; u < 4; ++u)
   {
     if (s_cur.bound2D[u] == name) s_cur.bound2D[u] = 0;
@@ -587,7 +709,7 @@ bool Init()
   {
     GLTex::Backend be;
     be.bind = [](unsigned target, unsigned tex) {
-      TextureWillChange(tex);
+      if (!Threaded()) TextureWillChange(tex);   // threaded: the change is recorded in draw order
       GLenum t = target;
       if (t >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && t <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z) t = GL_TEXTURE_CUBE_MAP;
       if (t != GL_TEXTURE_CUBE_MAP) t = GL_TEXTURE_2D;   // rectangle -> 2D
@@ -605,6 +727,7 @@ bool Init()
 void Shutdown()
 {
   if (!s_ready) return;
+  StopThread();
   ProgramsShutdown();
   for (Ring* r : { &s_vring, &s_iring })
   {
@@ -940,7 +1063,7 @@ void Upload(GLenum target, GLuint b, bool whole, size_t offset, size_t size, con
   // few MB, play the recorded draws back now instead of copying the data.
   const size_t kArenaMax = (size_t)4 << 20;
   if (s_pendingBuf.count(b) && s_arena.size() + size > kArenaMax) Flush();
-  if (!s_pendingBuf.count(b))
+  if (!Threaded() && !s_pendingBuf.count(b))
   {
     StateBindBuffer(target, b);
     if (whole) gl.glBufferData(target, (GLsizeiptr)size, data, usage);
@@ -963,7 +1086,34 @@ void Upload(GLenum target, GLuint b, bool whole, size_t offset, size_t size, con
 
 void GenBuffers(int n, unsigned* out)
 {
-  gl.glGenBuffers(n, out);
+  if (!Threaded()) gl.glGenBuffers(n, out);
+  else
+  {
+    // Threaded: names from a pool the render thread refills in the background.
+    static std::mutex s_poolMx;
+    static std::vector<GLuint> s_pool;
+    static bool s_refill = false;
+    std::unique_lock<std::mutex> lk(s_poolMx);
+    if ((int)s_pool.size() < n)
+    {
+      lk.unlock();
+      const int k = n > 256 ? n : 256;
+      std::vector<GLuint> got(k);
+      Sync([&] { gl.glGenBuffers(k, got.data()); });
+      lk.lock();
+      s_pool.insert(s_pool.end(), got.begin(), got.end());
+    }
+    for (int i = 0; i < n; ++i) { out[i] = s_pool.back(); s_pool.pop_back(); }
+    if (s_pool.size() < 128 && !s_refill)
+    {
+      s_refill = true;
+      Post([] {
+        GLuint b[256]; gl.glGenBuffers(256, b);
+        std::lock_guard<std::mutex> l(s_poolMx);
+        s_pool.insert(s_pool.end(), b, b + 256); s_refill = false;
+      });
+    }
+  }
   for (int i = 0; i < n; ++i) s_bufs[out[i]] = Buf();
 }
 void DeleteBuffers(int n, const unsigned* b)
@@ -971,12 +1121,12 @@ void DeleteBuffers(int n, const unsigned* b)
   for (int i = 0; i < n; ++i)
   {
     if (!b[i]) continue;
-    if (s_pendingBuf.count(b[i])) Flush();   // rare: a buffer pending draws use goes away
-    StateForgetBuffer(b[i]);
+    if (!Threaded() && s_pendingBuf.count(b[i])) Flush();   // rare: a buffer pending draws use goes away
     if (s_boundArray == b[i]) s_boundArray = 0;
     if (s_boundElement == b[i]) s_boundElement = 0;
     s_bufs.erase(b[i]);
-    gl.glDeleteBuffers(1, &b[i]);
+    const GLuint name = b[i];
+    Record([name] { StateForgetBuffer(name); gl.glDeleteBuffers(1, &name); });
   }
 }
 void BindBuffer(unsigned target, unsigned b) { Bound(target) = b; }
@@ -1236,22 +1386,40 @@ static size_t s_statRingBytes = 0;
 // FARCRY_GLR_PROFILE=1: where playback time goes (state, uniforms, textures, vertex, draw calls).
 static const bool s_prof = getenv("FARCRY_GLR_PROFILE") != NULL;
 static uint64_t s_profT[6] = {};
-static void Playback()
+// One recorded segment: everything its replay needs (moves between threads).
+struct Segment
+{
+  std::vector<Cmd> cmds;
+  std::vector<DrawUniforms> uniforms;
+  std::vector<uint8_t> arena;
+  std::vector<CgSnap> cgSnaps;
+  std::vector<float> cgArena;
+  std::vector<uint8_t> vcpu, icpu;   // ring data (upload mode)
+  size_t vUsed = 0, iUsed = 0;
+  std::vector<std::function<void()> > calls;
+};
+static void PlaybackSeg(Segment& sg)
 {
   const uint64_t tPlay0 = s_prof ? SDL_GetPerformanceCounter() : 0;
   // The ring data of this segment becomes visible first.
-  const size_t vUsed = s_vring.used, iUsed = s_iring.used;
-  const GLuint vbuf = RingEndSegment(s_vring);
-  const GLuint ibuf = RingEndSegment(s_iring);
+  const size_t vUsed = sg.vUsed, iUsed = sg.iUsed;
+  const GLuint vbuf = RingEndSegment(s_vring, sg.vcpu.data(), vUsed);
+  const GLuint ibuf = RingEndSegment(s_iring, sg.icpu.data(), iUsed);
   s_gl.arrayBuf = vbuf; s_gl.elemBuf = ibuf;
   s_gl.prog = 0xFFFFFFFFu;   // programs built while recording were bound outside playback
   s_statRingBytes += vUsed + iUsed;
-  for (const Cmd& c : s_cmds)
+  for (const Cmd& c : sg.cmds)
   {
+    if (c.type == CMD_CALL)
+    {
+      sg.calls[c.first]();
+      s_gl.prog = 0xFFFFFFFFu;   // the call may have used GL outside the cache (programs)
+      continue;
+    }
     if (c.type == CMD_BUFFER)
     {
       StateBindBuffer(c.bufTarget, c.buf);
-      const void* data = c.arenaOffset == (size_t)-1 ? nullptr : s_arena.data() + c.arenaOffset;
+      const void* data = c.arenaOffset == (size_t)-1 ? nullptr : sg.arena.data() + c.arenaOffset;
       if (c.whole) gl.glBufferData(c.bufTarget, (GLsizeiptr)c.bufSize, data, c.bufUsage);
       else gl.glBufferSubData(c.bufTarget, (GLintptr)c.bufOffset, (GLsizeiptr)c.bufSize, data);
       ++s_statUploads;
@@ -1283,15 +1451,15 @@ static void Playback()
     ApplyRaster(c.r);
     if (s_gl.prog != p.prog) { gl.glUseProgram(p.prog); s_gl.prog = p.prog; ++s_statProgSwitch; }
     const uint64_t t1 = s_prof ? SDL_GetPerformanceCounter() : 0;
-    UploadUniforms(p, s_uniforms[c.uniforms]);
+    UploadUniforms(p, sg.uniforms[c.uniforms]);
     if (c.cgParams != ~0u)
     {
       const uint64_t tag = ((uint64_t)s_statSegments << 32) | c.cgParams;
       if (p.lastCg != tag)
       {
         p.lastCg = tag;
-        const CgSnap& sn = s_cgSnaps[c.cgParams];
-        const float* regs = s_cgArena.data() + sn.off;
+        const CgSnap& sn = sg.cgSnaps[c.cgParams];
+        const float* regs = sg.cgArena.data() + sn.off;
         const int nv = std::min(p.nCv, (int)sn.nv), nf = std::min(p.nCf, (int)sn.nf);   // registers never written stay 0
         if (p.uCv >= 0 && nv > 0) ++s_profUniformCalls, gl.glUniform4fv(p.uCv, nv, regs);
         if (p.uCf >= 0 && nf > 0) ++s_profUniformCalls, gl.glUniform4fv(p.uCf, nf, regs + sn.nv * 4);
@@ -1306,7 +1474,7 @@ static void Playback()
     // enabled (ARB: vertex.color etc. = current values).
     if (p.uCv >= 0)
     {
-      const DrawUniforms& du = s_uniforms[c.uniforms];
+      const DrawUniforms& du = sg.uniforms[c.uniforms];
       if (!((c.attrMask >> ATTR_COLOR) & 1)) gl.glVertexAttrib4fv(ATTR_COLOR, du.curColor);
       for (int u = 0; u < 4; ++u) if (!((c.attrMask >> (ATTR_TEX0 + u)) & 1)) gl.glVertexAttrib4fv(ATTR_TEX0 + u, du.curTex[u]);
     }
@@ -1340,27 +1508,65 @@ static void Playback()
   RingFence(s_vring); RingFence(s_iring);
   if (s_prof) s_profT[5] += SDL_GetPerformanceCounter() - tPlay0;
   static const bool s_debug = getenv("FARCRY_GLR_DEBUG") != NULL;   // diagnostic
-  if (s_debug && !s_cmds.empty())
+  if (s_debug && !sg.cmds.empty())
   {
     GLint fb = 0, vp[4] = {};
     gl.glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &fb); gl.glGetIntegerv(GL_VIEWPORT, vp);
-    Log("GLR debug: %zu commands, GL error 0x%x, draw framebuffer %d, viewport %d,%d %dx%d", s_cmds.size(), gl.glGetError(), fb, vp[0], vp[1], vp[2], vp[3]);
+    Log("GLR debug: %zu commands, GL error 0x%x, draw framebuffer %d, viewport %d,%d %dx%d", sg.cmds.size(), gl.glGetError(), fb, vp[0], vp[1], vp[2], vp[3]);
   }
-  s_cmds.clear(); s_uniforms.clear(); s_arena.clear(); s_cgSnaps.clear(); s_cgArena.clear(); s_cgDirty = true;
-  // Give back what a load spike grew (kept capacity is RSS on 1 GB devices).
-  if (s_arena.capacity() > ((size_t)8 << 20)) std::vector<uint8_t>().swap(s_arena);
-  if (s_cgArena.capacity() > ((size_t)1 << 20)) { std::vector<float>().swap(s_cgArena); std::vector<CgSnap>().swap(s_cgSnaps); }
-  if (s_cmds.capacity() > 8192) std::vector<Cmd>().swap(s_cmds);
-  s_pendingTex.clear(); s_pendingBuf.clear();
   ++s_statSegments;
+}
+
+// Segment pool: recording fills one while the render thread replays another.
+std::mutex s_segPoolMx;
+std::vector<Segment> s_segPool;
+Segment TakeSegment()
+{
+  std::lock_guard<std::mutex> lk(s_segPoolMx);
+  if (s_segPool.empty()) return Segment();
+  Segment sg = std::move(s_segPool.back()); s_segPool.pop_back();
+  return sg;
+}
+void RecycleSegment(Segment&& sg)
+{
+  sg.cmds.clear(); sg.uniforms.clear(); sg.arena.clear(); sg.calls.clear(); sg.cgSnaps.clear(); sg.cgArena.clear(); sg.vcpu.clear(); sg.icpu.clear();
+  // Give back what a load spike grew (kept capacity is RSS on 1 GB devices).
+  if (sg.arena.capacity() > ((size_t)8 << 20)) std::vector<uint8_t>().swap(sg.arena);
+  if (sg.cgArena.capacity() > ((size_t)1 << 20)) { std::vector<float>().swap(sg.cgArena); std::vector<CgSnap>().swap(sg.cgSnaps); }
+  if (sg.cmds.capacity() > 8192) std::vector<Cmd>().swap(sg.cmds);
+  if (sg.vcpu.capacity() > ((size_t)4 << 20)) std::vector<uint8_t>().swap(sg.vcpu);
+  std::lock_guard<std::mutex> lk(s_segPoolMx);
+  if (s_segPool.size() < 3) s_segPool.push_back(std::move(sg));
+}
+
+// Close the recorded segment: replay it here, or hand it to the render thread.
+static void Playback()
+{
+  Segment sg = TakeSegment();
+  std::swap(sg.cmds, s_cmds); std::swap(sg.uniforms, s_uniforms); std::swap(sg.arena, s_arena);
+  std::swap(sg.cgSnaps, s_cgSnaps); std::swap(sg.cgArena, s_cgArena);
+  std::swap(sg.vcpu, s_vring.cpu); std::swap(sg.icpu, s_iring.cpu);
+  std::swap(sg.calls, s_calls);
+  sg.vUsed = s_vring.used; sg.iUsed = s_iring.used;
+  s_cgDirty = true;
+  s_pendingTex.clear(); s_pendingBuf.clear();
   RingBeginSegment(s_vring); RingBeginSegment(s_iring);
+  if (Threaded())
+  {
+    // At most a few segments queued (level loads flush often, with large uploads).
+    static std::deque<uint64_t> s_inFlight;
+    while (s_inFlight.size() >= 3) { WaitTicket(s_inFlight.front()); s_inFlight.pop_front(); }
+    std::shared_ptr<Segment> job = std::make_shared<Segment>(std::move(sg));
+    s_inFlight.push_back(Enqueue([job]() { PlaybackSeg(*job); RecycleSegment(std::move(*job)); }));
+  }
+  else { PlaybackSeg(sg); RecycleSegment(std::move(sg)); }
 }
 
 void BeginFrame()
 {
   if (!s_ready) return;
   // Other code (scene FBO blit, swap) changes GL state between frames.
-  Invalidate();
+  Post([] { Invalidate(); });
 }
 void Flush() { if (s_ready) Playback(); }
 void TraceNextDraws(int n) { s_traceRequest = n; }
@@ -1418,6 +1624,15 @@ void FrameStats()
           (s_cgArena.capacity() * sizeof(float) + s_cgSnaps.capacity() * sizeof(CgSnap)) / 1048576.0, s_arena.capacity() / 1048576.0, progs, glsl / 1048576.0, pairs, ProgramCount());
     }
   }
+  if (Threaded())
+  {
+    // Calls that had to wait for the render thread (each costs up to a frame of overlap).
+    static unsigned lastTex = 0, lastAudit = 0, lastSync = 0;
+    const unsigned t = TexSyncCount(), a = GLAudit_RemoteCalls(), sy = s_syncCalls;
+    Log("GLR thread: last 120 frames: %u waits (%u texture/readback, %u GL queries), main waited %.2f ms per frame for the previous frame",
+        sy - lastSync, t - lastTex, a - lastAudit, s_frameWaitMs / 120.0);
+    lastTex = t; lastAudit = a; lastSync = sy; s_frameWaitMs = 0;
+  }
   if (s_statRejected || s_statCgDraws || s_statNoArrays) Log("GLR: last 120 frames: %u draws with engine programs, %u draws rejected, %u without position array", s_statCgDraws, s_statRejected, s_statNoArrays);
   s_statRejected = s_statCgDraws = s_statNoArrays = 0;
   s_statDraws = s_statClears = s_statSegments = s_statProgSwitch = s_statUploads = s_statUploadsRecorded = 0; s_statRingBytes = 0;
@@ -1429,4 +1644,113 @@ void FrameStats()
     memset(s_profT, 0, sizeof(s_profT)); s_profUniformCalls = s_profAttribCalls = 0;
   }
 }
+void Record(std::function<void()> fn)
+{
+  if (!s_rt.on || OnRenderThreadNow()) { fn(); return; }
+  Cmd c; memset(&c, 0, sizeof(c));
+  c.type = CMD_CALL; c.first = (int)s_calls.size();
+  s_calls.push_back(std::move(fn));
+  s_cmds.push_back(c);
+}
+
+// ---------------------------------------------------------------- texture work (threaded: recorded in draw order)
+namespace
+{
+// Bytes of a client pixel rectangle (unpack alignment 4), 0 when unknown.
+size_t PixelBytes(int w, int h, unsigned format, unsigned type)
+{
+  int comps = 0;
+  switch (format)
+  {
+    case 0x1906: case 0x1909: case 0x803C: case 0x8040: case 0x1903: case 0x8049: case 0x804B: comps = 1; break;   // ALPHA, LUMINANCE, ALPHA8, LUMINANCE8, RED, INTENSITY(8)
+    case 0x190A: case 0x8045: case 0x8227: comps = 2; break;                                                      // LUMINANCE_ALPHA(8), RG
+    case 0x1907: case 0x80E0: comps = 3; break;                                                                   // RGB, BGR
+    case 0x1908: case 0x80E1: comps = 4; break;                                                                   // RGBA, BGRA
+    default: return 0;
+  }
+  size_t bpp;
+  switch (type)
+  {
+    case 0x1401: case 0x1400: bpp = comps; break;                              // (UNSIGNED_)BYTE
+    case 0x8363: case 0x8033: case 0x8034: bpp = 2; break;                     // 565, 4444, 5551
+    case 0x8367: case 0x8035: bpp = 4; break;                                  // 8_8_8_8(_REV)
+    case 0x1403: case 0x1402: bpp = (size_t)comps * 2; break;                  // (UNSIGNED_)SHORT
+    case 0x1406: bpp = (size_t)comps * 4; break;                               // FLOAT
+    default: return 0;
+  }
+  if (w <= 0 || h <= 0) return 0;
+  const size_t row = ((size_t)w * bpp + 3) & ~(size_t)3;
+  return row * (size_t)(h - 1) + (size_t)w * bpp;
+}
+std::shared_ptr<std::vector<uint8_t> > CopyBytes(const void* p, size_t n)
+{
+  if (!p || !n) return nullptr;
+  return std::make_shared<std::vector<uint8_t> >((const uint8_t*)p, (const uint8_t*)p + n);
+}
+inline const void* Data(const std::shared_ptr<std::vector<uint8_t> >& d) { return d ? d->data() : nullptr; }
+unsigned s_texSyncs = 0;   // texture calls that had to wait for the render thread (diagnostics)
+} // namespace
+
+// Threaded: names come from the module's own allocator (engine-range names
+// are never handed out), without asking GL.
+void TexGenNames(int n, unsigned* out) { GLTex::GenNames(n, out, !Threaded()); }
+void TexDeleteNames(int n, const unsigned* tex)
+{
+  for (int i = 0; i < n; ++i) TextureDeleted(tex[i]);
+  if (!Threaded()) { GLTex::DeleteNames(n, tex); return; }
+  std::vector<unsigned> v(tex, tex + n);
+  Record([v] { GLTex::DeleteNames((int)v.size(), v.data()); });
+}
+void TexParam(unsigned tex, unsigned target, unsigned pname, int v) { Record([=] { GLTex::Param(tex, target, pname, v); }); }
+void TexParamF(unsigned tex, unsigned target, unsigned pname, float v) { Record([=] { GLTex::ParamF(tex, target, pname, v); }); }
+void TexImage2D(unsigned tex, unsigned target, int level, int internal, int w, int h, int border, unsigned format, unsigned type, const void* pixels)
+{
+  if (!Threaded()) { GLTex::Image2D(tex, target, level, internal, w, h, border, format, type, pixels); return; }
+  const size_t n = pixels ? PixelBytes(w, h, format, type) : 0;
+  if (pixels && !n) { ++s_texSyncs; Flush(); Sync([=] { GLTex::Image2D(tex, target, level, internal, w, h, border, format, type, pixels); }); return; }
+  auto d = CopyBytes(pixels, n);
+  Record([=] { GLTex::Image2D(tex, target, level, internal, w, h, border, format, type, Data(d)); });
+}
+void TexSubImage2D(unsigned tex, unsigned target, int level, int x, int y, int w, int h, unsigned format, unsigned type, const void* pixels)
+{
+  if (!Threaded()) { GLTex::SubImage2D(tex, target, level, x, y, w, h, format, type, pixels); return; }
+  const size_t n = pixels ? PixelBytes(w, h, format, type) : 0;
+  if (pixels && !n) { ++s_texSyncs; Flush(); Sync([=] { GLTex::SubImage2D(tex, target, level, x, y, w, h, format, type, pixels); }); return; }
+  auto d = CopyBytes(pixels, n);
+  Record([=] { GLTex::SubImage2D(tex, target, level, x, y, w, h, format, type, Data(d)); });
+}
+void TexCompressedImage2D(unsigned tex, unsigned target, int level, unsigned internal, int w, int h, int border, int size, const void* data)
+{
+  if (!Threaded()) { GLTex::CompressedImage2D(tex, target, level, internal, w, h, border, size, data); return; }
+  auto d = CopyBytes(data, (size_t)(size > 0 ? size : 0));
+  Record([=] { GLTex::CompressedImage2D(tex, target, level, internal, w, h, border, size, Data(d)); });
+}
+void TexCompressedSubImage2D(unsigned tex, unsigned target, int level, int x, int y, int w, int h, unsigned format, int size, const void* data)
+{
+  if (!Threaded()) { GLTex::CompressedSubImage2D(tex, target, level, x, y, w, h, format, size, data); return; }
+  auto d = CopyBytes(data, (size_t)(size > 0 ? size : 0));
+  Record([=] { GLTex::CompressedSubImage2D(tex, target, level, x, y, w, h, format, size, Data(d)); });
+}
+void ReadPixels(int x, int y, int w, int h, unsigned format, unsigned type, void* pixels)
+{
+  if (!Threaded()) { Flush(); GLTex::ReadPixels(x, y, w, h, format, type, pixels); return; }
+  // ES cannot read depth (GL error, the buffer stays as it was): the engine's
+  // flare tests try every frame; skip them instead of waiting for the frame.
+  if (format == 0x1902 /*GL_DEPTH_COMPONENT*/) return;
+  ++s_texSyncs;
+  Flush();
+  Sync([=] { GLTex::ReadPixels(x, y, w, h, format, type, pixels); });
+}
+void CopyTexSubImage2D(unsigned tex, unsigned target, int level, int xo, int yo, int x, int y, int w, int h)
+{
+  if (!Threaded()) { Flush(); GLTex::CopyTexSubImage2D(tex, target, level, xo, yo, x, y, w, h); return; }
+  Record([=] { GLTex::CopyTexSubImage2D(tex, target, level, xo, yo, x, y, w, h); });
+}
+void CopyTexImage2D(unsigned tex, unsigned target, int level, unsigned internal, int x, int y, int w, int h, int border)
+{
+  if (!Threaded()) { Flush(); GLTex::CopyTexImage2D(tex, target, level, internal, x, y, w, h, border); return; }
+  Record([=] { GLTex::CopyTexImage2D(tex, target, level, internal, x, y, w, h, border); });
+}
+unsigned TexSyncCount() { return s_texSyncs; }
+
 } // namespace GLR

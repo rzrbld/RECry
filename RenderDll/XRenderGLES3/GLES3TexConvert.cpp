@@ -176,6 +176,10 @@ bool TexConv_Start(int threads, const char* cacheDir, void (*log)(const char*))
   s_quit = false;
   if (threads < 1) threads = 1;
   for (int i = 0; i < threads; ++i) s_workers.emplace_back(Worker);
+  // exit() (time demo end) destroys s_cv while the workers wait on it, which
+  // blocks forever: stop them first (atexit runs before static destructors).
+  static bool s_atexit = false;
+  if (!s_atexit) { s_atexit = true; atexit([] { s_log = nullptr; TexConv_Stop(); }); }   // the engine log may be gone by then
   Log("GLES3TexConvert: %d worker thread(s), cache %s", threads, s_cacheDir.empty() ? "disabled" : s_cacheDir.c_str());
   return true;
 }

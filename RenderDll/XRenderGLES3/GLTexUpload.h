@@ -21,7 +21,7 @@ void SetBackend(const Backend& be);
 void SetTexNameLookup(const char* (*fn)(unsigned tex));   // kept across backend changes
 const char* TexName(unsigned tex);                         // diagnostics ("?" when unknown)
 
-void GenNames(int n, unsigned* out);
+void GenNames(int n, unsigned* out, bool queryGL = true);   // queryGL false: off the GL thread (no glIsTexture check)
 void DeleteNames(int n, const unsigned* tex);
 void Param(unsigned tex, unsigned target, unsigned pname, int v);
 void ParamF(unsigned tex, unsigned target, unsigned pname, float v);

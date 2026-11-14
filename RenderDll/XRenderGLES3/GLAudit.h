@@ -22,6 +22,19 @@ void GLAudit_Hit(int id, void* site);
 void GLAudit_Name(int id, const char* name);
 void GLAudit_Frame();      // once per presented frame
 
+// Native renderer with a render thread: forwarded calls (queries) made on
+// another thread run on the render thread and wait for it.
+int GLAudit_Remote(int id);   // 0: call here, 1: run on the render thread, 2: answer the default (glGetError: no error)
+void GLAudit_RunRemote(int id, void* site, void (*fn)(void*), void* arg);
+template <typename R> struct GLAuditRemote
+{
+  template <typename F> static R Call(int id, void* site, F& f) { struct C { F* f; R r; } c{ &f, R() }; GLAudit_RunRemote(id, site, [](void* p) { C* c = (C*)p; c->r = (*c->f)(); }, &c); return c.r; }
+};
+template <> struct GLAuditRemote<void>
+{
+  template <typename F> static void Call(int id, void* site, F& f) { GLAudit_RunRemote(id, site, [](void* p) { (*(F*)p)(); }, &f); }
+};
+
 // Wrapper for one GL table entry, generated from the pointer's own type.
 template <int ID, typename F> struct GLAuditW;
 template <int ID, typename R, typename... A> struct GLAuditW<ID, R (*)(A...)>
@@ -31,6 +44,11 @@ template <int ID, typename R, typename... A> struct GLAuditW<ID, R (*)(A...)>
   {
     GLAudit_Hit(ID, __builtin_return_address(0));
     if (GLAudit_Trap(ID)) return R();
+    if (const int m = GLAudit_Remote(ID))
+    {
+      if (m == 2) return R();
+      auto f = [&]() { return real(a...); }; return GLAuditRemote<R>::Call(ID, __builtin_return_address(0), f);
+    }
     return real(a...);
   }
 };

@@ -110,7 +110,7 @@ struct Raster
   int viewport[4], scissor[4];
   float depthRange[2], poly[2];
 };
-enum CmdType : uint8_t { CMD_DRAW, CMD_CLEAR, CMD_BUFFER };
+enum CmdType : uint8_t { CMD_DRAW, CMD_CLEAR, CMD_BUFFER, CMD_CALL };   // CMD_CALL: Segment::calls[first]
 struct TexBind { uint8_t target; unsigned name; };
 // One vertex attribute of a draw: buffer (or the segment's ring) + format.
 struct VtxBinding { GLuint buf; size_t off; uint16_t type; uint8_t size, norm; uint16_t stride; };

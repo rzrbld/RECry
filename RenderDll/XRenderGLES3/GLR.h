@@ -17,6 +17,7 @@
     that pending draws still use).
 =============================================================================*/
 #pragma once
+#include <functional>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -179,6 +180,38 @@ bool ProgramsSupported();
 // End of a level load: build the programs this level used while playing last
 // time (from the binary cache), so none is built during gameplay.
 void WarmUp(const char* level);            // native mode with the shader tier enabled
+
+// ---------------------------------------------------------------- render thread
+// FARCRY_GLR_THREAD (default on in native mode): after the first frame a
+// render thread owns the GL context; recorded frames are replayed there while
+// the game thread records the next one. Every other GL call runs there too:
+// Post() queues it (in order with the frames), Sync() runs it and waits.
+bool Threaded();
+bool OnRenderThread();                       // true when not threaded
+void Post(std::function<void()> fn);
+// Recorded into the current frame's command stream (runs on the render thread
+// between the draws recorded before and after it); direct call when not threaded.
+void Record(std::function<void()> fn);
+void Sync(std::function<void()> fn);
+// Frame end (GLSystem): the present work is posted after the frame's replay;
+// the game thread may then record one more frame before it waits.
+void PostFrameEnd(std::function<void()> present);
+// Texture work of the bridge (GLRBridge.h): direct when single-threaded,
+// recorded (data copied) or synchronous when threaded.
+void TexGenNames(int n, unsigned* out);
+void TexDeleteNames(int n, const unsigned* tex);
+void TexParam(unsigned tex, unsigned target, unsigned pname, int v);
+void TexParamF(unsigned tex, unsigned target, unsigned pname, float v);
+void TexImage2D(unsigned tex, unsigned target, int level, int internal, int w, int h, int border, unsigned format, unsigned type, const void* pixels);
+void TexSubImage2D(unsigned tex, unsigned target, int level, int x, int y, int w, int h, unsigned format, unsigned type, const void* pixels);
+void TexCompressedImage2D(unsigned tex, unsigned target, int level, unsigned internal, int w, int h, int border, int size, const void* data);
+void TexCompressedSubImage2D(unsigned tex, unsigned target, int level, int x, int y, int w, int h, unsigned format, int size, const void* data);
+void ReadPixels(int x, int y, int w, int h, unsigned format, unsigned type, void* pixels);
+void CopyTexSubImage2D(unsigned tex, unsigned target, int level, int xo, int yo, int x, int y, int w, int h);
+void CopyTexImage2D(unsigned tex, unsigned target, int level, unsigned internal, int x, int y, int w, int h, int border);
+unsigned TexSyncCount();
+void StartThread(void* sdlWindow, void* glContext);   // at the first frame end
+void StopThread();                                    // renderer shutdown: GL returns to the caller
 
 // ---------------------------------------------------------------- diagnostics
 void SelfTest();                     // FARCRY_GLR_SELFTEST: a test pattern each frame

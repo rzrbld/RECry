@@ -125,7 +125,7 @@ static void GLES3_SnapIfRequested()
   }
 }
 
-static void GLES3_CaptureIfDue()
+static void GLES3_CaptureIfDue(int demoFrame, int demoLoop)
 {
   GLES3_SnapIfRequested();
   static std::vector<float> s_times; static size_t s_next = 0; static Uint32 s_start = 0; static bool s_init = false;
@@ -147,7 +147,7 @@ static void GLES3_CaptureIfDue()
       if (const char* t = getenv("FARCRY_CAPTURE_DEMO_FRAMES"))
         for (const char* p = t; *p; ) { s_demoFrames.push_back(atoi(p)); while (*p && *p != ',') ++p; if (*p) ++p; }
     }
-    if (s_demoNext < s_demoFrames.size() && g_PortDemoLoop == 0 && g_PortDemoFrame >= s_demoFrames[s_demoNext])
+    if (s_demoNext < s_demoFrames.size() && demoLoop == 0 && demoFrame >= s_demoFrames[s_demoNext])
     {
       const char* dir = getenv("FARCRY_CAPTURE_DIR");
       int w = 0, h = 0; GLES3_ReadSize(w, h);
@@ -160,7 +160,7 @@ static void GLES3_CaptureIfDue()
         for (int y = h - 1; y >= 0; --y)
           for (int x = 0; x < w; ++x) fwrite(&px[((size_t)y * w + x) * 4], 1, 3, f);
         fclose(f);
-        fprintf(stderr, "PORT capture: %s (demo frame %d)\n", path, g_PortDemoFrame);
+        fprintf(stderr, "PORT capture: %s (demo frame %d)\n", path, demoFrame);
       }
       ++s_demoNext;
     }
@@ -397,75 +397,88 @@ static void GLES3_SceneRebind()
   if (s_scene.fbo) s_bindFramebuffer(GL_FRAMEBUFFER, s_scene.fbo);
 }
 
+// Everything after the frame's replay that touches GL: captures, the scaled
+// scene blit and the swap. Runs on the render thread when it owns GL.
+static void GLES3_Present(int demoFrame, int demoLoop)
+{
+  GLES3_CaptureIfDue(demoFrame, demoLoop);
+  GLES3FFPFrameBoundary();
+  GLES3_ScenePresent();
+  GLES3_OpaqueAlphaForPresent();
+  { // diagnostic: one capture of the final (scaled) screen
+    static const char* s_shot = getenv("FARCRY_SCREEN_SHOT");
+    static int s_shotFrame = getenv("FARCRY_SCREEN_SHOT_FRAME") ? atoi(getenv("FARCRY_SCREEN_SHOT_FRAME")) : 150;
+    if (s_shot && --s_shotFrame == 0)
+    {
+      int w = 0, h = 0; SDL_GL_GetDrawableSize(g_GLES3Window, &w, &h);
+      std::vector<unsigned char> px((size_t)w * h * 4);
+      GLES3_RealReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+      if (FILE* f = fopen(s_shot, "wb"))
+      {
+        fprintf(f, "P6\n%d %d\n255\n", w, h);
+        for (int y = h - 1; y >= 0; --y) for (int x = 0; x < w; ++x) fwrite(&px[((size_t)y * w + x) * 4], 1, 3, f);
+        fclose(f);
+      }
+    }
+  }
+  // Diagnostic: FARCRY_GPU_TIMING=1 waits for the GPU before the swap and
+  // logs the median wait every 100 frames (how long the GPU takes to finish
+  // a frame after the CPU has submitted it; separates GPU cost from the
+  // display's page-flip wait in swap_ms).
+  {
+    static const bool s_gpuTiming = getenv("FARCRY_GPU_TIMING") != NULL;
+    if (s_gpuTiming)
+    {
+      static std::vector<double> s_waits;
+      const Uint64 t0 = SDL_GetPerformanceCounter();
+      glFinish();
+      s_waits.push_back((SDL_GetPerformanceCounter() - t0) * 1000.0 / (double)SDL_GetPerformanceFrequency());
+      if (s_waits.size() >= 100)
+      {
+        std::sort(s_waits.begin(), s_waits.end());
+        fprintf(stderr, "PORT gpu_finish_ms median=%.2f p90=%.2f max=%.2f\n", s_waits[50], s_waits[90], s_waits[99]);
+        s_waits.clear();
+      }
+    }
+  }
+  SDL_GL_SwapWindow(g_GLES3Window);
+  GLES3_SceneRebind();
+}
+
 void GLES3_SwapBuffers()
 {
-  if (g_GLES3Window)
+  if (!g_GLES3Window) return;
+  if (GLR::Active())
   {
-    if (GLR::Active())
-    {
-      if (getenv("FARCRY_GLR_SELFTEST")) GLR::SelfTest();
-      GLR::EndFrame();   // native backend: play back the recorded frame
-    }
-    GLES3_CaptureIfDue();
-    GLES3FFPFrameBoundary();
-    GLES3_ScenePresent();
-    GLES3_OpaqueAlphaForPresent();
-    { // diagnostic: one capture of the final (scaled) screen
-      static const char* s_shot = getenv("FARCRY_SCREEN_SHOT");
-      static int s_shotFrame = getenv("FARCRY_SCREEN_SHOT_FRAME") ? atoi(getenv("FARCRY_SCREEN_SHOT_FRAME")) : 150;
-      if (s_shot && --s_shotFrame == 0)
-      {
-        int w = 0, h = 0; SDL_GL_GetDrawableSize(g_GLES3Window, &w, &h);
-        std::vector<unsigned char> px((size_t)w * h * 4);
-        GLES3_RealReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
-        if (FILE* f = fopen(s_shot, "wb"))
-        {
-          fprintf(f, "P6\n%d %d\n255\n", w, h);
-          for (int y = h - 1; y >= 0; --y) for (int x = 0; x < w; ++x) fwrite(&px[((size_t)y * w + x) * 4], 1, 3, f);
-          fclose(f);
-        }
-      }
-    }
-    // Diagnostic: FARCRY_GPU_TIMING=1 waits for the GPU before the swap and
-    // logs the median wait every 100 frames (how long the GPU takes to finish
-    // a frame after the CPU has submitted it; separates GPU cost from the
-    // display's page-flip wait in swap_ms).
-    {
-      static const bool s_gpuTiming = getenv("FARCRY_GPU_TIMING") != NULL;
-      if (s_gpuTiming)
-      {
-        static std::vector<double> s_waits;
-        const Uint64 t0 = SDL_GetPerformanceCounter();
-        glFinish();
-        s_waits.push_back((SDL_GetPerformanceCounter() - t0) * 1000.0 / (double)SDL_GetPerformanceFrequency());
-        if (s_waits.size() >= 100)
-        {
-          std::sort(s_waits.begin(), s_waits.end());
-          fprintf(stderr, "PORT gpu_finish_ms median=%.2f p90=%.2f max=%.2f\n", s_waits[50], s_waits[90], s_waits[99]);
-          s_waits.clear();
-        }
-      }
-    }
-    {
-      SPortPhaseScope portScope(PORT_PHASE_SWAP);
-      SDL_GL_SwapWindow(g_GLES3Window);
-    }
-    GLES3_SceneRebind();
-    if (GLR::Active()) GLR::BeginFrame();
-    GLAudit_Frame();
-    GLES3_LogFrameTime();
+    if (getenv("FARCRY_GLR_SELFTEST")) GLR::SelfTest();
+    GLR::EndFrame();   // native backend: play back the recorded frame (or hand it to the render thread)
   }
+  {
+    // Threaded: the present is queued after the frame; this waits only for
+    // the previous frame (the time shows as swap_ms).
+    SPortPhaseScope portScope(PORT_PHASE_SWAP);
+    // The demo frame of the frame being presented (the game moves on meanwhile).
+    const int demoFrame = g_PortDemoFrame, demoLoop = g_PortDemoLoop;
+    if (GLR::Active()) GLR::PostFrameEnd([demoFrame, demoLoop] { GLES3_Present(demoFrame, demoLoop); });
+    else GLES3_Present(demoFrame, demoLoop);
+  }
+  // From the first presented frame on, a render thread owns GL (native renderer).
+  if (GLR::Active() && !GLR::Threaded()) GLR::StartThread(g_GLES3Window, g_GLES3Context);
+  if (GLR::Active()) GLR::BeginFrame();
+  GLAudit_Frame();
+  GLES3_LogFrameTime();
 }
 
 // WGL/GDI entries of the GL function table, implemented on SDL.
-static BOOL  __stdcall GLES3_wglMakeCurrent(HDC, HGLRC) { return g_GLES3Context && SDL_GL_MakeCurrent(g_GLES3Window, g_GLES3Context) == 0; }
+// The render thread owns the context once it runs: making it current here would take it away.
+static BOOL  __stdcall GLES3_wglMakeCurrent(HDC, HGLRC) { if (GLR::Threaded()) return TRUE; return g_GLES3Context && SDL_GL_MakeCurrent(g_GLES3Window, g_GLES3Context) == 0; }
 static BOOL  __stdcall GLES3_wglSwapBuffers(HDC) { GLES3_SwapBuffers(); return TRUE; }
 static HGLRC __stdcall GLES3_wglCreateContext(HDC) { return (HGLRC)g_GLES3Context; }
 static BOOL  __stdcall GLES3_wglDeleteContext(HGLRC) { return TRUE; }
 static BOOL  __stdcall GLES3_wglShareLists(HGLRC, HGLRC) { return TRUE; }
-static HGLRC __stdcall GLES3_wglGetCurrentContext(VOID) { return (HGLRC)SDL_GL_GetCurrentContext(); }
+static HGLRC __stdcall GLES3_wglGetCurrentContext(VOID) { return GLR::Threaded() ? (HGLRC)g_GLES3Context : (HGLRC)SDL_GL_GetCurrentContext(); }
 static PROC  __stdcall GLES3_wglGetProcAddress(LPCSTR) { return NULL; } // no WGL extensions on GLES
-static BOOL  __stdcall GLES3_wglSwapIntervalEXT(int i) { return SDL_GL_SetSwapInterval(i) == 0; }
+static BOOL  __stdcall GLES3_wglSwapIntervalEXT(int i) { BOOL ok = FALSE; GLR::Sync([&] { ok = SDL_GL_SetSwapInterval(i) == 0; }); return ok; }
 
 static void* GLES3PlatformProc(const char* name)
 {
@@ -1954,7 +1967,7 @@ HWND CGLRenderer::SetMode(int x,int y,int width,int height,unsigned int cbpp, in
     int dw = width, dh = height;
     SDL_GL_GetDrawableSize(g_GLES3Window, &dw, &dh);
     iLog->Log("GLES3 window: requested %dx%d, drawable %dx%d, fullscreen=%d", width, height, dw, dh, (int)fullscreen);
-    GLES3_SceneSetup(width, height, dw, dh);
+    GLR::Sync([&] { GLES3_SceneSetup(width, height, dw, dh); });
     m_width = width;
     m_height = height;
     m_FullScreen = fullscreen;
@@ -3156,6 +3169,7 @@ void CGLRenderer::ShutDown(bool bReInit)
 
   RestoreDeviceGamma();
 
+  GLR::StopThread();   // GL back on this thread for the teardown
   glFinish();
 
   HWND hWnd = m_RContexts[0]->m_Glhwnd;

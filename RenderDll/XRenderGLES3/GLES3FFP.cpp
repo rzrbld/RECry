@@ -1852,7 +1852,8 @@ static void APIENTRY f_glReadPixels(GLint x, GLint y, GLsizei w, GLsizei h, GLen
 // Texture names: allocated by GLTexUpload.cpp (outside the engine's own range).
 static void APIENTRY f_glGenTextures(GLsizei n, GLuint* out) { GLTex::GenNames(n, out); }
 static void APIENTRY f_glDeleteTextures(GLsizei n, const GLuint* tex) { GLTex::DeleteNames(n, tex); }
-static void PumpTextures(bool block) { GLTex::Pump(block); }
+// Native renderer: runs in draw order on the render thread (GLR::Record).
+static void PumpTextures(bool block) { if (GLR::Active()) GLR::Record([block] { GLTex::Pump(block); }); else GLTex::Pump(block); }
 
 
 static Uint32 s_loadEndTicks = 0;
@@ -1869,6 +1870,7 @@ void GLES3FFPPumpTextures()
 // gameplay never compiles a program that an earlier run already needed.
 static void PrewarmPrograms()
 {
+  if (GLR::Active()) return;   // the classic renderer's programs (native mode has its own warm-up)
   const std::string& dir = ProgCacheDir();
   if (dir.empty()) return;
   FILE* f = fopen((dir + "/keys.bin").c_str(), "rb");

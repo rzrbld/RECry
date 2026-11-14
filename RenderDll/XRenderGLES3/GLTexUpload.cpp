@@ -18,10 +18,12 @@
 #include <string.h>
 #include <stdint.h>
 #include <vector>
+#include <mutex>
 #include <unordered_map>
 #include <unordered_set>
 #include "GLES3TexConvert.h"
 #include "GLTexUpload.h"
+#include <mutex>
 
 namespace GLTex
 {
@@ -470,8 +472,10 @@ void CompressedSubImage2D(GLuint tex, GLenum target, GLint level, GLint x, GLint
 static GLuint s_nextTexName = 1;
 static std::vector<GLuint> s_freeTexNames;
 static std::unordered_set<GLuint> s_ownTexNames;
-void GenNames(GLsizei n, GLuint* out)
+static std::mutex s_nameMx;   // names are given out on the game thread, freed on the render thread
+void GenNames(GLsizei n, GLuint* out, bool queryGL)
 {
+  std::lock_guard<std::mutex> lk(s_nameMx);
   for (GLsizei i = 0; i < n; ++i)
   {
     GLuint name = 0;
@@ -483,7 +487,7 @@ void GenNames(GLsizei n, GLuint* out)
         if (s_nextTexName >= 0x1000 && s_nextTexName < 0x4000) s_nextTexName = 0x4000;
         name = s_nextTexName++;
       }
-      if (r_glIsTexture(name)) name = 0; // already created by a direct bind
+      if (queryGL && r_glIsTexture(name)) name = 0; // already created by a direct bind (outside the engine range)
     }
     s_ownTexNames.insert(name);
     out[i] = name;
@@ -493,6 +497,7 @@ void GenNames(GLsizei n, GLuint* out)
 void DeleteNames(GLsizei n, const GLuint* tex)
 {
   for (GLsizei i = 0; i < n; ++i) s_paramCache.erase(tex[i]);   // a recreated name starts with GL's defaults
+  std::lock_guard<std::mutex> lk(s_nameMx);
   for (GLsizei i = 0; i < n; ++i)
   {
     if (tex[i] && s_ownTexNames.erase(tex[i])) s_freeTexNames.push_back(tex[i]);
