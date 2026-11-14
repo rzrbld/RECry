@@ -270,6 +270,139 @@ std::string RewriteMul(const std::string& src)
   return s;
 }
 
+// Cg component-wise arithmetic truncates unequal vectors to the smaller width.
+// GLSL requires equal widths. Infer only scalar/vector expressions we understand;
+// leave matrices, comparisons and other unsupported syntax untouched.
+struct VectorExpr
+{
+  struct Value { std::string text; int width; };
+  const std::vector<Tok>& t;
+  const std::map<std::string, int>& names;
+  const std::map<std::string, int>& fields;
+  size_t pos, end;
+  bool changed = false, valid = true;
+  VectorExpr(const std::vector<Tok>& tokens, const std::map<std::string,int>& variables,
+             const std::map<std::string,int>& members, size_t begin, size_t finish)
+    : t(tokens), names(variables), fields(members), pos(begin), end(finish) {}
+  void ws() { while (pos < end && t[pos].k == T_WS) ++pos; }
+  bool take(const char* s) { ws(); if(pos < end && t[pos].s == s) { ++pos; return true; } return false; }
+  static int TypeWidth(const std::string& s)
+  {
+    if(s == "float" || s == "int" || s == "bool") return 1;
+    if(s.size()==4 && s.compare(0,3,"vec")==0 && s[3]>='2' && s[3]<='4') return s[3]-'0';
+    return 0;
+  }
+  Value primary()
+  {
+    ws(); if(pos >= end) { valid=false; return {"",0}; }
+    Value v;
+    if(take("-")) { v=primary(); v.text="(-"+v.text+")"; return v; }
+    if(take("+")) return primary();
+    if(take("(")) { v=expr(0); if(!take(")")) valid=false; v.text="("+v.text+")"; }
+    else
+    {
+      const Tok tok=t[pos++]; v={tok.s,0};
+      if(tok.k==T_NUM) v.width=1;
+      else if(tok.k!=T_ID) { valid=false; return v; }
+      else { auto n=names.find(tok.s); if(n!=names.end()) v.width=n->second; }
+      if(take("("))
+      {
+        std::vector<Value> args;
+        if(!take(")"))
+        {
+          do { args.push_back(expr(0)); } while(take(","));
+          if(!take(")")) valid=false;
+        }
+        v.text=tok.s+"(";
+        for(size_t i=0;i<args.size();++i) v.text+=(i?",":"")+args[i].text;
+        v.text+=")";
+        int w=TypeWidth(tok.s);
+        if(tok.s.size()==5 && tok.s.compare(0,4,"cg_v")==0) w=tok.s[4]-'0';
+        if(w) v.width=w;
+        else if(tok.s=="texture" || tok.s=="textureProj" || tok.s=="textureLod") v.width=4;
+        else if(tok.s=="dot" || tok.s=="cg_dot" || tok.s=="length" || tok.s=="distance") v.width=1;
+        else if(!args.empty() && (tok.s=="saturate" || tok.s=="normalize" || tok.s=="abs" || tok.s=="fract" || tok.s=="sqrt" || tok.s=="inversesqrt" || tok.s=="clamp")) v.width=args[0].width;
+      }
+    }
+    for(;;)
+    {
+      if(take("."))
+      {
+        ws(); if(pos>=end || t[pos].k!=T_ID) { valid=false; break; }
+        std::string f=t[pos++].s; v.text+="."+f;
+        if(!f.empty() && f.size()<=4 && f.find_first_not_of("xyzwrgba")==std::string::npos) v.width=(int)f.size();
+        else { auto n=fields.find(f); v.width=n==fields.end()?0:n->second; }
+      }
+      else if(take("["))
+      {
+        Value index=expr(0); if(!take("]")) valid=false;
+        // Cv/Cf are register arrays, not vector indexing.
+        v.width=(v.text=="Cv" || v.text=="Cf")?4:(v.width>0?1:0);
+        v.text+="["+index.text+"]";
+      }
+      else break;
+    }
+    return v;
+  }
+  Value expr(int minimum)
+  {
+    Value left=primary();
+    while(valid)
+    {
+      ws(); if(pos>=end) break;
+      std::string op=t[pos].s;
+      int precedence=(op=="+" || op=="-")?1:(op=="*" || op=="/")?2:0;
+      if(!precedence || precedence<minimum) break;
+      ++pos; Value right=expr(precedence+1);
+      int width=0;
+      if(left.width && right.width)
+      {
+        width=left.width==1?right.width:right.width==1?left.width:std::min(left.width,right.width);
+        if(left.width>1 && right.width>1 && left.width!=right.width)
+        {
+          if(left.width>width) left.text="vec"+std::to_string(width)+"("+left.text+")";
+          if(right.width>width) right.text="vec"+std::to_string(width)+"("+right.text+")";
+          changed=true;
+        }
+      }
+      left={"("+left.text+op+right.text+")",width};
+    }
+    return left;
+  }
+};
+
+std::string RewriteVectorArithmetic(const std::string& src, const std::map<std::string,int>& fields)
+{
+  std::vector<Tok> t; Tokenize(src,t);
+  std::map<std::string,int> names;
+  for(size_t i=0;i<t.size();++i)
+  {
+    int width=VectorExpr::TypeWidth(t[i].s);
+    if(width || t[i].s.compare(0,3,"mat")==0) { size_t n=NextNw(t,i); if(n<t.size() && t[n].k==T_ID) names[t[n].s]=width; }
+    if(t[i].s!="=") continue;
+    size_t prev=PrevNw(t,i), next=NextNw(t,i);
+    if(prev!=(size_t)-1 && (t[prev].s=="=" || t[prev].s=="!" || t[prev].s=="<" || t[prev].s==">")) continue;
+    if(next>=t.size() || t[next].s=="=") continue;
+    size_t e=next; int depth=0;
+    for(;e<t.size();++e)
+    {
+      const std::string& s=t[e].s;
+      if(s=="(" || s=="[") ++depth;
+      else if(s==")" || s=="]") { if(!depth) break; --depth; }
+      else if(!depth && (s==";" || s=="," || s=="}")) break;
+    }
+    VectorExpr parser{t,names,fields,next,e};
+    VectorExpr::Value v=parser.expr(0); parser.ws();
+    if(parser.valid && parser.changed && parser.pos==e)
+    {
+      t[next].s=v.text;
+      for(size_t k=next+1;k<e;++k) t[k].s="";
+    }
+    i=e?e-1:e;
+  }
+  return Join(t,0,t.size());
+}
+
 // ---- conditional preprocessing (#if/#ifdef/#ifndef/#elif/#else/#endif):
 // the stage interface (struct fields) depends on it. #define / #undef lines
 // are tracked and kept for the GLSL preprocessor (function-like macros).
@@ -752,7 +885,7 @@ bool Translate(const std::string& cg, bool vertex, Program& out)
     t[i].s = "= " + fn;
     t[e].s = (qm && co ? "))" : ")") + t[e].s;
   }
-  std::string body = RewriteMul(Join(t, 0, t.size()));
+  std::string body = RewriteVectorArithmetic(RewriteMul(Join(t, 0, t.size())), fieldCols);
 
   // ---- interface and wrapper main()
   std::string g = "#version 300 es\n";
