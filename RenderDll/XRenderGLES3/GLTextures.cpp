@@ -629,7 +629,8 @@ void STexPic::SetClamp(bool bEnable)
 
 void CGLTexMan::SetTexture(int Id, ETexType eTT)
 {
-  if(Id < 0 || Id >= TX_LASTBIND)
+  // TX_LASTBIND bounds managed texture accounting, not generated GL names.
+  if(Id < 0)
   {
     iLog->Log("Error: CGLTexMan::SetTexture: Texture id is out of range: %d", Id);
     return;
@@ -1786,7 +1787,7 @@ byte *CGLTexMan::GenerateDXT_HW(STexPic *ti, EImFormat eF, byte *dst, int *numMi
 
   uint tnum = 0;
   GLR_GenTextures(1, &tnum);	
-  assert(tnum<14000);
+  assert(tnum != 0);
   SetTexture(tnum, eTT_Base);
 
   if (eF == eIF_DXT1)

@@ -35,6 +35,8 @@ inline void GLR_BindTexture(GLenum target, GLuint name)
     // The engine's bind hook (GLSystem.cpp nglBindTexture) records the
     // texture's target; keep that bookkeeping on the native path too.
     if (name < TX_LASTBIND) TargetTex[name] = (int)target;
+    GLTex::NoteBound(name);
+    GLR::NoteTextureTarget(name, target);
     GLR::BindTexture(GLRBridgeDetail::Target(target), name);
 }
 // glEnable/glDisable of a texture target (other capabilities: GL table).

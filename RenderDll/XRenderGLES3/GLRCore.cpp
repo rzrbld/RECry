@@ -516,6 +516,14 @@ static void UpdateStage(int u)
 }
 void SelectTexture(int u) { if (u >= 0 && u < 4) s_cur.selected = u; }
 int SelectedTexture() { return s_cur.selected; }
+// Game-thread metadata; render-thread bindings travel in queued commands.
+static std::unordered_map<unsigned, unsigned> s_textureTargets;
+void NoteTextureTarget(unsigned name, unsigned target) { if(name) s_textureTargets[name]=target; }
+unsigned TextureTarget(unsigned name)
+{
+  auto it=s_textureTargets.find(name);
+  return it==s_textureTargets.end()?GL_TEXTURE_2D:it->second;
+}
 void BindTexture(TexTarget t, unsigned name)
 {
   const int u = s_cur.selected;
@@ -540,6 +548,7 @@ void SetTexture(int u, TexTarget t, unsigned name)
 void TextureWillChange(unsigned name) { if (s_pendingTex.count(name)) Flush(); }
 void TextureDeleted(unsigned name)
 {
+  s_textureTargets.erase(name);
   if (!Threaded() && s_pendingTex.count(name)) Flush();
   Record([name] { StateForgetTexture(name); });
   for (int u = 0; u < 4; ++u)

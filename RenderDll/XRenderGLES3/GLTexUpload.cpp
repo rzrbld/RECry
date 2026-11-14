@@ -416,7 +416,6 @@ void CompressedImage2D(GLuint tex, GLenum target, GLint level, GLenum internal, 
     fprintf(stderr, "CUBEUP compressed tex=%u face=%d level=%d %dx%d fmt=0x%x data=%p\n", tex, target - GL_TEXTURE_CUBE_MAP_POSITIVE_X, level, w, h, internal, data);
   if (s_decodeDXT && IsDXT(internal) && data && target == GL_TEXTURE_2D && TexConv_Running())
   {
-    const GLuint tex = tex;
     uint32_t& gen = s_texGen[tex];
     if (level == 0) ++gen;
     const GLenum etc2 = TexConv_Etc2Format(internal);
@@ -469,10 +468,23 @@ void CompressedSubImage2D(GLuint tex, GLenum target, GLint level, GLint x, GLint
 // other code (terrain sectors, sprites, render targets) uses glGenTextures.
 // Mali returns generated names inside that range (e.g. 5896), so two textures
 // shared one name. Generated names are allocated here, outside the range.
-static GLuint s_nextTexName = 1;
+// Keep generated names disjoint from all engine-owned names, including
+// fixed render targets below TX_FIRSTBIND that may be bound much later.
+static GLuint s_nextTexName = 0x10000000;
 static std::vector<GLuint> s_freeTexNames;
 static std::unordered_set<GLuint> s_ownTexNames;
 static std::mutex s_nameMx;   // names are given out on the game thread, freed on the render thread
+// Names the engine created by binding them directly (no glGenTextures):
+// never handed out by GenNames (GL's glIsTexture check cannot be asked from
+// the game thread once the render thread owns the context).
+static std::unordered_set<GLuint> s_directNames;
+void NoteBound(unsigned name)
+{
+  if (!name || (name >= 0x1000 && name < 0x4000)) return;   // the engine texture manager's own range
+  std::lock_guard<std::mutex> lk(s_nameMx);
+  if (!s_ownTexNames.count(name) && s_directNames.insert(name).second && s_directNames.size() <= 20)
+    fprintf(stderr, "GLTex: texture %u created by a direct bind (kept out of GenNames)\n", name);
+}
 void GenNames(GLsizei n, GLuint* out, bool queryGL)
 {
   std::lock_guard<std::mutex> lk(s_nameMx);
@@ -487,7 +499,7 @@ void GenNames(GLsizei n, GLuint* out, bool queryGL)
         if (s_nextTexName >= 0x1000 && s_nextTexName < 0x4000) s_nextTexName = 0x4000;
         name = s_nextTexName++;
       }
-      if (queryGL && r_glIsTexture(name)) name = 0; // already created by a direct bind (outside the engine range)
+      if (s_directNames.count(name) || (queryGL && r_glIsTexture(name))) name = 0; // already created by a direct bind (outside the engine range)
     }
     s_ownTexNames.insert(name);
     out[i] = name;
@@ -501,6 +513,7 @@ void DeleteNames(GLsizei n, const GLuint* tex)
   for (GLsizei i = 0; i < n; ++i)
   {
     if (tex[i] && s_ownTexNames.erase(tex[i])) s_freeTexNames.push_back(tex[i]);
+    s_directNames.erase(tex[i]);
     auto it = s_texGen.find(tex[i]);
     if (it != s_texGen.end()) ++it->second;
     s_autoMip.erase(tex[i]);

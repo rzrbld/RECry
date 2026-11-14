@@ -63,6 +63,9 @@ void SetState(uint32_t gsBits);
 enum TexTarget : uint8_t { TEX_NONE, TEX_2D, TEX_CUBE };
 void SelectTexture(int u);
 int SelectedTexture();
+// Game-thread target metadata supports generated names beyond TX_LASTBIND.
+void NoteTextureTarget(unsigned name, unsigned target);
+unsigned TextureTarget(unsigned name);
 void BindTexture(TexTarget t, unsigned name);        // on the selected stage
 unsigned BoundTexture(TexTarget t);                  // on the selected stage
 void EnableTexture(TexTarget t, bool on);            // on the selected stage

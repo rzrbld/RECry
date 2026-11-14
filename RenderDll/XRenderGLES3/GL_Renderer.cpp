@@ -1433,7 +1433,7 @@ unsigned int CGLRenderer::DownLoadToVideoMemory(unsigned char *data,int w, int h
   }
   if (tnum == 0)
     GLR_GenTextures(1,&tnum);
-  assert(tnum<14000);
+  assert(tnum != 0);
   
   SetTexture(tnum, eTT); 
   int tgt = GL_TEXTURE_2D;
@@ -1555,7 +1555,7 @@ extern int TargetTex[TX_LASTBIND];
 void CGLRenderer::UpdateTextureInVideoMemory(uint tnum, unsigned char *newdata,int posx,int posy,int w,int h,ETEX_Format eTF)
 {
   ETexType eTT = eTT_Base;
-  if (TargetTex[tnum] == GL_TEXTURE_RECTANGLE_NV)
+  if (GLR::TextureTarget(tnum) == GL_TEXTURE_RECTANGLE_NV)
     eTT = eTT_Rectangle;
 
   SetTexture(tnum, eTT); 
@@ -1582,7 +1582,7 @@ void CGLRenderer::UpdateTextureInVideoMemory(uint tnum, unsigned char *newdata,i
     int size = ((w+3)/4)*((h+3)/4)*blockSize;
     //GLR_CompressedTexSubImage2D(GL_TEXTURE_2D,0,posx,posy,w,h,GL_COMPRESSED_RGB_S3TC_DXT1_EXT,size,newdata);
     //GLR_CompressedTexImage2D(GL_TEXTURE_2D,0,GL_COMPRESSED_RGB_S3TC_DXT1_EXT,w,h,0,size,newdata);
-    GLR_CompressedTexSubImage2D(TargetTex[tnum],0,posx,posy,w,h,GL_COMPRESSED_RGB_S3TC_DXT1_EXT,size,newdata);
+    GLR_CompressedTexSubImage2D(GLR::TextureTarget(tnum),0,posx,posy,w,h,GL_COMPRESSED_RGB_S3TC_DXT1_EXT,size,newdata);
   }
   else
   {
@@ -1591,7 +1591,7 @@ void CGLRenderer::UpdateTextureInVideoMemory(uint tnum, unsigned char *newdata,i
     // panel's 640x480/768x576 texture is GL_TEXTURE_2D and must be updated.
     if (0)
 #else
-    if (TargetTex[tnum] == GL_TEXTURE_2D)
+    if (GLR::TextureTarget(tnum) == GL_TEXTURE_2D)
 #endif
     {
       int nw = ilog2(w);
@@ -1601,7 +1601,7 @@ void CGLRenderer::UpdateTextureInVideoMemory(uint tnum, unsigned char *newdata,i
       if (h != nh)
         return;
     }
-    GLR_TexSubImage2D(TargetTex[tnum],0,posx,posy,w,h,srcformat,GL_UNSIGNED_BYTE,newdata);
+    GLR_TexSubImage2D(GLR::TextureTarget(tnum),0,posx,posy,w,h,srcformat,GL_UNSIGNED_BYTE,newdata);
   }
 }
 
@@ -1660,7 +1660,7 @@ void CGLRenderer::Draw2dImage(float xpos,float ypos,float w,float h,int texture_
   ETexType eTT = eTT_Base;
   if (texture_id >= 0)
   {
-    if (TargetTex[texture_id] == GL_TEXTURE_RECTANGLE_NV)
+    if (GLR::TextureTarget(texture_id) == GL_TEXTURE_RECTANGLE_NV)
       eTT = eTT_Rectangle;
   }
 
@@ -1672,8 +1672,8 @@ void CGLRenderer::Draw2dImage(float xpos,float ypos,float w,float h,int texture_
     if (eTT == eTT_Rectangle)
     {
       int nW, nH;
-      glGetTexLevelParameteriv(TargetTex[texture_id], 0, GL_TEXTURE_WIDTH,  &nW);
-      glGetTexLevelParameteriv(TargetTex[texture_id], 0, GL_TEXTURE_HEIGHT, &nH);
+      glGetTexLevelParameteriv(GLR::TextureTarget(texture_id), 0, GL_TEXTURE_WIDTH,  &nW);
+      glGetTexLevelParameteriv(GLR::TextureTarget(texture_id), 0, GL_TEXTURE_HEIGHT, &nH);
       fXSc = (float)nW;
       fYSc = (float)nH;
     }
