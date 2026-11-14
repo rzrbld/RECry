@@ -967,7 +967,9 @@ void CWheeledVehicleEntity::AddAdditionalImpulses(float time_interval)
 			sval = s.val(); 
 #if defined(LINUX)
 			p = ::operator+=(p, (const vectorn&)(dp*sval)); 
-			v = (const vectorn&)(dv.operator*(sval));
+			// Keep v = initial velocity + A * accumulated impulse. Replacing
+			// v here discarded earlier pivots and broke turning friction.
+			::operator+=(v, (const vectorn&)(dv*sval));
 #else
 			p += dp*sval; 
 			v += dv*sval;
