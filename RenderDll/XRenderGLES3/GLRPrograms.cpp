@@ -12,6 +12,8 @@
   Programs are binary-cached on disk (FARCRY_TEXCACHE/../native-programs).
 =============================================================================*/
 #include "GLRCore.h"
+#include <SDL.h>
+#include "../../port/platform/PortTiming.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -211,7 +213,23 @@ std::unordered_map<std::string, Program*, KeyHash> s_programs;
 ProgramKey s_lastKey; Program* s_lastProg = nullptr;
 } // namespace
 
+static bool BuildProgramImpl(Program& p, const char* name, const std::string& vs, const std::string& fs, bool& fromCache);
+// Every build is logged with its cost: builds while playing are frame hitches
+// (shader warm-up moves them to the loading screen).
+unsigned g_GLRBuilds = 0; double g_GLRBuildMs = 0;
 bool BuildProgram(Program& p, const char* name, const std::string& vs, const std::string& fs)
+{
+  const uint64_t t0 = SDL_GetPerformanceCounter();
+  bool fromCache = false;
+  const bool ok = BuildProgramImpl(p, name, vs, fs, fromCache);
+  const double ms = (SDL_GetPerformanceCounter() - t0) * 1000.0 / (double)SDL_GetPerformanceFrequency();
+  ++g_GLRBuilds; g_GLRBuildMs += ms;
+  const double gt = g_PortGameplayStartMs > 0 ? (PortNowMs() - g_PortGameplayStartMs) / 1000.0 : -1.0;
+  Log("GLR build: %.1f ms %s, %s%s", ms, fromCache ? "(binary cache)" : "(compiled)", name,
+      gt >= 0 ? (gt > 0.5 ? " - DURING GAMEPLAY" : "") : "");
+  return ok;
+}
+static bool BuildProgramImpl(Program& p, const char* name, const std::string& vs, const std::string& fs, bool& fromCache)
 {
   const char* ren = (const char*)gl.glGetString(GL_RENDERER);
   const char* ver = (const char*)gl.glGetString(GL_VERSION);
@@ -236,6 +254,7 @@ bool BuildProgram(Program& p, const char* name, const std::string& vs, const std
         gl.glProgramBinary(p.prog, fmt, data.data(), (GLsizei)data.size());
         GLint ok = 0; gl.glGetProgramiv(p.prog, GL_LINK_STATUS, &ok);
         linked = ok != 0;
+        fromCache = linked;
       }
     }
   if (!linked)
@@ -297,6 +316,111 @@ bool BuildProgram(Program& p, const char* name, const std::string& vs, const std
   return true;
 }
 
+// ---------------------------------------------------------------- shared programs + warm-up
+// Programs are shared by content (vertex + fragment text): the same source
+// built twice is one GL program, and a level's programs can be built again in
+// the next run before its first frame. Programs built after a level finished
+// loading (i.e. while playing) are remembered per level in
+// <cache>/warm-<level>.txt with their sources; WarmUp() builds them at the end
+// of the next load of that level, from the binary cache, so no program is
+// compiled or linked during gameplay on a repeat visit.
+namespace
+{
+std::unordered_map<uint64_t, Program*> s_byContent;
+std::string s_warmLevel;                 // current level's warm list ("" before the first load)
+std::unordered_map<uint64_t, bool> s_warmKnown;
+uint64_t ContentHash(const std::string& vs, const std::string& fs) { return Fnv(fs, Fnv(vs, 0xcbf29ce484222325ULL)); }
+std::string Slurp(const std::string& path)
+{
+  std::string out; FILE* f = fopen(path.c_str(), "rb"); if (!f) return out;
+  char b[8192]; size_t n; while ((n = fread(b, 1, sizeof(b), f)) > 0) out.append(b, n); fclose(f); return out;
+}
+void Spit(const std::string& path, const std::string& text)
+{
+  const std::string tmp = path + ".tmp";
+  if (FILE* f = fopen(tmp.c_str(), "wb")) { const bool w = fwrite(text.data(), 1, text.size(), f) == text.size(); fclose(f); if (w) rename(tmp.c_str(), path.c_str()); else remove(tmp.c_str()); }
+}
+std::string MetaText(const ProgramMeta* m)
+{
+  std::string t = m ? std::to_string(m->nCv) + " " + std::to_string(m->nCf) + "\n" : "0 0\n";
+  if (m) for (auto& sm : m->samplers) t += sm.first + " " + std::to_string(sm.second) + "\n";
+  return t;
+}
+bool ParseMeta(const std::string& t, ProgramMeta& m)
+{
+  const char* p = t.c_str(); int a = 0, b = 0, used = 0;
+  if (sscanf(p, "%d %d%n", &a, &b, &used) < 2) return false;
+  m.nCv = a; m.nCf = b; p += used;
+  char name[128]; int unit;
+  while (sscanf(p, "%127s %d%n", name, &unit, &used) == 2) { m.samplers.push_back({ name, unit }); p += used; }
+  return true;
+}
+void ApplyMeta(Program& p, const ProgramMeta& m)
+{
+  p.uCv = gl.glGetUniformLocation(p.prog, "Cv"); if (p.uCv < 0) p.uCv = gl.glGetUniformLocation(p.prog, "Cv[0]");
+  p.uCf = gl.glGetUniformLocation(p.prog, "Cf"); if (p.uCf < 0) p.uCf = gl.glGetUniformLocation(p.prog, "Cf[0]");
+  p.nCv = m.nCv; p.nCf = m.nCf;
+  if (p.uAlphaRef < 0) p.uAlphaRef = gl.glGetUniformLocation(p.prog, "uAlphaRef");
+  if (!m.samplers.empty())
+  {
+    gl.glUseProgram(p.prog);
+    for (auto& sm : m.samplers) { const GLint l = gl.glGetUniformLocation(p.prog, sm.first.c_str()); if (l >= 0) gl.glUniform1i(l, sm.second); }
+  }
+}
+} // namespace
+
+Program* ProgramFor(const char* name, const std::string& vs, const std::string& fs, const ProgramMeta* meta)
+{
+  const uint64_t h = ContentHash(vs, fs);
+  auto it = s_byContent.find(h);
+  if (it != s_byContent.end()) return it->second;
+  Program* p = new Program();
+  if (BuildProgram(*p, name, vs, fs) && meta) ApplyMeta(*p, *meta);
+  s_byContent[h] = p;
+  // Built while playing: remember it for this level's next load.
+  const std::string dir = CacheDir();
+  if (p->ok && !s_warmLevel.empty() && !dir.empty() && !s_warmKnown.count(h))
+  {
+    s_warmKnown[h] = true;
+    char base[512]; snprintf(base, sizeof(base), "%s/src-%016llx", dir.c_str(), (unsigned long long)h);
+    Spit(std::string(base) + ".vs", vs); Spit(std::string(base) + ".fs", fs); Spit(std::string(base) + ".meta", MetaText(meta));
+    if (FILE* f = fopen((dir + "/warm-" + s_warmLevel + ".txt").c_str(), "a")) { fprintf(f, "%016llx\n", (unsigned long long)h); fclose(f); }
+  }
+  return p;
+}
+
+void WarmUp(const char* level)
+{
+  // level path -> file-safe key
+  std::string key;
+  for (const char* c = level ? level : ""; *c; ++c) key += isalnum((unsigned char)*c) ? (char)tolower((unsigned char)*c) : '_';
+  while (!key.empty() && key.back() == '_') key.pop_back();
+  s_warmLevel = key; s_warmKnown.clear();
+  const std::string dir = CacheDir();
+  if (key.empty() || dir.empty()) return;
+  const uint64_t t0 = SDL_GetPerformanceCounter();
+  int built = 0, missing = 0;
+  const std::string list = Slurp(dir + "/warm-" + key + ".txt");
+  for (size_t i = 0; i + 16 <= list.size(); )
+  {
+    const size_t e = list.find('\n', i);
+    const std::string hex = list.substr(i, (e == std::string::npos ? list.size() : e) - i);
+    i = e == std::string::npos ? list.size() : e + 1;
+    const uint64_t h = strtoull(hex.c_str(), nullptr, 16);
+    if (!h || s_warmKnown.count(h)) continue;
+    s_warmKnown[h] = true;
+    if (s_byContent.count(h)) continue;
+    char base[512]; snprintf(base, sizeof(base), "%s/src-%016llx", dir.c_str(), (unsigned long long)h);
+    const std::string vs = Slurp(std::string(base) + ".vs"), fs = Slurp(std::string(base) + ".fs");
+    ProgramMeta m;
+    if (vs.empty() || fs.empty() || !ParseMeta(Slurp(std::string(base) + ".meta"), m)) { ++missing; continue; }
+    ProgramFor("warm-up", vs, fs, &m);
+    ++built;
+  }
+  Log("GLR warm-up %s: %d programs built in %.0f ms%s", key.c_str(), built,
+      (SDL_GetPerformanceCounter() - t0) * 1000.0 / (double)SDL_GetPerformanceFrequency(), missing ? " (some sources missing)" : "");
+}
+
 Program* GetProgram(const ProgramKey& k)
 {
   if (s_lastProg && !memcmp(&k, &s_lastKey, sizeof(k))) return s_lastProg;
@@ -306,8 +430,7 @@ Program* GetProgram(const ProgramKey& k)
   if (it != s_programs.end()) p = it->second;
   else
   {
-    p = new Program();
-    BuildProgram(*p, "material", BuildVS(k), BuildFS(k));
+    p = ProgramFor("material", BuildVS(k), BuildFS(k), nullptr);
     if (getenv("FARCRY_GLR_DUMP_PROGRAMS")) Log("GLR program %zu:\n--- VS\n%s--- FS\n%s---", s_programs.size(), BuildVS(k).c_str(), BuildFS(k).c_str());
     s_programs[key] = p;
   }

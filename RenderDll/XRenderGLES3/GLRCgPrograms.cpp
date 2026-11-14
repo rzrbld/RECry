@@ -132,7 +132,6 @@ Program* CgPair(CgProgram* vp, CgProgram* fp, const ProgramKey& key, uint8_t& te
   Program*& p = s_pairs[pk];
   if (!p)
   {
-    p = new Program();
     const std::string vs = vp ? vp->p.glsl : BuildVS(k);
     std::string fs;
     if (fp)
@@ -146,20 +145,13 @@ Program* CgPair(CgProgram* vp, CgProgram* fp, const ProgramKey& key, uint8_t& te
     }
     else fs = BuildFS(k);
     char name[64]; snprintf(name, sizeof(name), "cg vp %u fp %u", vp ? vp->id : 0, fp ? fp->id : 0);
-    if (BuildProgram(*p, name, vs, fs))
+    ProgramMeta meta;
+    meta.nCv = vp ? std::min(vp->regs, kCgVRegs) : 0;
+    meta.nCf = fp ? std::min(fp->regs, kCgFRegs) : 0;
+    if (fp) for (const GLRCg::Sampler& sm : fp->p.samplers) meta.samplers.push_back({ sm.name, sm.unit });
+    p = ProgramFor(name, vs, fs, &meta);
+    if (p->ok)
     {
-      p->uCv = gl.glGetUniformLocation(p->prog, "Cv"); p->uCf = gl.glGetUniformLocation(p->prog, "Cf");
-      if (p->uCv < 0) p->uCv = gl.glGetUniformLocation(p->prog, "Cv[0]");
-      if (p->uCf < 0) p->uCf = gl.glGetUniformLocation(p->prog, "Cf[0]");
-      p->nCv = vp ? std::min(vp->regs, kCgVRegs) : 0;
-      p->nCf = fp ? std::min(fp->regs, kCgFRegs) : 0;
-      if (p->uAlphaRef < 0) p->uAlphaRef = gl.glGetUniformLocation(p->prog, "uAlphaRef");
-      if (fp)
-      {
-        gl.glUseProgram(p->prog);
-        for (const GLRCg::Sampler& sm : fp->p.samplers)
-        { const GLint l = gl.glGetUniformLocation(p->prog, sm.name.c_str()); if (l >= 0) gl.glUniform1i(l, sm.unit); }
-      }
       // FARCRY_GLR_DUMP_PROGRAMS=<dir>: the pair's sources as files.
       if (const char* d = getenv("FARCRY_GLR_DUMP_PROGRAMS"))
         if (strcmp(d, "1"))

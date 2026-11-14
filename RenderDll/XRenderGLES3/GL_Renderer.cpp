@@ -374,12 +374,20 @@ void CGLRenderer::ChangeLog()
 //////////////////////////////////////////////////////////////////////
 #ifdef GLES3_RENDERER
 #include "GLES3FFP.h"
+#include "I3DEngine.h"
 // End of level loading: finish background texture conversions so the first
 // gameplay frames never show placeholders.
 void CGLRenderer::PostLoad()
 {
   CRenderer::PostLoad();
   GLES3FFPFinishTextures();
+  // Native: build the shader programs this level used last time now, on the
+  // loading screen, instead of during its first minutes of play.
+  if (GLR::Active())
+  {
+    I3DEngine* e = iSystem ? iSystem->GetI3DEngine() : NULL;
+    GLR::WarmUp(e ? e->GetLevelFilePath("") : "");
+  }
 }
 #endif
 

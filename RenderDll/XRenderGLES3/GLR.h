@@ -175,7 +175,10 @@ void DeletePrograms(int n, const unsigned* ids);
 void BindProgram(unsigned target, unsigned id);
 void ProgramString(unsigned target, const char* text, int len);
 void ProgramEnvParameter(unsigned target, unsigned index, const float v[4]);
-bool ProgramsSupported();            // native mode with the shader tier enabled
+bool ProgramsSupported();
+// End of a level load: build the programs this level used while playing last
+// time (from the binary cache), so none is built during gameplay.
+void WarmUp(const char* level);            // native mode with the shader tier enabled
 
 // ---------------------------------------------------------------- diagnostics
 void SelfTest();                     // FARCRY_GLR_SELFTEST: a test pattern each frame

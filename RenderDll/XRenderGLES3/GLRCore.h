@@ -94,6 +94,10 @@ struct Program
 };
 Program* GetProgram(const ProgramKey& k);
 bool BuildProgram(Program& p, const char* name, const std::string& vs, const std::string& fs);
+// Setup of engine (Cg) programs: register array sizes and sampler units.
+struct ProgramMeta { int nCv = 0, nCf = 0; std::vector<std::pair<std::string, int>> samplers; };
+// Program for this source pair, shared by content; built once (see WarmUp).
+Program* ProgramFor(const char* name, const std::string& vs, const std::string& fs, const ProgramMeta* meta);
 void ProgramsShutdown();
 size_t ProgramCount();
 
