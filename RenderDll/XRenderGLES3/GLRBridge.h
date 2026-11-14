@@ -308,6 +308,12 @@ inline void GLR_LightModeli(GLenum p, GLint v) { if (GLR::Active()) { (void)p; (
 inline void GLR_ColorMaterial(GLenum f, GLenum m) { if (GLR::Active()) GLR::ColorMaterial(f, m); else glColorMaterial(f, m); }
 inline void GLR_ShadeModel(GLenum m) { if (!GLR::Active()) glShadeModel(m); }                                                  // smooth only on ES
 inline void GLR_Hint(GLenum t, GLenum m) { if (!GLR::Active()) glHint(t, m); }
+// User clip planes (water reflections/refractions): the native backend clips in its programs.
+inline void GLR_ClipPlane(GLenum plane, const GLdouble* eq)
+{
+  if (GLR::Active()) { const float f[4] = { (float)eq[0], (float)eq[1], (float)eq[2], (float)eq[3] }; GLR::ClipPlane((int)(plane - GL_CLIP_PLANE0), f); }
+  else glClipPlane(plane, eq);
+}
 
 // ---------------------------------------------------------------- reads and copies of the frame
 // The recorded frame is played back first, so they see everything drawn so far.

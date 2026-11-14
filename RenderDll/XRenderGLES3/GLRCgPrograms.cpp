@@ -126,7 +126,7 @@ Program* CgPair(CgProgram* vp, CgProgram* fp, const ProgramKey& key, uint8_t& te
   snprintf(head, sizeof(head), "%u|%u|", vp ? vp->serial : 0, fp ? fp->serial : 0);
   std::string pk(head);
   if (!vp || !fp) pk.append((const char*)&k, sizeof(k));
-  else pk += (char)k.alphaTest;
+  else { pk += (char)k.alphaTest; pk += (char)k.clip; }
   static std::string s_lastKey; static Program* s_last = nullptr;
   if (s_last && pk == s_lastKey) return s_last->ok ? s_last : nullptr;
   Program*& p = s_pairs[pk];
@@ -144,12 +144,14 @@ Program* CgPair(CgProgram* vp, CgProgram* fp, const ProgramKey& key, uint8_t& te
       }
     }
     else fs = BuildFS(k);
+    std::string vsc = vs;
+    if (k.clip) AddClipPlane(vsc, fs);
     char name[64]; snprintf(name, sizeof(name), "cg vp %u fp %u", vp ? vp->id : 0, fp ? fp->id : 0);
     ProgramMeta meta;
     meta.nCv = vp ? std::min(vp->regs, kCgVRegs) : 0;
     meta.nCf = fp ? std::min(fp->regs, kCgFRegs) : 0;
     if (fp) for (const GLRCg::Sampler& sm : fp->p.samplers) meta.samplers.push_back({ sm.name, sm.unit });
-    p = ProgramFor(name, vs, fs, &meta);
+    p = ProgramFor(name, vsc, fs, &meta);
     if (p->ok)
     {
       // FARCRY_GLR_DUMP_PROGRAMS=<dir>: the pair's sources as files.

@@ -215,8 +215,12 @@ public:
     // ISound
     void AddEventListener(ISoundEventListener* pListener);
     void RemoveEventListener(ISoundEventListener* pListener);
-    bool IsPlaying() { return m_bPlaying; }
-    bool IsPlayingVirtual() { return m_bPlaying; }
+    // A play waiting for the background decoder counts as playing: entities
+    // drop non-playing sounds from the list they stop later, and scripts stop
+    // engine loops only when they report playing (else the loop starts after
+    // decoding and is never stopped).
+    bool IsPlaying() { return m_bPlaying || m_bPlayPending; }
+    bool IsPlayingVirtual() { return m_bPlaying || m_bPlayPending; }
     bool IsLoading() { return m_bLoading; }
     bool IsLoaded() { return m_bLoaded; }
     void Play(float fVolumeScale = 1.0f, bool bForceActiveState = true, bool bSetRatio = true);

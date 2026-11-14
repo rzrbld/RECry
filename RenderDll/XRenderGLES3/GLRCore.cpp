@@ -64,6 +64,7 @@ struct RenderThread
 // render thread waits on them blocks forever. StopThread runs at exit instead.
 RenderThread& s_rt = *new RenderThread();
 unsigned s_syncCalls = 0;
+unsigned s_statClipDraws = 0;
 double s_frameWaitMs = 0;
 bool OnRenderThreadNow() { return !s_rt.on || std::this_thread::get_id() == s_rt.id; }
 
@@ -101,6 +102,7 @@ void WaitTicket(uint64_t t)
 } // namespace
 
 bool Threaded() { return s_rt.on; }
+
 
 bool OnRenderThread() { return OnRenderThreadNow(); }
 void Post(std::function<void()> fn)
@@ -171,6 +173,7 @@ struct Current
   Raster r;
   bool alphaTestOn = false; uint16_t alphaFunc = GL_ALWAYS; float alphaRef = 0;
   bool lighting = false, colorMaterial = false, normalize = false;
+  float clipEye[4] = {};   // clip plane 0, eye space
   uint8_t lightOn = 0, clipOn = 0, texGenOn[4] = {};   // bit per light / clip plane / texgen coordinate (s t r q)
   uint16_t genMode[4][4];                               // per stage and coordinate (GL enum)
   struct Light { float amb[4], diff[4], pos[4], att[3]; } light[8];
@@ -842,6 +845,12 @@ bool PrepareDraw(Cmd& c, uint16_t attrMask, int colorSemantic)
     memcpy(s_cur.u.curNormal, s_cur.curNormal, 12);
   }
   k.normalArray = (attrMask >> ATTR_NORMAL) & 1;
+  if (s_cur.clipOn & 1)
+  {
+    // Clip space: dot(plane_eye, P^-1 * clipPos) = dot(plane_eye * P^-1, clipPos).
+    float inv[16];
+    if (Invert4(Projection(), inv)) { k.clip = 1; PlaneTimesMatrix(s_cur.clipEye, inv, s_cur.u.clipPlane); ++s_statClipDraws; }
+  }
   if (s_cur.fogOn)
   {
     k.fog = s_cur.fogMode == 0x2601 /*GL_LINEAR*/ ? 1 : (s_cur.fogMode == 0x0801 /*GL_EXP2*/ ? 3 : 2);
@@ -1370,6 +1379,7 @@ static void UploadUniforms(Program& p, const DrawUniforms& u)
   if (p.uSceneAmb >= 0 && Changed(p.last.sceneAmb, u.sceneAmb, all)) ++s_profUniformCalls, gl.glUniform4fv(p.uSceneAmb, 1, u.sceneAmb);
   if (p.uNormalMat >= 0 && Changed(p.last.normalMat, u.normalMat, all)) ++s_profUniformCalls, gl.glUniformMatrix3fv(p.uNormalMat, 1, GL_FALSE, u.normalMat);
   if (p.uCurNormal >= 0 && Changed(p.last.curNormal, u.curNormal, all)) ++s_profUniformCalls, gl.glUniform3fv(p.uCurNormal, 1, u.curNormal);
+  if (p.uClip >= 0 && Changed(p.last.clipPlane, u.clipPlane, all)) ++s_profUniformCalls, gl.glUniform4fv(p.uClip, 1, u.clipPlane);
   for (int s = 0; s < 4; ++s)
   {
     if (p.uGenObj[s] >= 0 && Changed(p.last.genObj[s], u.genObj[s], all)) ++s_profUniformCalls, gl.glUniformMatrix4fv(p.uGenObj[s], 1, GL_FALSE, u.genObj[s]);
@@ -1633,6 +1643,7 @@ void FrameStats()
         sy - lastSync, t - lastTex, a - lastAudit, s_frameWaitMs / 120.0);
     lastTex = t; lastAudit = a; lastSync = sy; s_frameWaitMs = 0;
   }
+  if (s_statClipDraws) { Log("GLR: last 120 frames: %u draws clipped by the user clip plane", s_statClipDraws); s_statClipDraws = 0; }
   if (s_statRejected || s_statCgDraws || s_statNoArrays) Log("GLR: last 120 frames: %u draws with engine programs, %u draws rejected, %u without position array", s_statCgDraws, s_statRejected, s_statNoArrays);
   s_statRejected = s_statCgDraws = s_statNoArrays = 0;
   s_statDraws = s_statClears = s_statSegments = s_statProgSwitch = s_statUploads = s_statUploadsRecorded = 0; s_statRingBytes = 0;
@@ -1752,5 +1763,14 @@ void CopyTexImage2D(unsigned tex, unsigned target, int level, unsigned internal,
   Record([=] { GLTex::CopyTexImage2D(tex, target, level, internal, x, y, w, h, border); });
 }
 unsigned TexSyncCount() { return s_texSyncs; }
+
+void ClipPlane(int index, const float eq[4])
+{
+  if (index != 0) return;
+  float inv[16];   // GL: eye plane = plane * inverse(model-view) at specification
+  if (Invert4(ModelView(), inv)) PlaneTimesMatrix(eq, inv, s_cur.clipEye);
+  static int s_logged = 0;
+  if (s_logged < 4) { ++s_logged; Log("GLR clip plane: object %.3f %.3f %.3f %.3f -> eye %.3f %.3f %.3f %.3f", eq[0], eq[1], eq[2], eq[3], s_cur.clipEye[0], s_cur.clipEye[1], s_cur.clipEye[2], s_cur.clipEye[3]); }
+}
 
 } // namespace GLR

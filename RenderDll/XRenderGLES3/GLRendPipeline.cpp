@@ -587,7 +587,7 @@ void CGLRenderer::EF_SetClipPlane (bool bEnable, float *pPlane, bool bRefract)
       p[3] = pPlane[3];
       GLR_PushMatrix();
       GLR_LoadMatrixf(m_CameraMatrix.GetData());
-      glClipPlane(GL_CLIP_PLANE0, p);
+      GLR_ClipPlane(GL_CLIP_PLANE0, p);
       GLR_Enable(GL_CLIP_PLANE0);
       GLR_PopMatrix();
     }

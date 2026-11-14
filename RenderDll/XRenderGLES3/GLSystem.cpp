@@ -2513,17 +2513,20 @@ exr:
 #endif
   CheckOGLExtensions();
   CheckGammaSupport();
-  // Port: report a GeForce2-class (fixed-function)
-  // GPU so shader scripts take their NV1X branches instead of OTHER (pixel
-  // shader) branches, which this renderer cannot run.
-  // Default: GF2 class (FARCRY_GLES3_GPU=other keeps the detected class).
+  // Port: the GPU class. The engine uses it to pick shader-script branches
+  // (NV1X = fixed function, NV3X = ARB vertex/fragment programs) and, in a few
+  // places, NVIDIA hardware workarounds. It is chosen here from what this
+  // renderer runs, not from the extension strings the GL layer emulates:
+  //   classic renderer:                  GF2  (fixed-function branches)
+  //   native renderer with programs:     GFFX (ARB program branches, VS/PS 1.1)
+  // FARCRY_GLES3_GPU=gf2|gffx forces one (diagnostic).
   {
-    // Native backend with programs: the detected (ARB program) class.
     const char* gpu = getenv("FARCRY_GLES3_GPU");
-    if (!gpu && GLR::ProgramsSupported()) gpu = "other";
-    if (!gpu || !stricmp(gpu, "gf2")) { m_Features &= ~RFT_HW_MASK; m_Features |= RFT_HW_GF2; }
+    const bool fx = gpu ? !stricmp(gpu, "gffx") : GLR::ProgramsSupported();
+    m_Features &= ~RFT_HW_MASK;
+    m_Features |= fx ? RFT_HW_GFFX : RFT_HW_GF2;
   }
-  fprintf(stderr, "PORT GPU class: 0x%x\n", m_Features & RFT_HW_MASK);
+  fprintf(stderr, "PORT GPU class: %s\n", (m_Features & RFT_HW_MASK) == RFT_HW_GFFX ? "GeForce FX (ARB programs)" : "GeForce2 (fixed function)");
   ChangeLog();
 
   if (m_Features & RFT_HW_PS20)
@@ -2689,7 +2692,12 @@ exr:
 
   int parms[4];
 
-  glGetIntegerv(GL_MAX_CLIP_PLANES, &m_MaxClipPlanes);
+  // User clip planes (water reflections cut at the water level). Port: the
+  // native backend clips plane 0 in its programs (GLR_ClipPlane). The classic
+  // layer reports some and ignores them (unchanged). Never 0: the engine's
+  // fallback needs NV texture shaders, which nothing here has.
+  if (GLR::Active()) m_MaxClipPlanes = 1;
+  else glGetIntegerv(GL_MAX_CLIP_PLANES, &m_MaxClipPlanes);
   iLog->Log(" OGL Max Clip Planes=%d", m_MaxClipPlanes);
   glGetIntegerv(GL_MAX_LIGHTS, &m_MaxLightSources);
   iLog->Log(" OGL Max Lights=%d", m_MaxLightSources);
@@ -2702,8 +2710,6 @@ exr:
   iLog->Log(" OGL Max ModelView Matrix stack depth=%d", nDepth);
   glGetIntegerv(GL_MAX_PROJECTION_STACK_DEPTH, &nDepth);
   iLog->Log(" OGL Max Projection Matrix stack depth=%d", nDepth);
-  if (nGPU == RFT_HW_GFFX || nGPU == RFT_HW_GF3)
-    m_MaxClipPlanes = 0;
 
   CheckError("CGLRenderer::Init");
 

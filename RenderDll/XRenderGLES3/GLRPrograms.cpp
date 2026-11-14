@@ -302,6 +302,7 @@ static bool BuildProgramImpl(Program& p, const char* name, const std::string& vs
   p.uMatAmb = gl.glGetUniformLocation(p.prog, "uMatAmb"); p.uMatDiff = gl.glGetUniformLocation(p.prog, "uMatDiff");
   p.uMatEmis = gl.glGetUniformLocation(p.prog, "uMatEmis"); p.uSceneAmb = gl.glGetUniformLocation(p.prog, "uSceneAmb");
   p.uNormalMat = gl.glGetUniformLocation(p.prog, "uNormalMat"); p.uCurNormal = gl.glGetUniformLocation(p.prog, "uCurNormal");
+  p.uClip = gl.glGetUniformLocation(p.prog, "uGlrClipPlane");
   gl.glUseProgram(p.prog);
   for (int u = 0; u < 4; ++u)
   {
@@ -431,12 +432,35 @@ Program* GetProgram(const ProgramKey& k)
   if (it != s_programs.end()) p = it->second;
   else
   {
-    p = ProgramFor("material", BuildVS(k), BuildFS(k), nullptr);
+    std::string vs = BuildVS(k), fs = BuildFS(k);
+    if (k.clip) AddClipPlane(vs, fs);
+    p = ProgramFor("material", vs, fs, nullptr);
     if (getenv("FARCRY_GLR_DUMP_PROGRAMS")) Log("GLR program %zu:\n--- VS\n%s--- FS\n%s---", s_programs.size(), BuildVS(k).c_str(), BuildFS(k).c_str());
     s_programs[key] = p;
   }
   s_lastKey = k; s_lastProg = p;
   return p;
+}
+
+void AddClipPlane(std::string& vs, std::string& fs)
+{
+  // Declarations just before main (after any #version/#extension lines); the
+  // vertex side sets the distance at the end of main (the last function of
+  // every program here), the fragment side discards first thing in main.
+  const size_t vm = vs.find("void main()");
+  if (vm != std::string::npos)
+  {
+    vs.insert(vm, "uniform highp vec4 uGlrClipPlane;\nout highp float vGlrClip;\n");
+    const size_t vend = vs.rfind('}');
+    vs.insert(vend, "  vGlrClip = dot(uGlrClipPlane, gl_Position);\n");
+  }
+  const size_t fm = fs.find("void main()");
+  if (fm != std::string::npos)
+  {
+    fs.insert(fm, "in highp float vGlrClip;\n");
+    const size_t fb = fs.find('{', fm);
+    fs.insert(fb + 1, "\n  if (vGlrClip < 0.0) discard;\n");
+  }
 }
 
 size_t ProgramCount() { return s_programs.size(); }

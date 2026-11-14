@@ -53,6 +53,7 @@ struct ProgramKey
   uint8_t texMat;        // bit u: texture matrix on stage u
   uint8_t cube;          // bit u: stage u samples a cube map
   uint8_t normalArray;   // a normal attribute (else the current normal)
+  uint8_t clip;          // user clip plane 0 on (water reflections): fragments below it are discarded
 };
 #pragma pack(pop)
 
@@ -75,6 +76,7 @@ struct DrawUniforms
   float curNormal[3];
   // texgen planes (object, eye) and texture matrices per stage
   float genObj[4][16], genEye[4][16], texMat[4][16];
+  float clipPlane[4];    // clip plane 0 in clip space (dot with gl_Position)
 };
 
 struct Program
@@ -84,7 +86,7 @@ struct Program
   GLint uMV = -1, uP = -1, uCurColor = -1, uCurTex = -1, uAlphaRef = -1, uFog = -1, uFogColor = -1;
   GLint uStageColor[4] = { -1, -1, -1, -1 }, uStageScale[4] = { -1, -1, -1, -1 };
   GLint uLightPos = -1, uLightAmb = -1, uLightDiff = -1, uLightAtt = -1, uMatAmb = -1, uMatDiff = -1, uMatEmis = -1, uSceneAmb = -1;
-  GLint uNormalMat = -1, uCurNormal = -1;
+  GLint uNormalMat = -1, uCurNormal = -1, uClip = -1;
   GLint uGenObj[4] = { -1, -1, -1, -1 }, uGenEye[4] = { -1, -1, -1, -1 }, uTexMat[4] = { -1, -1, -1, -1 };
   DrawUniforms last;     // what the program currently has
   bool fresh = true;
@@ -93,6 +95,9 @@ struct Program
   uint64_t lastCg = ~0ull;  // segment << 32 | snapshot uploaded last
 };
 Program* GetProgram(const ProgramKey& k);
+// Clip plane 0 (no user clip planes in ES): the vertex shader passes the
+// clip-space distance, the fragment shader discards what is below the plane.
+void AddClipPlane(std::string& vs, std::string& fs);
 bool BuildProgram(Program& p, const char* name, const std::string& vs, const std::string& fs);
 // Setup of engine (Cg) programs: register array sizes and sampler units.
 struct ProgramMeta { int nCv = 0, nCf = 0; std::vector<std::pair<std::string, int>> samplers; };

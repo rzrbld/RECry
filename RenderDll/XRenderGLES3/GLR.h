@@ -196,6 +196,8 @@ void Sync(std::function<void()> fn);
 // Frame end (GLSystem): the present work is posted after the frame's replay;
 // the game thread may then record one more frame before it waits.
 void PostFrameEnd(std::function<void()> present);
+// glClipPlane: plane in object space of the current model-view (GL rules); plane 0 only.
+void ClipPlane(int index, const float eq[4]);
 // Texture work of the bridge (GLRBridge.h): direct when single-threaded,
 // recorded (data copied) or synchronous when threaded.
 void TexGenNames(int n, unsigned* out);
