@@ -37,7 +37,7 @@ same in both layouts.
 | Select | Objectives / score |
 | Start | Pause menu |
 
-## Modern shooter
+## Modern shooter (default)
 
 | Button | Action |
 |---|---|
@@ -68,7 +68,7 @@ layer while **LB** is held:
 | B | Prone |
 | Y | Fire mode |
 | D-pad down | Switch grenade type |
-| Right stick left / right | Lean left / right |
+| Right stick left / right | CryVision / thermal vision (T) |
 
 ## Menus and cutscenes (both layouts)
 

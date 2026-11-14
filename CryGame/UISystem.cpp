@@ -1094,6 +1094,10 @@ int CUISystem::ActivateScreen(CUIScreen *pScreen)
 			// activate it, because tabstop needs it to be activated
 			pScreen->m_bActive = 1;
 
+            // Choose focus in the screen being opened. Nested OnActivate
+            // handlers may open a child page and select its focus afterward.
+            SetFocusScreen(pScreen);
+            SetFocus(0);
 			FirstTabStop();
 
 			// now deactivate it again, and call the OnActivate event
@@ -1128,6 +1132,11 @@ int CUISystem::DeactivateScreen(CUIScreen *pScreen)
 		{
 			pScreen->m_bActive = 0;
 
+            // An inactive checkpoint list must never receive later key ups.
+            if (m_pFocus && m_pFocus->m_pScreen == pScreen) SetFocus(0);
+            if (m_pFocusScreen == pScreen) SetFocusScreen((CUIScreen*)0);
+            if (m_pMouseCaptured && m_pMouseCaptured->m_pScreen == pScreen) m_pMouseCaptured = 0;
+            if (m_pMouseOver && m_pMouseOver->m_pScreen == pScreen) m_pMouseOver = 0;
 			FirstTabStop();
 
 			// must be done, other wise you will get the remaining input events that where created before this call
@@ -5088,9 +5097,11 @@ bool CUISystem::IsReserved(const char *szName)
 //------------------------------------------------------------------------------------------------- 
 bool CUISystem::IsOnFocusScreen(CUIWidget *pWidget)
 {
+    if (!pWidget || (pWidget->m_pScreen && !IsScreenActive(pWidget->m_pScreen)))
+        return false;
 	if (m_pFocusScreen)
 	{
-		return (pWidget->m_pScreen == m_pFocusScreen);
+		return IsScreenActive(m_pFocusScreen) && (pWidget->m_pScreen == m_pFocusScreen);
 	}
 	else if ((pWidget->m_pScreen && IsScreenActive(pWidget->m_pScreen)) || (!pWidget->m_pScreen))
 	{

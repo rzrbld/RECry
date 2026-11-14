@@ -82,7 +82,7 @@ trap cpu_restore EXIT
 #             the sticks itself (PortMaster's SDL controller mapping).
 # gptokeyb2 takes either -x or -c, not both. User presets: put <name>.gptk in
 # controls/ and set RECRY_CONTROLS=<name>. Older gptokeyb: classic layout.
-RECRY_CONTROLS=${RECRY_CONTROLS:-classic}
+RECRY_CONTROLS=${RECRY_CONTROLS:-modern}
 [ "$RECRY_CONTROLS" = classic ] || [ -f "$GAMEDIR/controls/$RECRY_CONTROLS.gptk" ] || RECRY_CONTROLS=classic
 if [ -n "$GPTOKEYB2" ] && [ "$RECRY_CONTROLS" != classic ]; then
   export FARCRY_PAD_LAYOUT=gptk

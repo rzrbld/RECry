@@ -823,6 +823,10 @@ void CInput::UpdateController()
 		// 800x600 screen) and A clicks where it points. Before the cursor is
 		// moved (or after D-pad focus navigation) A activates the focused item.
 		static bool s_bPadCursor = false;
+        // Modern uses the same mouse-style controls in startup and pause menus.
+        // Its gameplay key emulation must not switch A back to keyboard focus.
+        const bool bPointerOnly = PadLayoutGptk();
+        if (bPointerOnly) s_bPadCursor = true;
 		{
 			float sx = m_Gamepad.GetStickLX() + m_Gamepad.GetStickRX();
 			float sy = m_Gamepad.GetStickLY() + m_Gamepad.GetStickRY();
@@ -841,8 +845,8 @@ void CInput::UpdateController()
 				s_bPadCursor = true;
 			}
 		}
-		if (m_Gamepad.KeyPressed(XKEY_GP_DPAD_UP) || m_Gamepad.KeyPressed(XKEY_GP_DPAD_DOWN) ||
-			m_Gamepad.KeyPressed(XKEY_GP_DPAD_LEFT) || m_Gamepad.KeyPressed(XKEY_GP_DPAD_RIGHT))
+		if (!bPointerOnly && (m_Gamepad.KeyPressed(XKEY_GP_DPAD_UP) || m_Gamepad.KeyPressed(XKEY_GP_DPAD_DOWN) ||
+			m_Gamepad.KeyPressed(XKEY_GP_DPAD_LEFT) || m_Gamepad.KeyPressed(XKEY_GP_DPAD_RIGHT)))
 			s_bPadCursor = false;
 		if (s_bPadCursor)
 		{
@@ -854,7 +858,7 @@ void CInput::UpdateController()
 			PostSyntheticKey(XKEY_RETURN, true, m_Keyboard.GetModifiers());
 			PostSyntheticKey(XKEY_RETURN, false, m_Keyboard.GetModifiers());
 		}
-		if (m_Gamepad.KeyPressed(XKEY_GP_Y))
+		if (!bPointerOnly && m_Gamepad.KeyPressed(XKEY_GP_Y))
 			g_PortFocusLoadTab = true;
 		if (m_Gamepad.KeyPressed(XKEY_GP_B) ||
 			(!PadLayoutGptk() && (m_Gamepad.KeyPressed(XKEY_GP_START) || m_Gamepad.KeyPressed(XKEY_GP_BACK))))
@@ -862,12 +866,12 @@ void CInput::UpdateController()
 			PostSyntheticKey(XKEY_ESCAPE, true, m_Keyboard.GetModifiers());
 			PostSyntheticKey(XKEY_ESCAPE, false, m_Keyboard.GetModifiers());
 		}
-		if (m_Gamepad.KeyPressed(XKEY_GP_DPAD_DOWN) || m_Gamepad.KeyPressed(XKEY_GP_DPAD_RIGHT))
+		if (!bPointerOnly && (m_Gamepad.KeyPressed(XKEY_GP_DPAD_DOWN) || m_Gamepad.KeyPressed(XKEY_GP_DPAD_RIGHT)))
 		{
 			PostSyntheticKey(XKEY_TAB, true, m_Keyboard.GetModifiers());
 			PostSyntheticKey(XKEY_TAB, false, m_Keyboard.GetModifiers());
 		}
-		if (m_Gamepad.KeyPressed(XKEY_GP_DPAD_UP) || m_Gamepad.KeyPressed(XKEY_GP_DPAD_LEFT))
+		if (!bPointerOnly && (m_Gamepad.KeyPressed(XKEY_GP_DPAD_UP) || m_Gamepad.KeyPressed(XKEY_GP_DPAD_LEFT)))
 		{
 			// Previous tab stop: CUISystem polls the SHIFT state while handling TAB.
 			m_Keyboard.SetSyntheticKeyState(XKEY_LSHIFT, true);
@@ -1411,6 +1415,15 @@ void CInput::EnableEventPosting ( bool bEnable )
 //////////////////////////////////////////////////////////////////////////
 void CInput::PostInputEvent( const SInputEvent &event )
 {
+#if defined(LINUX)
+    // Modern gptokeyb maps A to gameplay Space while the native pad path also
+    // sends the menu click/Return. Keep the raw key state for rebinding, but
+    // do not let that duplicate Space activate the focused checkpoint list.
+    if (PadLayoutGptk() && event.key == XKEY_SPACE && IsMenuOrConsoleActive() &&
+        !(m_console && m_console->IsOpened()))
+        return;
+#endif
+
 	if (m_postingenable)
 	{
 		BroadcastEvent( event );

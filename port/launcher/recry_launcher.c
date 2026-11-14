@@ -251,7 +251,7 @@ static int poll_key(void) {
 /* ---------------------------------------------------------- settings */
 static char g_res[32] = "auto";        /* auto or WxH */
 static int g_stretch = 0, g_phys = 0, g_fx = 0, g_view = 0;   /* 0 auto, 1 on (simplified), 2 off (full) */
-static int g_text = 0, g_limit = 30, g_fps = 0, g_cpu_perf = 1, g_controls = 0;   /* controls: 0 classic, 1 modern */
+static int g_text = 0, g_limit = 30, g_fps = 0, g_cpu_perf = 1, g_controls = 1;   /* controls: 0 classic, 1 modern */
 static int g_look = 30, g_pointer = 30;   /* stick speeds in %: 30 = the port's tuned default */
 /* Panfrost (Mesa's open-source Mali driver): the port bundles a Mesa with a
    fixed tiler setup in libs.mesa/. Shown only where Panfrost drives the GPU
@@ -347,7 +347,7 @@ static int page_controls(void) {
         { "B", "Crouch (hold)" }, { "X", "Reload" }, { "Y", "Next weapon" }, { "RB", "Throw grenade" },
         { "L3 / R3", "Sprint / flashlight" }, { "D-pad up", "Binoculars" }, { "D-pad down", "Use, vehicles" },
         { "D-pad L / R", "Lean left / right" }, { "Select", "Pause menu" }, { "Start", "Objectives / score" },
-        { "LB + B", "Prone" }, { "LB + Y", "Fire mode" }, { "LB + D-pad down", "Grenade type" }, { "LB + R stick", "Lean" } };
+        { "LB + B", "Prone" }, { "LB + Y", "Fire mode" }, { "LB + D-pad down", "Grenade type" }, { "LB + R stick L/R", "CryVision (T)" } };
     int which = g_controls;
     for (;;) {
         char title[64]; snprintf(title, sizeof title, "CONTROLS: %s", k_layout_name[which]);

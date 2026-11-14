@@ -5,7 +5,7 @@
 # through PortMaster's SDL controller mapping). gptokeyb2 has no tap-vs-hold, so
 # the layout's hold actions sit on an LB layer (hold LB):
 #   LB + B prone, LB + Y fire mode, LB + D-pad down grenade type,
-#   LB + right stick lean. Use is on D-pad down.
+#   LB + right stick left/right toggles CryVision (T). Use is on D-pad down.
 # Edit freely: any gptokeyb2 key name works (see the gptokeyb2 README).
 
 [controls]
@@ -34,5 +34,5 @@ overlay = parent
 b = v                  # prone
 down = h               # switch grenade type
 y = x                  # fire mode
-right_analog_left  = q # lean left
-right_analog_right = e # lean right
+right_analog_left  = t # toggle CryVision / thermal vision
+right_analog_right = t # toggle CryVision / thermal vision
