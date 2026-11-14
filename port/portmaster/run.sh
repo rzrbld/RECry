@@ -172,12 +172,6 @@ export FARCRY_HUD_TEXT_SCALE=${FARCRY_HUD_TEXT_SCALE:-$(awk -v s="$FARCRY_UI_TEX
 
 # ---------------------------------------------------------------- engine
 export FARCRY_DATA="$RUNTIME" FARCRY_GLES=1
-# Renderer (launcher): native = the native GLES3 backend running the game's
-# own shader programs (bump/specular materials, water reflections); classic =
-# the older fixed-function renderer (bump/water cvars: presets/handheld.cfg).
-if [[ ${RECRY_RENDERER:-native} != classic ]]; then
-  export FARCRY_RENDERER=${FARCRY_RENDERER:-native}
-fi
 mkdir -p "$BASE/logs/snaps"; export FARCRY_SNAP_DIR=${FARCRY_SNAP_DIR:-$BASE/logs/snaps} FARCRY_CAPTURE_DIR=${FARCRY_CAPTURE_DIR:-$BASE/logs/snaps}
 export MALLOC_ARENA_MAX=${MALLOC_ARENA_MAX:-2}
 export FARCRY_AUDIO_RATE=${FARCRY_AUDIO_RATE:-22050}

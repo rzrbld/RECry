@@ -13,7 +13,7 @@ static char THIS_FILE[] = __FILE__;
 
 #include "RenderPCH.h"
 #include "GL_Renderer.h"
-#include "GLAudit.h"
+#include "GLRTable.h"
 #include "GLR.h"
 #include "GLTexUpload.h"
 #include "CG/cgGL.h"
@@ -41,21 +41,10 @@ COMPRESSOR_ERROR (*CompressTextureATI)(DWORD width,
 #include <vector>
 #include <algorithm>
 #include "GLES3CoreFuncs.h"
-#include "GLES3FFP.h"
+#include "GLRPlatform.h"
 #include "../../port/platform/PortTiming.h"
 
 static void GLES3LogBridge(const char* s) { if (iLog) iLog->Log("%s", s); }
-
-// Audit aid: GL texture name -> engine texture name (printed after a draw-ID audit frame).
-static void GLES3AuditTextureNames()
-{
-  if (!gRenDev || !gRenDev->m_TexMan) return;
-  for (int i = 0; i < gRenDev->m_TexMan->m_Textures.Num(); ++i)
-  {
-    STexPic* tp = gRenDev->m_TexMan->m_Textures[i];
-    if (tp) fprintf(stderr, "GLES3TEX bind=%d name=%s %dx%d flags=0x%x\n", tp->m_Bind, tp->m_SearchName.c_str(), tp->m_Width, tp->m_Height, tp->m_Flags);
-  }
-}
 
 // Diagnostics: engine texture name of a GL texture (only used on errors).
 static const char* GLES3TexNameOf(unsigned tex)
@@ -101,8 +90,7 @@ static void GLES3_SnapIfRequested()
   if (!s_init) { s_init = true; signal(SIGUSR2, OnSnapSignal); }
   if (!s_snapRequest) return;
   const int k = 3 - (int)s_snapRequest; if (k == 0) ++s_series;
-  if (k == 2) { extern void GLES3FFPRequestDump(); GLES3FFPRequestDump(); } // after the 3 clean frames
-  if (k == 0 && GLR::Active()) GLR::TraceNextDraws(600);   // native: log the next frame's draws
+  if (k == 0) GLR::TraceNextDraws(600);   // native: log the next frame's draws
   if (k == 0 && gRenDev)
   {
     // Where the snapshot was taken (FARCRY_BENCH_POS reproduces it: x y z yaw).
@@ -212,15 +200,9 @@ static void GLES3_LogFrameTime()
   const double freq = (double)SDL_GetPerformanceFrequency();
   const double ms = (now - s_prev) * 1000.0 / freq, t = (now - s_t0) / freq;
   s_prev = now;
-  unsigned draws = 0, verts = 0;
-  GLES3FFPTakeDrawStats(draws, verts);
-  double ffpMs = 0, glMs = 0;
-  GLES3FFPTakeTimes(ffpMs, glMs);
-  unsigned cDraws = 0, cVerts = 0, iDraws = 0;
-  GLES3FFPTakeArrayStats(cDraws, cVerts, iDraws);
-  double upMs = 0, upKb = 0;
-  GLES3FFPTakeUploadStats(upMs, upKb);
-  const unsigned progs = GLES3FFPTakeProgramsBuilt();
+  // Columns of the old fixed-function layer, kept for the analysis scripts.
+  const unsigned draws = 0, verts = 0, cDraws = 0, cVerts = 0, iDraws = 0, progs = 0;
+  const double ffpMs = 0, glMs = 0, upMs = 0, upKb = 0;
   static double s_prevCpu = 0; timespec cts; clock_gettime(CLOCK_THREAD_CPUTIME_ID, &cts);
   const double cpuNow = cts.tv_sec * 1000.0 + cts.tv_nsec / 1e6, cpuMs = s_prevCpu > 0 ? cpuNow - s_prevCpu : 0; s_prevCpu = cpuNow;
   double ph[PORT_PHASE_COUNT];
@@ -402,7 +384,6 @@ static void GLES3_SceneRebind()
 static void GLES3_Present(int demoFrame, int demoLoop)
 {
   GLES3_CaptureIfDue(demoFrame, demoLoop);
-  GLES3FFPFrameBoundary();
   GLES3_ScenePresent();
   GLES3_OpaqueAlphaForPresent();
   { // diagnostic: one capture of the final (scaled) screen
@@ -448,24 +429,19 @@ static void GLES3_Present(int demoFrame, int demoLoop)
 void GLES3_SwapBuffers()
 {
   if (!g_GLES3Window) return;
-  if (GLR::Active())
-  {
-    if (getenv("FARCRY_GLR_SELFTEST")) GLR::SelfTest();
-    GLR::EndFrame();   // native backend: play back the recorded frame (or hand it to the render thread)
-  }
+  if (getenv("FARCRY_GLR_SELFTEST")) GLR::SelfTest();
+  GLR::EndFrame();   // play back the recorded frame, or hand it to the render thread
   {
     // Threaded: the present is queued after the frame; this waits only for
     // the previous frame (the time shows as swap_ms).
     SPortPhaseScope portScope(PORT_PHASE_SWAP);
     // The demo frame of the frame being presented (the game moves on meanwhile).
     const int demoFrame = g_PortDemoFrame, demoLoop = g_PortDemoLoop;
-    if (GLR::Active()) GLR::PostFrameEnd([demoFrame, demoLoop] { GLES3_Present(demoFrame, demoLoop); });
-    else GLES3_Present(demoFrame, demoLoop);
+    GLR::PostFrameEnd([demoFrame, demoLoop] { GLES3_Present(demoFrame, demoLoop); });
   }
   // From the first presented frame on, a render thread owns GL (native renderer).
-  if (GLR::Active() && !GLR::Threaded()) GLR::StartThread(g_GLES3Window, g_GLES3Context);
-  if (GLR::Active()) GLR::BeginFrame();
-  GLAudit_Frame();
+  if (!GLR::Threaded()) GLR::StartThread(g_GLES3Window, g_GLES3Context);
+  GLR::BeginFrame();
   GLES3_LogFrameTime();
 }
 
@@ -788,7 +764,7 @@ void CGLRenderer::FindProc( void*& ProcAddress, char* Name, char* SupportName, b
     const bool coreGroup = !strcmp(SupportName, "_GL");
     // Fixed-function core first: it wraps both desktop-only entry points and
     // core ones whose desktop semantics differ (glEnable, draws, uploads).
-    if (!ProcAddress) ProcAddress = GLES3FFPOverride(fn);
+    if (!ProcAddress && GLRTableKnown(fn)) ProcAddress = GLRTableKnownPlaceholder();   // covered by the native backend
     if (!ProcAddress) ProcAddress = GLES3PlatformProc(fn);
     // Core GLES3 entry points, or extension entries whose extension the
     // driver advertises. Never trust a bare lookup: EGL may hand back
@@ -843,14 +819,14 @@ void CGLRenderer::FindProcs( bool AllowExt )
   #undef GL_EXT
   #undef GL_PROC
 #ifdef GLES3_RENDERER
-  // Stage 0 of the native backend: FARCRY_GL_AUDIT counts every engine GL
-  // call per function and call site (GLAudit.h). Wrapped once.
-  static bool s_audited = false;
-  if (!s_audited && GLAudit_Enabled())
+  // The native backend owns GL: every table entry becomes a native query,
+  // a platform entry or a no-op stub (GLRTable.h). Once.
+  static bool s_tableSet = false;
+  if (!s_tableSet)
   {
-    s_audited = true;
+    s_tableSet = true;
     #define GL_EXT(name)
-    #define GL_PROC(ext,ret,func,parms) GLAUDIT_WRAP(func)
+    #define GL_PROC(ext,ret,func,parms) GLRTABLE_SET(func)
     #include "GLFuncs.h"
     #undef GL_EXT
     #undef GL_PROC
@@ -1960,10 +1936,9 @@ HWND CGLRenderer::SetMode(int x,int y,int width,int height,unsigned int cbpp, in
       s_bGLES3SurfaceAlpha = a > 0;
       iLog->Log("GLES3 surface: alpha %d bits, depth %d bits%s", a, d, a > 0 ? "" : " (no destination alpha: terrain layers/sprites degrade)");
     }
-    GLES3FFPInit(&GLES3LogBridge);
-    if (GLR::Active() && !GLR::Init()) iLog->Log("GLR: native backend could not start");
+    GLRPlatformInit(&GLES3LogBridge);
+    if (!GLR::Init()) iLog->Log("GLR: native backend could not start");
     GLTex::SetTexNameLookup(&GLES3TexNameOf);
-    GLES3FFPSetAuditHook(&GLES3AuditTextureNames);
     int dw = width, dh = height;
     SDL_GL_GetDrawableSize(g_GLES3Window, &dw, &dh);
     iLog->Log("GLES3 window: requested %dx%d, drawable %dx%d, fullscreen=%d", width, height, dw, dh, (int)fullscreen);
@@ -2692,12 +2667,10 @@ exr:
 
   int parms[4];
 
-  // User clip planes (water reflections cut at the water level). Port: the
-  // native backend clips plane 0 in its programs (GLR_ClipPlane). The classic
-  // layer reports some and ignores them (unchanged). Never 0: the engine's
-  // fallback needs NV texture shaders, which nothing here has.
-  if (GLR::Active()) m_MaxClipPlanes = 1;
-  else glGetIntegerv(GL_MAX_CLIP_PLANES, &m_MaxClipPlanes);
+  // User clip planes (water reflections cut at the water level): the native
+  // backend clips plane 0 in its programs (GLR_ClipPlane). Never 0: the
+  // engine's fallback needs NV texture shaders, which nothing here has.
+  m_MaxClipPlanes = 1;
   iLog->Log(" OGL Max Clip Planes=%d", m_MaxClipPlanes);
   glGetIntegerv(GL_MAX_LIGHTS, &m_MaxLightSources);
   iLog->Log(" OGL Max Lights=%d", m_MaxLightSources);
@@ -3188,7 +3161,7 @@ void CGLRenderer::ShutDown(bool bReInit)
   GLES3_ReportMissingCalls();
   if (!bReInit)
   {
-    GLES3FFPShutdown();
+    GLRPlatformShutdown();
     if (g_GLES3Context) { SDL_GL_MakeCurrent(g_GLES3Window, NULL); SDL_GL_DeleteContext(g_GLES3Context); g_GLES3Context = NULL; }
     if (g_GLES3Window) { SDL_DestroyWindow(g_GLES3Window); g_GLES3Window = NULL; }
   }

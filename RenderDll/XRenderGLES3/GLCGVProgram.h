@@ -529,7 +529,6 @@ public:
       int size = strlen(prog_text);
       glLoadProgramNV(GL_VERTEX_PROGRAM_NV, m_Insts[m_CurInst].m_dwHandle, size, (const GLubyte *)prog_text);
       GLint errpos = -1;
-      if (!GLR::Active()) glGetIntegerv(GL_PROGRAM_ERROR_POSITION_NV, &errpos);
       if(errpos != -1)
       {
         iLog->Log("Warning: VProgram error:\n");
@@ -553,7 +552,6 @@ public:
       int size = strlen(prog_text);
       GLR_ProgramStringARB(GL_VERTEX_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, size, (const GLubyte *)prog_text);
       GLint errpos = -1;   // port: ES has no program error position (query leaves it unset)
-      if (!GLR::Active()) glGetIntegerv(GL_PROGRAM_ERROR_POSITION_ARB, &errpos);
       if(errpos != -1)
       {
         iLog->Log("Warning: VProgram error:\n");

@@ -502,7 +502,6 @@ public:
       int size = strlen(prog_text);
       GLR_ProgramStringARB(GL_FRAGMENT_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, size, (const GLubyte *)prog_text);
       GLint errpos = -1;   // port: ES has no program error position (query leaves it unset)
-      if (!GLR::Active()) glGetIntegerv(GL_PROGRAM_ERROR_POSITION_ARB, &errpos);
       if(errpos != -1)
       {
         const GLubyte *pError = glGetString(GL_PROGRAM_ERROR_STRING_ARB);

@@ -24,7 +24,6 @@
 namespace GLR
 {
 // ---------------------------------------------------------------- lifetime
-bool Active();                       // FARCRY_RENDERER=native (decided once)
 bool Init();                         // after the GL context exists
 void Shutdown();
 
@@ -198,6 +197,9 @@ void Sync(std::function<void()> fn);
 void PostFrameEnd(std::function<void()> present);
 // glClipPlane: plane in object space of the current model-view (GL rules); plane 0 only.
 void ClipPlane(int index, const float eq[4]);
+// The engine's dynamic merge buffers: no GL storage updates; draws copy what
+// they use from the CPU copy into the frame ring (see Buf::stream).
+void SetStreamBuffer(unsigned name);
 // Texture work of the bridge (GLRBridge.h): direct when single-threaded,
 // recorded (data copied) or synchronous when threaded.
 void TexGenNames(int n, unsigned* out);

@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <map>
+#include <unordered_map>
 
 namespace GLR
 {
@@ -35,7 +36,8 @@ namespace
 std::map<unsigned, CgProgram*> s_progs;
 unsigned s_nextId = 1;
 uint32_t s_serial = 0;
-std::map<std::string, Program*> s_pairs;
+std::map<std::string, Program*> s_pairs;            // one side generated: serials + fixed-function key
+std::unordered_map<uint64_t, Program*> s_pairsFast;  // both sides engine programs
 unsigned s_bound[2] = {};          // 0 vertex, 1 fragment
 
 const char* const kAlphaCmp[8] = { nullptr, "o_Color.a > uAlphaRef", "o_Color.a < uAlphaRef", "o_Color.a >= uAlphaRef",
@@ -48,7 +50,7 @@ bool ProgramsSupported()
   if (s < 0)
   {
     const char* t = getenv("FARCRY_GLES3_SHADER_TIER");
-    s = Active() && (!t || atoi(t) != 0) ? 1 : 0;
+    s = (!t || atoi(t) != 0) ? 1 : 0;
   }
   return s == 1;
 }
@@ -101,7 +103,7 @@ void ProgramString(unsigned target, const char* text, int len)
 
 void CgMemStats(size_t& glslBytes, int& programs, int& pairs)
 {
-  glslBytes = 0; programs = (int)s_progs.size(); pairs = (int)s_pairs.size();
+  glslBytes = 0; programs = (int)s_progs.size(); pairs = (int)(s_pairs.size() + s_pairsFast.size());
   for (auto& e : s_progs) glslBytes += e.second->p.glsl.capacity();
 }
 CgProgram* CgFind(unsigned id, bool vertex)
@@ -122,14 +124,29 @@ Program* CgPair(CgProgram* vp, CgProgram* fp, const ProgramKey& key, uint8_t& te
     for (int u = k.stages; u < need; ++u) { k.co[u] = k.ao[u] = k.ca[u] = k.aa[u] = 0; }
     if (need > k.stages) k.stages = (uint8_t)need;
   }
-  char head[48];
-  snprintf(head, sizeof(head), "%u|%u|", vp ? vp->serial : 0, fp ? fp->serial : 0);
-  std::string pk(head);
-  if (!vp || !fp) pk.append((const char*)&k, sizeof(k));
-  else { pk += (char)k.alphaTest; pk += (char)k.clip; }
-  static std::string s_lastKey; static Program* s_last = nullptr;
-  if (s_last && pk == s_lastKey) return s_last->ok ? s_last : nullptr;
-  Program*& p = s_pairs[pk];
+  // Both sides engine programs (the common case): an integer key, no
+  // allocation per draw. One generated side: the full fixed-function key too.
+  Program** slot;
+  if (vp && fp)
+  {
+    const uint64_t ik = ((uint64_t)vp->serial << 32) ^ ((uint64_t)fp->serial << 8) ^ ((uint64_t)k.alphaTest << 1) ^ (uint64_t)k.clip;
+    static uint64_t s_lastIk = ~0ull; static Program* s_lastI = nullptr;
+    if (s_lastI && ik == s_lastIk) return s_lastI->ok ? s_lastI : nullptr;
+    slot = &s_pairsFast[ik];
+    if (*slot) { s_lastIk = ik; s_lastI = *slot; return (*slot)->ok ? *slot : nullptr; }
+  }
+  std::string pk;
+  if (!(vp && fp))
+  {
+    char head[48];
+    snprintf(head, sizeof(head), "%u|%u|", vp ? vp->serial : 0, fp ? fp->serial : 0);
+    pk = head; pk.append((const char*)&k, sizeof(k));
+    static std::string s_lastKey; static Program* s_last = nullptr;
+    if (s_last && pk == s_lastKey) return s_last->ok ? s_last : nullptr;
+    slot = &s_pairs[pk];
+    if (*slot) { s_lastKey = pk; s_last = *slot; return (*slot)->ok ? *slot : nullptr; }
+  }
+  Program*& p = *slot;
   if (!p)
   {
     const std::string vs = vp ? vp->p.glsl : BuildVS(k);
@@ -172,7 +189,6 @@ Program* CgPair(CgProgram* vp, CgProgram* fp, const ProgramKey& key, uint8_t& te
       if (fp) fp->ok = false;
     }
   }
-  s_lastKey = pk; s_last = p;
   return p->ok ? p : nullptr;
 }
 } // namespace GLR

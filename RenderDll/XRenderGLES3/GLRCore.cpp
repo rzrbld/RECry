@@ -30,7 +30,7 @@
 #include "GLTexUpload.h"
 #include "../../port/platform/PortTiming.h"
 
-unsigned GLAudit_RemoteCalls();   // GLAudit.cpp
+void PortSamplerRegisterRenderThread();   // port/platform/PortSampler.cpp
 namespace GLR
 {
 Funcs gl;
@@ -65,12 +65,14 @@ struct RenderThread
 RenderThread& s_rt = *new RenderThread();
 unsigned s_syncCalls = 0;
 unsigned s_statClipDraws = 0;
+uint64_t s_statArenaBytes = 0;   // buffer data recorded with the frames (uploads in order)
 double s_frameWaitMs = 0;
 bool OnRenderThreadNow() { return !s_rt.on || std::this_thread::get_id() == s_rt.id; }
 
 void RenderLoop()
 {
   s_rt.id = std::this_thread::get_id();
+  PortSamplerRegisterRenderThread();   // FARCRY_SAMPLE_PROFILE samples this thread too
   if (SDL_GL_MakeCurrent(s_rt.win, s_rt.ctx)) Log("GLR: render thread could not take the GL context: %s", SDL_GetError());
   for (;;)
   {
@@ -156,12 +158,7 @@ void StopThread()
   SDL_GL_MakeCurrent(s_rt.win, s_rt.ctx);  // back to the caller for shutdown
 }
 
-bool Active()
-{
-  static int s = -1;
-  if (s < 0) { const char* r = getenv("FARCRY_RENDERER"); s = (r && !strcmp(r, "native")) ? 1 : 0; }
-  return s == 1;
-}
+
 
 namespace
 {
@@ -783,8 +780,37 @@ unsigned s_statRejected = 0, s_statCgDraws = 0, s_statNoArrays = 0;
 bool PrepareDraw(Cmd& c, uint16_t attrMask, int colorSemantic)
 {
   ++s_statRejected;   // undone at the end when the draw is recorded
+  // Engine Cg programs (vertex and/or fragment side).
+  CgProgram* vp = nullptr; CgProgram* fp = nullptr;
+  if ((s_cur.vpOn || s_cur.fpOn) && ProgramsSupported())
+  {
+    // FARCRY_GLR_NOCG=v|f|vf: diagnostic, run that side as fixed function.
+    static const char* s_noCg = getenv("FARCRY_GLR_NOCG") ? getenv("FARCRY_GLR_NOCG") : "";
+    if (s_cur.vpOn && !strchr(s_noCg, 'v')) vp = CgFind(CgBound(true), true);
+    if (s_cur.fpOn && !strchr(s_noCg, 'f')) fp = CgFind(CgBound(false), false);
+  }
   ProgramKey k; memset(&k, 0, sizeof(k));
   int n = 0;
+  Program* prog = nullptr;
+  uint8_t fpUnits = 0, fpCube = 0;
+  // Fast path (most draws with the shader materials): engine programs on
+  // both sides read only their own registers, samplers, the alpha reference
+  // and the clip plane; none of the fixed-function state is derived.
+  bool fast = false;
+  if (vp && fp)
+  {
+    k.alphaTest = s_cur.alphaTestOn ? AlphaTestMode(s_cur.alphaFunc) : 0;
+    s_cur.u.alphaRef = s_cur.alphaRef;
+    if (s_cur.clipOn & 1)
+    {
+      float inv[16];
+      if (Invert4(Projection(), inv)) { k.clip = 1; PlaneTimesMatrix(s_cur.clipEye, inv, s_cur.u.clipPlane); ++s_statClipDraws; }
+    }
+    prog = CgPair(vp, fp, k, fpUnits, fpCube);
+    if (prog) fast = true;
+    else { vp = CgFind(CgBound(true), true); fp = CgFind(CgBound(false), false); memset(&k, 0, sizeof(k)); }   // failed pair: marked, fixed function below
+  }
+  if (!fast) {
   for (; n < 4; ++n)   // fixed function stops at the first disabled stage
   {
     if (!s_cur.tex[n].target) break;
@@ -858,23 +884,13 @@ bool PrepareDraw(Cmd& c, uint16_t attrMask, int colorSemantic)
     s_cur.u.fog[0] = s_cur.fogStart; s_cur.u.fog[1] = s_cur.fogEnd; s_cur.u.fog[2] = range != 0 ? 1.0f / range : 0.0f; s_cur.u.fog[3] = s_cur.fogDensity;
     memcpy(s_cur.u.fogColor, s_cur.fogColor, 12);
   }
-  // Engine Cg programs (vertex and/or fragment side).
-  CgProgram* vp = nullptr; CgProgram* fp = nullptr;
-  if ((s_cur.vpOn || s_cur.fpOn) && ProgramsSupported())
-  {
-    // FARCRY_GLR_NOCG=v|f|vf: diagnostic, run that side as fixed function.
-    static const char* s_noCg = getenv("FARCRY_GLR_NOCG") ? getenv("FARCRY_GLR_NOCG") : "";
-    if (s_cur.vpOn && !strchr(s_noCg, 'v')) vp = CgFind(CgBound(true), true);
-    if (s_cur.fpOn && !strchr(s_noCg, 'f')) fp = CgFind(CgBound(false), false);
-  }
-  Program* prog;
-  uint8_t fpUnits = 0, fpCube = 0;
   if (vp || fp)
   {
     prog = CgPair(vp, fp, k, fpUnits, fpCube);
     if (!prog) { vp = fp = nullptr; prog = GetProgram(k); }   // failed to build: fixed function
   }
   else prog = GetProgram(k);
+  }   // !fast
   if (!prog || !prog->ok) return false;
   c.type = CMD_DRAW; c.prog = prog; c.r = s_cur.r; c.attrMask = attrMask; c.colorSemantic = (uint8_t)colorSemantic;
   for (int u = 0; u < 4; ++u) c.tex[u] = TexBind();
@@ -886,10 +902,10 @@ bool PrepareDraw(Cmd& c, uint16_t attrMask, int colorSemantic)
       {
         const bool cube = (fpCube >> u) & 1;
         c.tex[u].target = cube ? TEX_CUBE : TEX_2D; c.tex[u].name = cube ? s_cur.boundCube[u] : s_cur.bound2D[u];
-        s_pendingTex.insert(c.tex[u].name);
+        if (!s_rt.on) s_pendingTex.insert(c.tex[u].name);
       }
   }
-  else for (int u = 0; u < n; ++u) { c.tex[u] = s_cur.tex[u]; s_pendingTex.insert(s_cur.tex[u].name); }
+  else for (int u = 0; u < n; ++u) { c.tex[u] = s_cur.tex[u]; if (!s_rt.on) s_pendingTex.insert(s_cur.tex[u].name); }
   c.cgParams = ~0u;
   if (vp || fp)
   {
@@ -902,7 +918,9 @@ bool PrepareDraw(Cmd& c, uint16_t attrMask, int colorSemantic)
     }
     c.cgParams = (uint32_t)s_cgSnaps.size() - 1;
   }
-  c.uniforms = RecordUniforms();
+  if (fast && !s_uniforms.empty() && s_uniforms.back().alphaRef == s_cur.u.alphaRef && (!k.clip || !memcmp(s_uniforms.back().clipPlane, s_cur.u.clipPlane, 16)))
+    c.uniforms = (uint32_t)s_uniforms.size() - 1;   // what engine programs read is unchanged
+  else c.uniforms = RecordUniforms();
   // Diagnostic: FARCRY_GLR_TRACE=<draws>[@<seconds>] logs that many draws after the given time.
   if (s_traceRequest > 0) { s_traceLeft = s_traceRequest; s_traceAt = 0; s_traceGameplay = false; s_traceRequest = 0; }
   if (s_traceLeft < 0)
@@ -943,9 +961,14 @@ bool PrepareDraw(Cmd& c, uint16_t attrMask, int colorSemantic)
         u.mv[0], u.mv[4], u.mv[8], u.mv[12], u.mv[1], u.mv[5], u.mv[9], u.mv[13], u.mv[2], u.mv[6], u.mv[10], u.mv[14],
         u.proj[0], u.proj[5], u.proj[10], u.proj[14], u.proj[11], u.proj[15]);
   }
-  for (int a = 0; a < ATTR_COUNT; ++a)
-    if ((attrMask >> a) & 1 && c.vb[a].buf != RING_VTX) s_pendingBuf.insert(c.vb[a].buf);
-  if (c.ibo && c.ibo != RING_IDX) s_pendingBuf.insert(c.ibo);
+  // Pending resources decide when the single-threaded path must replay early;
+  // with the render thread every change is recorded in order instead.
+  if (!s_rt.on)
+  {
+    for (int a = 0; a < ATTR_COUNT; ++a)
+      if ((attrMask >> a) & 1 && c.vb[a].buf != RING_VTX) s_pendingBuf.insert(c.vb[a].buf);
+    if (c.ibo && c.ibo != RING_IDX) s_pendingBuf.insert(c.ibo);
+  }
   --s_statRejected;
   if (c.cgParams != ~0u) ++s_statCgDraws;
   return true;
@@ -1060,7 +1083,9 @@ void End()
 // ---------------------------------------------------------------- buffers
 namespace
 {
-struct Buf { size_t size = 0; GLenum usage = GL_STATIC_DRAW; std::vector<uint8_t> shadow; bool mapped = false; };
+// stream: the engine's dynamic merge buffers. Writes only update the CPU copy;
+// each draw copies the vertices/indices it uses into the frame ring.
+struct Buf { size_t size = 0; GLenum usage = GL_STATIC_DRAW; std::vector<uint8_t> shadow; bool mapped = false; bool stream = false; };
 std::unordered_map<GLuint, Buf> s_bufs;
 GLuint s_boundArray = 0, s_boundElement = 0;   // the engine's bindings (CPU)
 GLuint& Bound(unsigned target) { return target == GL_ELEMENT_ARRAY_BUFFER ? s_boundElement : s_boundArray; }
@@ -1071,7 +1096,7 @@ void Upload(GLenum target, GLuint b, bool whole, size_t offset, size_t size, con
   // Level loads upload many buffers that recorded draws still use: past a
   // few MB, play the recorded draws back now instead of copying the data.
   const size_t kArenaMax = (size_t)4 << 20;
-  if (s_pendingBuf.count(b) && s_arena.size() + size > kArenaMax) Flush();
+  if ((s_rt.on || s_pendingBuf.count(b)) && s_arena.size() + size > kArenaMax) Flush();
   if (!Threaded() && !s_pendingBuf.count(b))
   {
     StateBindBuffer(target, b);
@@ -1144,14 +1169,15 @@ void BufferData(unsigned target, size_t size, const void* data, unsigned usage)
   const GLuint b = Bound(target); if (!b) return;
   Buf& B = s_bufs[b];
   B.size = size; B.usage = usage;
-  if (B.usage == GL_DYNAMIC_DRAW || B.usage == GL_STREAM_DRAW) { B.shadow.resize(size); if (data) memcpy(B.shadow.data(), data, size); }
+  if (B.stream || B.usage == GL_DYNAMIC_DRAW || B.usage == GL_STREAM_DRAW) { B.shadow.resize(size); if (data) memcpy(B.shadow.data(), data, size); }
   else B.shadow.clear();
-  Upload(target, b, true, 0, size, data, usage);
+  if (!B.stream) Upload(target, b, true, 0, size, data, usage);
 }
 void BufferSubData(unsigned target, size_t offset, size_t size, const void* data)
 {
   const GLuint b = Bound(target); if (!b || !data) return;
   Buf& B = s_bufs[b];
+  if (B.stream) { if (B.shadow.size() >= offset + size) memcpy(B.shadow.data() + offset, data, size); return; }
   if (B.shadow.size() >= offset + size)
   {
     // Dynamic: keep the CPU copy and re-specify the whole buffer (orphaning,
@@ -1175,6 +1201,7 @@ bool UnmapBuffer(unsigned target)
   Buf& B = s_bufs[b];
   if (!B.mapped) return false;
   B.mapped = false;
+  if (B.stream) return true;   // read by the draws from the CPU copy
   Upload(target, b, true, 0, B.shadow.size(), B.shadow.data(), B.usage);
   if (B.usage != GL_DYNAMIC_DRAW && B.usage != GL_STREAM_DRAW) { std::vector<uint8_t>().swap(B.shadow); }   // static: free the copy
   return true;
@@ -1183,7 +1210,7 @@ bool UnmapBuffer(unsigned target)
 // ---------------------------------------------------------------- vertex arrays
 namespace
 {
-struct Array { bool on = false; uint8_t size = 4; uint16_t type = GL_FLOAT; bool norm = false; int stride = 0; GLuint buf = 0; const void* ptr = nullptr; };
+struct Array { bool on = false; uint8_t size = 4; uint16_t type = GL_FLOAT; bool norm = false; int stride = 0; GLuint buf = 0; const void* ptr = nullptr; bool stream = false; };
 Array s_arrays[ATTR_COUNT];
 int s_clientUnit = 0;
 int s_colorSemanticNext = 0, s_colorSemantic = 0;
@@ -1202,14 +1229,23 @@ bool BindArrays(Cmd& c, uint16_t& mask, unsigned minV, unsigned maxV)
     const int stride = A.stride ? A.stride : size * TypeSize(A.type);
     VtxBinding& v = c.vb[a];
     v.type = A.type; v.size = (uint8_t)size; v.norm = A.norm; v.stride = (uint16_t)stride;
-    if (A.buf) { v.buf = A.buf; v.off = (size_t)A.ptr; }
+    if (A.buf && !A.stream) { v.buf = A.buf; v.off = (size_t)A.ptr; }
     else
     {
-      if (!A.ptr) continue;
+      const uint8_t* base = (const uint8_t*)A.ptr;
+      if (A.stream)
+      {
+        // Stream buffer: the CPU copy is the client memory.
+        const Buf& B = s_bufs[A.buf];
+        const size_t need = (size_t)A.ptr + ((size_t)maxV + 1) * stride;
+        if (B.shadow.size() < need) return false;
+        base = B.shadow.data() + (size_t)A.ptr;
+      }
+      else if (!A.ptr) continue;
       const size_t count = (size_t)maxV - minV + 1, elem = (size_t)size * TypeSize(A.type);
       RingAlloc ra;
       if (!RingAllocBoth(count * stride, ra, 0, ra)) return false;
-      const uint8_t* src = (const uint8_t*)A.ptr + (size_t)minV * stride;
+      const uint8_t* src = base + (size_t)minV * stride;
       if (stride == (int)elem) memcpy(ra.cpu, src, count * stride);
       else for (size_t i = 0; i < count; ++i) memcpy(ra.cpu + i * stride, src + i * stride, elem);
       // the draw's indices address vertex minV.. : the ring copy starts at minV
@@ -1225,14 +1261,15 @@ template <typename T> void IndexRange(const T* idx, int count, unsigned& lo, uns
   lo = 0xFFFFFFFFu; hi = 0;
   for (int i = 0; i < count; ++i) { const unsigned v = idx[i]; if (v < lo) lo = v; if (v > hi) hi = v; }
 }
-bool AnyClientArray() { for (const Array& A : s_arrays) if (A.on && !A.buf) return true; return false; }
+bool AnyClientArray() { for (const Array& A : s_arrays) if (A.on && (!A.buf || A.stream)) return true; return false; }
+bool IsStream(GLuint b) { if (!b) return false; auto it = s_bufs.find(b); return it != s_bufs.end() && it->second.stream; }
 } // namespace
 
 void ArrayPointer(Attr a, int size, unsigned glType, bool normalized, int stride, const void* ptr)
 {
   Array& A = s_arrays[a];
   A.size = (uint8_t)(size == 0x80E1 ? 4 : size); A.type = (uint16_t)glType; A.norm = normalized; A.stride = stride;
-  A.buf = s_boundArray; A.ptr = ptr;
+  A.buf = s_boundArray; A.ptr = ptr; A.stream = IsStream(s_boundArray);
   if (a == ATTR_COLOR) { s_colorSemantic = s_colorSemanticNext; s_colorSemanticNext = 0; }
 }
 void EnableArray(Attr a, bool on)
@@ -1258,8 +1295,9 @@ void DrawRangeElements(unsigned mode, unsigned start, unsigned end, int count, u
   const int isz = type == GL_UNSIGNED_INT ? 4 : 2;
   // Client-memory indices (or quads to expand): read them from memory.
   const void* cpuIdx = nullptr;
+  const bool idxStream = IsStream(s_boundElement);
   if (!s_boundElement) cpuIdx = indices;
-  else if (!s_quadIdx.empty() || (AnyClientArray() && start > end))
+  else if (idxStream || !s_quadIdx.empty() || (AnyClientArray() && start > end))
   {
     Buf& B = s_bufs[s_boundElement];
     if (B.shadow.size() >= (size_t)indices + (size_t)count * isz) cpuIdx = B.shadow.data() + (size_t)indices;
@@ -1279,7 +1317,7 @@ void DrawRangeElements(unsigned mode, unsigned start, unsigned end, int count, u
     return;
   }
   c.prim = p; c.indexType = (uint16_t)type;
-  if (!s_quadIdx.empty() || !s_boundElement)
+  if (!s_quadIdx.empty() || !s_boundElement || idxStream)
   {
     // Indices into the ring: quads expanded to triangles.
     const int n = s_quadIdx.empty() ? count : (int)s_quadIdx.size() / 6 * 6 * 1;
@@ -1418,6 +1456,7 @@ static void PlaybackSeg(Segment& sg)
   s_gl.arrayBuf = vbuf; s_gl.elemBuf = ibuf;
   s_gl.prog = 0xFFFFFFFFu;   // programs built while recording were bound outside playback
   s_statRingBytes += vUsed + iUsed;
+  s_statArenaBytes += sg.arena.size();
   for (const Cmd& c : sg.cmds)
   {
     if (c.type == CMD_CALL)
@@ -1637,11 +1676,12 @@ void FrameStats()
   if (Threaded())
   {
     // Calls that had to wait for the render thread (each costs up to a frame of overlap).
-    static unsigned lastTex = 0, lastAudit = 0, lastSync = 0;
-    const unsigned t = TexSyncCount(), a = GLAudit_RemoteCalls(), sy = s_syncCalls;
-    Log("GLR thread: last 120 frames: %u waits (%u texture/readback, %u GL queries), main waited %.2f ms per frame for the previous frame",
-        sy - lastSync, t - lastTex, a - lastAudit, s_frameWaitMs / 120.0);
-    lastTex = t; lastAudit = a; lastSync = sy; s_frameWaitMs = 0;
+    static unsigned lastTex = 0, lastSync = 0;
+    const unsigned t = TexSyncCount(), sy = s_syncCalls;
+    Log("GLR thread: recorded buffer data %.0f KB per frame", s_statArenaBytes / 1024.0 / 120.0); s_statArenaBytes = 0;
+    Log("GLR thread: last 120 frames: %u waits (%u texture/readback), main waited %.2f ms per frame for the previous frame",
+        sy - lastSync, t - lastTex, s_frameWaitMs / 120.0);
+    lastTex = t; lastSync = sy; s_frameWaitMs = 0;
   }
   if (s_statClipDraws) { Log("GLR: last 120 frames: %u draws clipped by the user clip plane", s_statClipDraws); s_statClipDraws = 0; }
   if (s_statRejected || s_statCgDraws || s_statNoArrays) Log("GLR: last 120 frames: %u draws with engine programs, %u draws rejected, %u without position array", s_statCgDraws, s_statRejected, s_statNoArrays);
@@ -1771,6 +1811,15 @@ void ClipPlane(int index, const float eq[4])
   if (Invert4(ModelView(), inv)) PlaneTimesMatrix(eq, inv, s_cur.clipEye);
   static int s_logged = 0;
   if (s_logged < 4) { ++s_logged; Log("GLR clip plane: object %.3f %.3f %.3f %.3f -> eye %.3f %.3f %.3f %.3f", eq[0], eq[1], eq[2], eq[3], s_cur.clipEye[0], s_cur.clipEye[1], s_cur.clipEye[2], s_cur.clipEye[3]); }
+}
+
+void SetStreamBuffer(unsigned name)
+{
+  if (!name) return;
+  Buf& B = s_bufs[name];
+  B.stream = true;
+  if (B.shadow.size() < B.size) B.shadow.resize(B.size);
+  for (Array& A : s_arrays) if (A.buf == name) A.stream = true;
 }
 
 } // namespace GLR

@@ -396,6 +396,7 @@ void CGLRenderer::EF_PipelineInit()
       GLR_GenBuffersARB(1, &pBuf->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
       GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, pBuf->m_VS[VSF_GENERAL].m_VertBuf.m_nID);
       GLR_BufferDataARB(GL_ARRAY_BUFFER_ARB, size, NULL, GL_STREAM_DRAW_ARB);
+      GLR::SetStreamBuffer(pBuf->m_VS[VSF_GENERAL].m_VertBuf.m_nID);   // merged batches go to the frame ring
       m_CurVertBufferSize += size;
       pBuf->m_vertexformat = VERTEX_FORMAT_P3F_N_COL4UB_TEX2F;
       pBuf->m_NumVerts = nVerts;
@@ -408,6 +409,7 @@ void CGLRenderer::EF_PipelineInit()
     GLR_GenBuffersARB(1, &m_RP.m_IBDyn.m_VertBuf.m_nID);
     GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, m_RP.m_IBDyn.m_VertBuf.m_nID);
     GLR_BufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, nInds*sizeof(ushort), NULL, GL_STREAM_DRAW_ARB);
+    GLR::SetStreamBuffer(m_RP.m_IBDyn.m_VertBuf.m_nID);
     m_RP.m_IBDyn.m_nItems = nInds;
   }
 
@@ -2330,308 +2332,33 @@ void CGLRenderer::SetColorOp(byte eCo, byte eAo, byte eCa, byte eAa)
 // Set current texture color op modes (used in fixed pipeline shaders)
 void CGLRenderer::EF_SetColorOp(byte eCo, byte eAo, byte eCa, byte eAa)
 {
+  // The engine's stage bookkeeping, then the stage's combiner, scale and
+  // constant colour go to the native stage state.
   int stage = m_TexMan->m_CurStage;
-#ifdef GLES3_RENDERER
-  // Native backend: the same bookkeeping, then the stage's combiner, scale
-  // and constant colour go to the native stage state (no glTexEnv).
-  if (GLR::Active())
-  {
-    CGLTexMan::m_TUState[stage].m_Color.dcolor = m_RP.m_CurGlobalColor.dcolor;
-    const CFColor fCol = CFColor(m_RP.m_CurGlobalColor.bcolor);
-    GLR::SetStageColor(stage, &fCol[0]);
-    if (eCo != 255 && eCo != m_eCurColorOp[stage])
-    {
-      float fScale = 1.0f;
-      if (eCo == eCO_MODULATE2X) fScale = 2.0f;
-      else if (eCo == eCO_MODULATE4X)
-      {
-        fScale = 4.0f;   // see the layer path below for the lightmap 4X rule
-        static const bool s_lm4x = !(getenv("FARCRY_GLES3_GPU") && !stricmp(getenv("FARCRY_GLES3_GPU"), "other"));
-        if (!s_lm4x && stage > 0 && m_eCurColorOp[stage-1] == eCO_ADD) fScale = 1.0f;
-      }
-      m_fCurRGBScale[stage] = fScale;
-      m_eCurColorOp[stage] = eCo;
-    }
-    if (eAo != 255) m_eCurAlphaOp[stage] = eAo;
-    if (eCa != 255) m_eCurColorArg[stage] = eCa;
-    if (eAa != 255) m_eCurAlphaArg[stage] = eAa;
-    GLR::SetStageScale(stage, m_fCurRGBScale[stage] > 0 ? m_fCurRGBScale[stage] : 1.0f, 1.0f);
-    GLR::SetStageOps(stage, m_eCurColorOp[stage], m_eCurAlphaOp[stage], m_eCurColorArg[stage], m_eCurAlphaArg[stage]);
-    return;
-  }
-#endif
-
-  if (CGLTexMan::m_TUState[stage].m_Color.dcolor != m_RP.m_CurGlobalColor.dcolor)
-  {
-    CGLTexMan::m_TUState[stage].m_Color.dcolor = m_RP.m_CurGlobalColor.dcolor;
-    CFColor fCol = CFColor(m_RP.m_CurGlobalColor.bcolor);
-    glTexEnvfv(GL_TEXTURE_ENV, GL_TEXTURE_ENV_COLOR, (GLfloat*)&fCol[0]);
-  }
-
+  CGLTexMan::m_TUState[stage].m_Color.dcolor = m_RP.m_CurGlobalColor.dcolor;
+  const CFColor fCol = CFColor(m_RP.m_CurGlobalColor.bcolor);
+  GLR::SetStageColor(stage, &fCol[0]);
   if (eCo != 255 && eCo != m_eCurColorOp[stage])
   {
     float fScale = 1.0f;
-    if (eCo == eCO_MODULATE2X)
-      fScale = 2.0f;
-    else
-    if (eCo == eCO_MODULATE4X)
+    if (eCo == eCO_MODULATE2X) fScale = 2.0f;
+    else if (eCo == eCO_MODULATE4X)
     {
       fScale = 4.0f;
-#ifdef GLES3_RENDERER
       // TemplDiffuse_FP lightmap techniques: (lightmap + ambient/4) * diffuse
-      // * 4 assumes quarter-intensity lightmaps, which the engine does not
-      // upload; next to the D3D9 renderer lightmapped geometry came out 4x
-      // too bright (washed-out stone). A 4X stage following the lightmap ADD
-      // stage is applied at 1x; other 4X uses (refraction, stage 0) stay.
-      // Only with FARCRY_GLES3_GPU=other: the GF2-class profile (default)
-      // uploads quarter-intensity lightmaps, so 4X is right there (Fort huts).
+      // * 4 assumes quarter-intensity lightmaps. FARCRY_GLES3_GPU=other
+      // (diagnostic) applies a 4X stage after the lightmap ADD stage at 1x.
       static const bool s_lm4x = !(getenv("FARCRY_GLES3_GPU") && !stricmp(getenv("FARCRY_GLES3_GPU"), "other"));
-      if (!s_lm4x && stage > 0 && m_eCurColorOp[stage-1] == eCO_ADD)
-        fScale = 1.0f;
-#endif
+      if (!s_lm4x && stage > 0 && m_eCurColorOp[stage-1] == eCO_ADD) fScale = 1.0f;
     }
-    if (m_fCurRGBScale[stage] != fScale)
-    {
-      m_fCurRGBScale[stage] = fScale;
-      glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, fScale);
-    }
-    switch (eCo)
-    {
-      case eCO_MODULATE:
-      default:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
-        break;
-      case eCO_REPLACE:
-      case eCO_DECAL:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_REPLACE);
-        break;
-      case eCO_MODULATE2X:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
-        break;
-      case eCO_MODULATE4X:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
-        break;
-      case eCO_ADD:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_ADD);
-        break;
-      case eCO_ADDSIGNED:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_ADD_SIGNED_EXT);
-        break;
-      case eCO_BLENDDIFFUSEALPHA:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_INTERPOLATE_EXT);
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_PRIMARY_COLOR_EXT);
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_ALPHA);
-        break;
-      case eCO_BLENDTEXTUREALPHA:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_INTERPOLATE_EXT);
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_TEXTURE);
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_ALPHA);
-        break;
-      case eCO_MULTIPLYADD:
-        break;
-      case eCO_BUMPENVMAP:
-        break;
-      case eCO_DISABLE:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_REPLACE);
-        break;
-    }
+    m_fCurRGBScale[stage] = fScale;
     m_eCurColorOp[stage] = eCo;
   }
-
-  if (eAo != 255 && eAo != m_eCurAlphaOp[stage])
-  {
-    switch (eAo)
-    {
-      case eCO_MODULATE:
-      case eCO_MODULATE2X:
-      case eCO_MODULATE4X:
-      default:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_MODULATE);
-        break;
-      case eCO_BLENDDIFFUSEALPHA:
-        break;
-      case eCO_BLENDTEXTUREALPHA:
-        break;
-      case eCO_ADD:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_ADD);
-        break;
-      case eCO_ADDSIGNED:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_ADD_SIGNED_EXT);
-        break;
-      case eCO_MULTIPLYADD:
-        break;
-      case eCO_REPLACE:
-      case eCO_DECAL:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_REPLACE);
-        break;
-      case eCO_BUMPENVMAP:
-        break;
-      case eCO_DISABLE:
-        GLR_TexEnvi(GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_REPLACE);
-        break;
-    }
-    m_eCurAlphaOp[stage] = eAo;
-  }
-
-  if (eCa != 255 && eCa != m_eCurColorArg[stage])
-  {
-    if ((eCa & 7) != (m_eCurColorArg[stage] & 7))
-    {
-      switch (eCa & 7)
-      {
-        case eCA_Texture:
-        default:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_TEXTURE);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
-          break;
-        case eCA_Diffuse:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_PRIMARY_COLOR_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
-          break;
-        case eCA_Specular:
-          break;
-        case eCA_Previous:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_PREVIOUS_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
-          break;
-        case eCA_Constant:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_CONSTANT_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
-          break;
-      }
-    }
-    if (((eCa>>3) & 7) != ((m_eCurColorArg[stage]>>3) & 7))
-    {
-      switch ((eCa >> 3) & 7)
-      {
-        case eCA_Texture:
-        default:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_TEXTURE);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
-          break;
-        case eCA_Diffuse:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PRIMARY_COLOR_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
-          break;
-        case eCA_Specular:
-          break;
-        case eCA_Previous:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PREVIOUS_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
-          break;
-        case eCA_Constant:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_CONSTANT_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
-          break;
-      }
-    }
-    if ((eCa >> 6) != (m_eCurColorArg[stage] >> 6))
-    {
-      switch (eCa >> 6)
-      {
-        case eCA_Texture:
-        default:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_TEXTURE);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_COLOR);
-          break;
-        case eCA_Diffuse:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_PRIMARY_COLOR_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_COLOR);
-          break;
-        case eCA_Specular:
-          break;
-        case eCA_Previous:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_PREVIOUS_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_COLOR);
-          break;
-        case eCA_Constant:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_CONSTANT_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_COLOR);
-          break;
-      }
-    }
-    m_eCurColorArg[stage] = eCa;
-  }
-
-  if (eAa != 255 && eAa != m_eCurAlphaArg[stage])
-  {
-    if ((eAa & 7) != (m_eCurAlphaArg[stage] & 7))
-    {
-      switch (eAa & 7)
-      {
-        case eCA_Texture:
-        default:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_TEXTURE);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
-          break;
-        case eCA_Diffuse:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_PRIMARY_COLOR_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
-          break;
-        case eCA_Specular:
-          break;
-        case eCA_Previous:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_PREVIOUS_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
-          break;
-        case eCA_Constant:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_CONSTANT_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
-          break;
-      }
-    }
-    if (((eAa>>3) & 7) != ((m_eCurAlphaArg[stage]>>3) & 7))
-    {
-      switch ((eAa >> 3) & 7)
-      {
-        case eCA_Texture:
-        default:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_TEXTURE);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
-          break;
-        case eCA_Diffuse:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_PRIMARY_COLOR_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
-          break;
-        case eCA_Specular:
-          break;
-        case eCA_Previous:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_PREVIOUS_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
-          break;
-        case eCA_Constant:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_CONSTANT_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
-          break;
-      }
-    }
-    if ((eAa >> 6) != (m_eCurAlphaArg[stage] >> 6))
-    {
-      switch (eAa >> 6)
-      {
-        case eCA_Texture:
-        default:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_ALPHA_EXT, GL_TEXTURE);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_ALPHA_EXT, GL_SRC_ALPHA);
-          break;
-        case eCA_Diffuse:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_ALPHA_EXT, GL_PRIMARY_COLOR_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_ALPHA_EXT, GL_SRC_ALPHA);
-          break;
-        case eCA_Specular:
-          break;
-        case eCA_Previous:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_ALPHA_EXT, GL_PREVIOUS_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_ALPHA_EXT, GL_SRC_ALPHA);
-          break;
-        case eCA_Constant:
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE2_ALPHA_EXT, GL_CONSTANT_EXT);
-          GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND2_ALPHA_EXT, GL_SRC_ALPHA);
-          break;
-      }
-    }
-    m_eCurAlphaArg[stage] = eAa;
-  }
+  if (eAo != 255) m_eCurAlphaOp[stage] = eAo;
+  if (eCa != 255) m_eCurColorArg[stage] = eCa;
+  if (eAa != 255) m_eCurAlphaArg[stage] = eAa;
+  GLR::SetStageScale(stage, m_fCurRGBScale[stage] > 0 ? m_fCurRGBScale[stage] : 1.0f, 1.0f);
+  GLR::SetStageOps(stage, m_eCurColorOp[stage], m_eCurAlphaOp[stage], m_eCurColorArg[stage], m_eCurAlphaArg[stage]);
 }
 
 //=================================================================================
@@ -3045,9 +2772,7 @@ void CGLRenderer::EF_CheckOverflow(int nVerts, int nInds, CRendElement *re)
 // planes as program parameters (TexGen0/TexGen1, BaseTexGen0/1, built from
 // render-element data). Without the program, apply them as object-linear
 // texgen on texture unit 0 so geometry without UVs (terrain) is mapped.
-void GLES3FFPForceEnvAlpha0(float a);
 static bool s_bGLES3ParamTexGen = false;
-static bool s_bGLES3WaterAlpha = false;
 static void GLES3TexGenFromParams(SShaderPassHW *slw, bool bHasVP)
 {
   // mfGet() evaluates into a shared temporary: copy each plane immediately.
@@ -3113,8 +2838,6 @@ static void GLES3TexGenFromParams(SShaderPassHW *slw, bool bHasVP)
       GLR_TexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_CONSTANT_EXT);
       GLR_TexEnvi(GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
       gcpOGL->m_eCurColorOp[0] = 255; // make the engine re-apply its own op on the next pass
-      GLES3FFPForceEnvAlpha0(0.35f * (water[3] > 0 ? water[3] : 1.0f)); // mostly see-through, like the original
-      s_bGLES3WaterAlpha = true;
       gcpOGL->EF_SelectTMU(nStage);
     }
   }
@@ -3155,7 +2878,6 @@ static bool GLES3SkipPassWithoutVP(SShader *sh)
 #endif
 static void GLES3TexGenParamsOff()
 {
-  if (s_bGLES3WaterAlpha) { GLES3FFPForceEnvAlpha0(-1.0f); s_bGLES3WaterAlpha = false; }
   if (!s_bGLES3ParamTexGen)
     return;
   const int nPrevStage = CTexMan::m_CurStage;
@@ -6213,7 +5935,6 @@ void CGLRenderer::EF_Set2DMode(bool bSet, int orthox, int orthoy)
 // Flush current shader
 void CGLRenderer::EF_FlushShader()
 {
-  { extern void GLES3FFPSetDumpLabel(const char*); if (m_RP.m_pShader) GLES3FFPSetDumpLabel(m_RP.m_pShader->m_Name.c_str()); }
   SShader *ef = m_RP.m_pShader;
   int i;
   SShaderPass *slw;

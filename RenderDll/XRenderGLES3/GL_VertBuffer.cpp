@@ -11,7 +11,6 @@
 //////////////////////////////////////////////////////////////////////
 
 #ifdef GLES3_RENDERER
-#include "GLES3FFP.h"
 #endif
 #include "RenderPCH.h"
 #include "GL_Renderer.h"
@@ -629,7 +628,7 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
 
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
-            GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
+            GLR::SetColorSemantic((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
             GLR_ColorPointer(4, GL_UNSIGNED_BYTE, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsColor));
 
@@ -642,7 +641,7 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
 
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
-            GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
+            GLR::SetColorSemantic((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
             GLR_ColorPointer(4,GL_UNSIGNED_BYTE,m_VertexSize[src->m_vertexformat],&pData->color.bcolor[0]);          
 
@@ -722,7 +721,7 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
           GLR_VertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
-            GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
+            GLR::SetColorSemantic((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
             GLR_ColorPointer(4, GL_UNSIGNED_BYTE, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsColor));
           GLR_TexCoordPointer(2, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsTC));
@@ -733,7 +732,7 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
           GLR_VertexPointer(3,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->xyz.x);          
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
-            GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
+            GLR::SetColorSemantic((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
             GLR_ColorPointer(4,GL_UNSIGNED_BYTE,m_VertexSize[src->m_vertexformat],&pData->color.bcolor[0]);          
           GLR_TexCoordPointer(2,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->st[0]);         
@@ -756,7 +755,7 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
           GLR_NormalPointer(GL_FLOAT,m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsNormal));          
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
-            GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
+            GLR::SetColorSemantic((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
             GLR_ColorPointer(4, GL_UNSIGNED_BYTE, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsColor));
           GLR_TexCoordPointer(2, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsTC));
@@ -768,7 +767,7 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
           GLR_NormalPointer(GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->normal.x);          
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
-            GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
+            GLR::SetColorSemantic((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
             GLR_ColorPointer(4,GL_UNSIGNED_BYTE,m_VertexSize[src->m_vertexformat],&pData->color.bcolor[0]);          
           GLR_TexCoordPointer(2,GL_FLOAT,m_VertexSize[src->m_vertexformat],&pData->st[0]);         
@@ -787,7 +786,7 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
           GLR_VertexPointer(3, GL_FLOAT, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(0));          
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
-            GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
+            GLR::SetColorSemantic((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
             GLR_ColorPointer(4, GL_UNSIGNED_BYTE, m_VertexSize[src->m_vertexformat], BUFFER_OFFSET(pOffs->OffsColor));
           GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, indicies->m_VertBuf.m_nID);
@@ -798,7 +797,7 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
         
           if(!(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
 #ifdef GLES3_RENDERER
-            GLES3FFPMarkNextColorArray((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
+            GLR::SetColorSemantic((src->m_vertexformat == VERTEX_FORMAT_P3F_COL4UB_COL4UB || src->m_vertexformat == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0);
 #endif
             GLR_ColorPointer(4,GL_UNSIGNED_BYTE,m_VertexSize[src->m_vertexformat],&pData->color.bcolor[0]);
         }

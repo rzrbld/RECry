@@ -373,17 +373,16 @@ void CGLRenderer::ChangeLog()
 
 //////////////////////////////////////////////////////////////////////
 #ifdef GLES3_RENDERER
-#include "GLES3FFP.h"
+#include "GLRPlatform.h"
 #include "I3DEngine.h"
 // End of level loading: finish background texture conversions so the first
 // gameplay frames never show placeholders.
 void CGLRenderer::PostLoad()
 {
   CRenderer::PostLoad();
-  GLES3FFPFinishTextures();
+  GLRFinishTextures();
   // Native: build the shader programs this level used last time now, on the
   // loading screen, instead of during its first minutes of play.
-  if (GLR::Active())
   {
     I3DEngine* e = iSystem ? iSystem->GetI3DEngine() : NULL;
     GLR::WarmUp(e ? e->GetLevelFilePath("") : "");
@@ -394,7 +393,7 @@ void CGLRenderer::PostLoad()
 void CGLRenderer::BeginFrame()
 {
 #ifdef GLES3_RENDERER
-  GLES3FFPPumpTextures(); // before any draw of this frame
+  GLRPumpTextures(); // before any draw of this frame
 #endif
   g_bProfilerEnabled = iSystem->GetIProfileSystem()->IsProfiling();
 
@@ -481,7 +480,6 @@ void CGLRenderer::BeginFrame()
 
   GLR_Color4f(1,1,1,1);
   nFrameTexSize = 0;
-  if (!GLR::Active()) glDrawBuffer  (GL_BACK);
   ResetToDefault();
 
   //  EF_ClearBuffers(true);
@@ -1312,23 +1310,9 @@ const char* CGLRenderer::ErrorString( GLenum errorCode )
    return NULL;
 }
 
-void CGLRenderer::CheckError(const char *comment)
+void CGLRenderer::CheckError(const char *)
 {
-  if (GLR::Active()) return;   // native backend: GL runs at frame end (FARCRY_GLR_DEBUG checks errors there)
-  GLenum err = glGetError();
-  int errnum=0;
-  while (err != GL_NO_ERROR)
-  {
-    char * pErrText = (char*)ErrorString(err);
-    if (comment)
-      _text_to_log( "glGetError: %s: %s",  pErrText ? pErrText : "-", comment);
-    else
-      _text_to_log( "glGetError: %s:",  pErrText ? pErrText : "-");
-    
-    err = glGetError();
-    if (++errnum>10)
-      break;
-  }
+  // GL runs on the render thread at frame end; FARCRY_GLR_DEBUG checks errors there.
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////

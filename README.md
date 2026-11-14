@@ -27,7 +27,7 @@ unedited:
 | ![Catacombs](docs/screenshots/catacombs.png) | ![Swamp](docs/screenshots/swamp.png) |
 | Catacombs | Swamp |
 
-With the native renderer and the game's shader programs (Renderer: Native, the default):
+With the game's own shader programs (bump and specular materials, water reflections):
 
 | | |
 |---|---|
@@ -138,7 +138,7 @@ shooters"; gptokeyb2 has no tap-vs-hold, so its hold actions are on an LB layer)
 | Frame limit | 30, 60 or uncapped |
 | FPS counter | Off, On (a small counter) or Built-in (the engine's own statistics) |
 | CPU | Performance governor while playing (restored on exit) |
-| Renderer | Native (default): the game's own shader programs, full materials and water. Classic: the older fixed-function renderer |
+| Water | Reflections (default) or Simple (flat water, a little faster) |
 | Restore default game settings | Undo changes made in the game's Options menu (press A twice); saves are kept |
 | Look speed / Pointer speed | Right stick turning speed and the menu pointer speed, 5-200 % (30 % = default) |
 | Controls | Classic or Modern shooter (see Controls) |

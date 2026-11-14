@@ -8,7 +8,6 @@
 =============================================================================*/
 
 #ifdef GLES3_RENDERER
-#include "GLES3FFP.h"
 #endif
 #include "RenderPCH.h"
 #include "GL_Renderer.h"
@@ -1824,7 +1823,7 @@ void SArrayPointer_Color::mfSet(int Id)
           m_nFrameCreateBuf = gcpOGL->m_nFrameCreateBuf;
           m_pLastPointer = (void *)gRenDev->m_RP.m_nCurBufferID;
 #ifdef GLES3_RENDERER
-          GLES3FFPMarkNextColorArray(GLES3ColorSemanticForCurrentRE());
+          GLR::SetColorSemantic(GLES3ColorSemanticForCurrentRE());
 #endif
           GLR_ColorPointer(NumComponents, Type, Stride, BUFFER_OFFSET(gRenDev->m_RP.m_nCurBufferOffset));
         }
@@ -1835,7 +1834,7 @@ void SArrayPointer_Color::mfSet(int Id)
         m_nFrameCreateBuf = gcpOGL->m_nFrameCreateBuf;
         m_pLastPointer = p;
 #ifdef GLES3_RENDERER
-        GLES3FFPMarkNextColorArray(GLES3ColorSemanticForCurrentRE());
+        GLR::SetColorSemantic(GLES3ColorSemanticForCurrentRE());
 #endif
         GLR_ColorPointer(NumComponents, Type, Stride, p);
       }

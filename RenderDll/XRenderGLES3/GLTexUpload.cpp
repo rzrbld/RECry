@@ -536,7 +536,7 @@ void Pump(bool block)
   }
   const double ms = (SDL_GetPerformanceCounter() - t0) * 1000.0 / freq;
   if (block)
-    Log("GLES3FFP: texture conversions finished before drawing: %d level(s) uploaded, %d pending at start, waited %.0f ms",
+    Log("GLR: texture conversions finished before drawing: %d level(s) uploaded, %d pending at start, waited %.0f ms",
            uploaded, (int)pendingAtStart, ms);
 }
 
