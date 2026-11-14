@@ -429,12 +429,20 @@ void CompressedImage2D(GLuint tex, GLenum target, GLint level, GLenum internal, 
     TexConv_Enqueue(tex, gen, target, level, internal, w, h, data, (size_t)size);
     return;
   }
-  if (s_decodeDXT && IsDXT(internal))
+  // Generated spotlight cubes combine a DXT image face with raw RGBA black
+  // faces. Cube completeness requires identical storage formats across faces
+  // and mip levels. Use RGBA8 for compressed cube faces even with S3TC support;
+  // the ordinary 2D texture conversion/packing policy remains independent.
+  const bool cubeFace = target >= GL_TEXTURE_CUBE_MAP_POSITIVE_X && target <= GL_TEXTURE_CUBE_MAP_NEGATIVE_Z;
+  if ((s_decodeDXT || cubeFace) && IsDXT(internal))
   {
     GLenum format = GL_RGBA, type = GL_UNSIGNED_BYTE;
     const void* px = NULL;
-    if (data) { DecodeDXT(internal, w, h, data); px = PackDecoded(internal, w, h, format, type); }
-    else if (!s_dxtRGBA8) { format = internal == D_DXT1_RGB ? GL_RGB : GL_RGBA;
+    if (data) {
+      DecodeDXT(internal, w, h, data);
+      px = cubeFace ? s_convBuf.data() : PackDecoded(internal, w, h, format, type);
+    }
+    else if (!cubeFace && !s_dxtRGBA8) { format = internal == D_DXT1_RGB ? GL_RGB : GL_RGBA;
                             type = internal == D_DXT1_RGB ? GL_UNSIGNED_SHORT_5_6_5 : (internal == D_DXT1_RGBA ? GL_UNSIGNED_SHORT_5_5_5_1 : GL_UNSIGNED_SHORT_4_4_4_4); }
     r_glPixelStorei(GL_UNPACK_ALIGNMENT, 2);
     r_glTexImage2D(target, level, (GLint)format, w, h, 0, format, type, px);
