@@ -18,16 +18,7 @@ and packaged for [PortMaster](https://portmaster.games).
 ## Screenshots
 
 Captured on the Anbernic RG40XX-H (H700) at 640x480 with the launcher's Auto settings,
-unedited:
-
-| | |
-|---|---|
-| ![Fort](docs/screenshots/fort.png) | ![Pier](docs/screenshots/pier.png) |
-| Fort | Pier |
-| ![Catacombs](docs/screenshots/catacombs.png) | ![Swamp](docs/screenshots/swamp.png) |
-| Catacombs | Swamp |
-
-With the game's own shader programs (bump and specular materials, water reflections):
+unedited: the game's own shader programs (bump and specular materials, water reflections).
 
 | | |
 |---|---|
@@ -36,36 +27,31 @@ With the game's own shader programs (bump and specular materials, water reflecti
 | ![Underwater](docs/screenshots/pier-underwater-h700.png) | ![Training hut](docs/screenshots/hut-interior.png) |
 | Underwater caustics | Training hut interior (PC capture, same renderer) |
 
-## Performance: Anbernic RG40XX-H (Allwinner H700)
+## Performance
 
-Measured on an RG40XX-H (H700, 4x Cortex-A53 at 1.5 GHz, Mali-G31, 1 GB RAM, muOS),
-640x480, launcher defaults (Auto). Each level ran 40 seconds of gameplay from its start:
+Measured with the frame limit off, 640x480, launcher defaults, water reflections on.
+Median FPS, and the frame time that 95 % and 99 % of frames stay under (33 ms = 30 FPS):
 
-| Level | FPS | | Level | FPS |
+| Test | Device | Median FPS | 95 % of frames | 99 % of frames |
 |---|---|---|---|---|
-| Training | 30.0 | | Catacombs | 29.9 |
-| Carrier | 30.0 | | River | 30.0 |
-| Fort | 29.9 | | Swamp | 30.0 |
-| Pier | 30.0 | | Regulator | 29.9 |
-| Research | 30.0 | | Factory | 30.0 |
-| Treehouse | 30.0 | | Archive | 30.0 |
-| Bunker | 30.0 | | Dam | 30.0 |
-| Rebellion | 30.0 | | Boat | 30.0 |
-| Steam | 30.0 | | Volcano | 30.0 |
-| Cooler | 30.0 | | Control | 30.0 |
+| Pier time demo (jungle, beach, water) | Anbernic RG40XX-H (H700, Mali-G31) | 49.8 | 24.4 ms | 27.1 ms |
+| Pier fight (scripted firefight with enemies) | Anbernic RG40XX-H (H700, Mali-G31) | 42.2 | 27.5 ms | 30.8 ms |
+| Pier time demo | Anbernic RG DS (RK3568, Mali-G52, Panfrost) | 59.6 | 22.9 ms | 26.6 ms |
 
-The game is capped at 30 FPS (launcher: Frame limit). A typical frame needs 7-23 ms of the
-33 ms budget. The handheld defaults trade a little detail for speed: idle physics
-objects sleep sooner, fewer particles and decals, no bird/fish flocks or cloth, and a
-shorter draw distance for props (not characters). They are ordinary game settings and
-can be changed in the game's Options menu.
+With the default frame limit (30 FPS) the game holds 30 almost everywhere; the dips that
+remain come from long draw distances in open areas. The renderer is native OpenGL ES 3:
+the game's own shader programs (bump and specular materials, water reflections)
+translated to GLSL ES, with frames recorded by the game and drawn by a separate render
+thread.
 
-The level table above predates the native renderer's shader programs. On the Pier
-timedemo with materials and water reflections on, the H700 averages 34.7 FPS
-(uncapped) and the RG DS 34.6 FPS.
+The handheld defaults trade a little detail for speed: idle physics objects sleep sooner,
+fewer particles and decals, no cloth, and a shorter draw distance for props (not
+characters). They are ordinary game settings and can be changed in the game's Options
+menu.
 
 The first visit to each level is slower for a minute: textures are converted for the GPU
-once and cached in `ports/recry/cache/`.
+once and cached in `ports/recry/cache/`, and the shader programs are built once and
+cached as well.
 
 ## Installation
 
@@ -95,38 +81,15 @@ Everything the port writes stays in `ports/recry/`:
 
 ### Controls
 
-Two presets, chosen in the launcher (Controls). Both go through PortMaster's gptokeyb2, so
-they work with each handheld's own controls. Classic: gptokeyb2 presents a virtual Xbox pad
-and the game maps it. Modern shooter: `recry/controls/modern.gptk` maps the buttons to the
-game's keyboard/mouse bindings (edit it, or add your own `<name>.gptk` there).
+Two gamepad layouts, chosen in the launcher (Controls):
 
-**Classic**
+- **Classic**: the game's own pad bindings (RT fire, LT aim, A jump, B use, X reload,
+  Y next weapon, Start pause).
+- **Modern shooter**: buttons mapped to the game's keyboard and mouse bindings in the
+  style of current shooters (B crouch, D-pad down use, Select pause, a second layer on LB).
 
-| Button | Action | | Button | Action |
-|---|---|---|---|---|
-| Left stick | Move | | LB / RB | Lean left / right |
-| Right stick | Look | | L3 | Sprint |
-| RT / LT | Fire / aim (zoom) | | R3 | Crouch / prone |
-| A | Jump | | D-pad up | Fire mode |
-| B | Use, enter vehicles | | D-pad down | Throw grenade |
-| X | Reload | | Select | Objectives / score |
-| Y / D-pad left | Next / previous weapon | | Start | Pause menu |
-
-**Modern shooter** (based on the Steam Input layout "Far Cry 1 custom layout to match modern
-shooters"; gptokeyb2 has no tap-vs-hold, so its hold actions are on an LB layer):
-
-| Button | Action | | Button | Action |
-|---|---|---|---|---|
-| Left stick | Move | | RB | Throw grenade |
-| Right stick | Look | | L3 / R3 | Sprint / flashlight |
-| RT / LT | Fire / aim | | D-pad up | Binoculars |
-| A | Jump | | D-pad left / right | Lean left / right |
-| B | Crouch (hold) | | D-pad down | Use, enter vehicles |
-| | | | Select | Pause menu |
-| X | Reload | | Start | Objectives / score |
-| Y | Next weapon | | LB + B / Y | Prone / fire mode |
-| | | | LB + D-pad down | Grenade type |
-| | | | LB + right stick | Lean |
+Every button of both layouts, the menu controls and how to make your own layout:
+[docs/CONTROLS.md](docs/CONTROLS.md).
 
 ## Launcher settings
 

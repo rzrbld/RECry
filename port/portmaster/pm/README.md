@@ -29,8 +29,17 @@ textures are converted.
 
 ## Performance
 
-On the Anbernic RG40XX-H (H700) all 20 levels run at the 30 FPS cap at 640x480 with
-the launcher's Auto settings.
+Native OpenGL ES 3 renderer with the game's own shader programs (bump and specular
+materials, water reflections) and a separate render thread. Frame limit off, 640x480,
+launcher defaults; median FPS and the frame time 95 % / 99 % of frames stay under:
+
+| Test | Device | Median | 95 % | 99 % |
+|---|---|---|---|---|
+| Pier time demo | RG40XX-H (H700) | 49.8 FPS | 24.4 ms | 27.1 ms |
+| Pier firefight | RG40XX-H (H700) | 42.2 FPS | 27.5 ms | 30.8 ms |
+| Pier time demo | RG DS (RK3568, Panfrost) | 59.6 FPS | 22.9 ms | 26.6 ms |
+
+With the default 30 FPS limit the game holds 30 almost everywhere.
 
 ## Launcher settings
 
@@ -43,6 +52,7 @@ the launcher's Auto settings.
 | Frame limit | 30, 60 or uncapped |
 | FPS counter | Off, On (a small counter) or Built-in (the engine's own statistics) |
 | CPU | Performance governor while playing (restored on exit) |
+| Water | Reflections (default) or Simple (flat water, a little faster) |
 | Controls | Classic or Modern shooter (see Controls) |
 | Look speed / Pointer speed | Right stick turning speed in the game and the stick-driven menu pointer, 5-200 % (30 % = default) |
 
