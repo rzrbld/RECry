@@ -175,6 +175,51 @@ const char* kPrelude =
   "vec4 toV4(vec3 x) { return vec4(x, 1.0); }\n"
   "vec4 toV4(vec4 x) { return x; }\n";
 
+// Only the helper functions a program uses (and what those use): the full
+// set in every program cost the GPU driver compile time and memory.
+std::string UsedPrelude(const char* prelude, const std::string& code)
+{
+  struct Line { std::string text, name; bool on = false; };
+  std::vector<Line> lines;
+  for (const char* p = prelude; *p;)
+  {
+    const char* e = strchr(p, '\n'); if (!e) e = p + strlen(p);
+    Line l; l.text.assign(p, e - p + (*e ? 1 : 0));
+    // "<type> <name>(" -> name; other lines (#define) always kept
+    const size_t par = l.text.find('(');
+    if (l.text[0] != '#' && par != std::string::npos)
+    {
+      size_t a = par; while (a > 0 && l.text[a - 1] == ' ') --a;
+      size_t b = a; while (b > 0 && (isalnum((unsigned char)l.text[b - 1]) || l.text[b - 1] == '_')) --b;
+      l.name = l.text.substr(b, a - b);
+    }
+    else l.on = true;
+    lines.push_back(l);
+    p = *e ? e + 1 : e;
+  }
+  auto uses = [](const std::string& text, const std::string& name) {
+    for (size_t i = text.find(name); i != std::string::npos; i = text.find(name, i + 1))
+    {
+      const bool l = i == 0 || !(isalnum((unsigned char)text[i - 1]) || text[i - 1] == '_');
+      const size_t j = i + name.size();
+      const bool r = j >= text.size() || !(isalnum((unsigned char)text[j]) || text[j] == '_');
+      if (l && r) return true;
+    }
+    return false;
+  };
+  std::string scope = code;
+  for (bool changed = true; changed;)
+  {
+    changed = false;
+    for (auto& l : lines)
+      if (!l.on && uses(scope, l.name)) { l.on = true; changed = true; }
+    if (changed) { scope = code; for (auto& l : lines) if (l.on) scope += l.text; }
+  }
+  std::string out;
+  for (auto& l : lines) if (l.on) out += l.text;
+  return out;
+}
+
 std::string Join(const std::vector<Tok>& t, size_t a, size_t b) { std::string s; for (size_t i = a; i < b && i < t.size(); ++i) s += t[i].s; return s; }
 
 // Split "(a, b)" starting at the '(' token: returns the argument token ranges and the index of ')'.
@@ -794,7 +839,7 @@ bool Translate(const std::string& cg, bool vertex, Program& out)
     // program): the pairing code defines GLR_ALPHA_TEST to the comparison.
     post += "#ifdef GLR_ALPHA_TEST\n  if (!(GLR_ALPHA_TEST)) discard;\n#endif\n";
   }
-  g += kPrelude;
+  g += UsedPrelude(kPrelude, body + pre + post);
   g += body;
   g += "\nvoid main() {\n";
   if (!inStruct.empty()) g += "  " + inStruct + " IN;\n";

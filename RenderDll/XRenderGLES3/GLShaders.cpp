@@ -8,7 +8,6 @@
 =============================================================================*/
 
 #ifdef GLES3_RENDERER
-#include "GLNMesh.h"
 #include "GLES3FFP.h"
 #endif
 #include "RenderPCH.h"
@@ -1696,11 +1695,6 @@ void SArrayPointer_Vertex::mfSet(int Id)
 		  iLog->Log("Error: SArrayPointer_Vertex::mfSet: EF_GetPointer returns zero");
 		  return;
 	  }
-#ifdef GLES3_RENDERER
-    g_GLNPosStream.buffer = SUPPORTS_GL_ARB_vertex_buffer_object ? (unsigned)gRenDev->m_RP.m_nCurBufferID : 0;
-    g_GLNPosStream.offset = (unsigned)gRenDev->m_RP.m_nCurBufferOffset;
-    g_GLNPosStream.stride = Stride; g_GLNPosStream.size = NumComponents; g_GLNPosStream.type = Type; g_GLNPosStream.normalized = false;
-#endif
 
     if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
@@ -1733,11 +1727,6 @@ void SArrayPointer_Normal::mfSet(int Id)
   if (gRenDev->m_RP.m_pRE)
   {
     void *p = gRenDev->EF_GetPointer(ePT, &Stride, Type, ePT, 0);
-#ifdef GLES3_RENDERER
-    g_GLNNormalStream.buffer = (p && SUPPORTS_GL_ARB_vertex_buffer_object) ? (unsigned)gRenDev->m_RP.m_nCurBufferID : 0;
-    g_GLNNormalStream.offset = (unsigned)gRenDev->m_RP.m_nCurBufferOffset;
-    g_GLNNormalStream.stride = Stride; g_GLNNormalStream.size = 3; g_GLNNormalStream.type = Type; g_GLNNormalStream.normalized = false;
-#endif
     if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
       GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);
@@ -1771,16 +1760,6 @@ void SArrayPointer_Texture::mfSet(int Id)
     void *p = gRenDev->EF_GetPointer(ePT, &Stride, Type, (ESrcPointer)(ePT+Stage), Stage << FGP_STAGE_SHIFT);
     if (ePT == eSrcPointer_TexLM)
       gRenDev->m_RP.m_nLMStage = Stage;
-#ifdef GLES3_RENDERER
-    if (Stage < 4)
-    {
-      // Native mesh draws read the stream from here (GLNMesh.h).
-      GLNMeshStream& ns = g_GLNTexStream[Stage];
-      ns.buffer = SUPPORTS_GL_ARB_vertex_buffer_object ? (unsigned)gRenDev->m_RP.m_nCurBufferID : 0;
-      ns.offset = (unsigned)gRenDev->m_RP.m_nCurBufferOffset;
-      ns.stride = Stride; ns.size = NumComponents; ns.type = Type; ns.normalized = false;
-    }
-#endif
     if (SUPPORTS_GL_ARB_vertex_buffer_object)
     {
       GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);
@@ -1837,12 +1816,6 @@ void SArrayPointer_Color::mfSet(int Id)
     {
       int Stride;
       void *p = gRenDev->EF_GetPointer(ePT, &Stride, Type, ePT, 0);
-#ifdef GLES3_RENDERER
-      g_GLNColorStream.buffer = SUPPORTS_GL_ARB_vertex_buffer_object ? (unsigned)gRenDev->m_RP.m_nCurBufferID : 0;
-      g_GLNColorStream.offset = (unsigned)gRenDev->m_RP.m_nCurBufferOffset;
-      g_GLNColorStream.stride = Stride; g_GLNColorStream.size = NumComponents; g_GLNColorStream.type = Type; g_GLNColorStream.normalized = true;
-      g_GLNColorSemantic = GLES3ColorSemanticForCurrentRE();
-#endif
       if (SUPPORTS_GL_ARB_vertex_buffer_object)
       {
         GLR_BindBufferARB(GL_ARRAY_BUFFER_ARB, gRenDev->m_RP.m_nCurBufferID);

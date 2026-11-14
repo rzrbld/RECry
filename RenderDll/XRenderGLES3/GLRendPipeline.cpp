@@ -7,8 +7,6 @@
     
 =============================================================================*/
 
-#include "GLNative.h"
-#include "GLNMesh.h"
 #include "RenderPCH.h"
 #include "GL_Renderer.h"
 #include <ICryAnimation.h>
@@ -3705,57 +3703,6 @@ void CGLRenderer::EF_ResetStateShaderState()
 #include "../Common/NvTriStrip/NvTriStrip.h"
 
 // Used for HW effectors for rendering of tri mesh (vertex array)
-#ifdef GLES3_RENDERER
-// Native mesh stage (FARCRY_NATIVE=mesh): the engine's streams (recorded by
-// SArrayPointer_*::mfSet), its bound index buffer, texture-stage combiner
-// state, alpha test and fog, drawn with a GLSL program and VAO. False: the
-// draw stays on the translation layer (the reason is counted).
-const char* GLNMeshCurrentShader() { return gcpOGL->m_RP.m_pShader ? gcpOGL->m_RP.m_pShader->GetName() : "?"; }
-static bool GLNTryIndexed(CGLRenderer* r, unsigned glPrim, int count, size_t byteOffset)
-{
-  if (!GLN::Enabled(GLN_STAGE_MESH)) return false;
-  if (!(r->m_RP.m_FlagsPerFlush & RBSI_INDEXSTREAM) || !g_GLNIndexBuffer) { GLNMesh_Fallback("client-memory indices"); return false; }
-  const int en = SArrayPointer::m_CurEnabled;
-  if (!(en & PFE_POINTER_VERT) || !g_GLNPosStream.buffer) { GLNMesh_Fallback("client-memory vertices"); return false; }
-  GLNMeshDraw d; memset(&d, 0, sizeof(d));
-  d.pos = g_GLNPosStream;
-  if ((en & PFE_POINTER_NORMAL) && g_GLNNormalStream.buffer) d.normal = g_GLNNormalStream;
-  if (en & PFE_POINTER_COLOR)
-  {
-    if (!g_GLNColorStream.buffer) { GLNMesh_Fallback("client-memory vertices"); return false; }
-    d.color = g_GLNColorStream; d.colorSemantic = g_GLNColorSemantic;
-  }
-  d.numStages = CTexMan::m_nCurStages < 4 ? CTexMan::m_nCurStages : 4;
-  for (int u = 0; u < d.numStages; ++u)
-  {
-    GLNMeshStage& st = d.stage[u];
-    st.texture = CGLTexMan::m_TUState[u].m_Bind; st.target = CGLTexMan::m_TUState[u].m_Target;
-    st.colorOp = r->m_eCurColorOp[u]; st.alphaOp = r->m_eCurAlphaOp[u]; st.colorArg = r->m_eCurColorArg[u]; st.alphaArg = r->m_eCurAlphaArg[u];
-    st.rgbScale = r->m_fCurRGBScale[u] > 0 ? r->m_fCurRGBScale[u] : 1.0f;
-    memcpy(st.constant, CGLTexMan::m_TUState[u].m_Color.bcolor, 4);
-    if (en & (PFE_POINTER_TEX0 << u)) d.tex[u] = g_GLNTexStream[u];
-  }
-  switch (r->m_CurState & GS_ALPHATEST_MASK)
-  {
-    case GS_ALPHATEST_GREATER0: d.alphaTestMode = 1; d.alphaRef = 0.0f; break;
-    case GS_ALPHATEST_LESS128: d.alphaTestMode = 2; d.alphaRef = 0.5f; break;
-    case GS_ALPHATEST_GEQUAL128: d.alphaTestMode = 3; d.alphaRef = 0.5f; break;
-    case GS_ALPHATEST_GEQUAL64: d.alphaTestMode = 3; d.alphaRef = 0.25f; break;
-  }
-  if (r->m_FS.m_bEnable)
-  {
-    float scale = 1.0f;   // CREOcLeaf scales the fog range per element (glFogf, not m_FS)
-    if (r->m_RP.m_pRE && r->m_RP.m_pRE->mfGetType() == eDATA_OcLeaf && ((CREOcLeaf*)r->m_RP.m_pRE)->m_fFogScale)
-      scale = ((CREOcLeaf*)r->m_RP.m_pRE)->m_fFogScale;
-    d.fogMode = r->m_FS.m_nCurFogMode == GL_EXP ? 2 : (r->m_FS.m_nCurFogMode == GL_EXP2 ? 3 : 1);
-    d.fogStart = r->m_FS.m_FogStart * scale; d.fogEnd = r->m_FS.m_FogEnd * scale; d.fogDensity = r->m_FS.m_FogDensity;
-    d.fogColor[0] = r->m_FS.m_FogColor[0]; d.fogColor[1] = r->m_FS.m_FogColor[1]; d.fogColor[2] = r->m_FS.m_FogColor[2];
-  }
-  d.indexBuffer = g_GLNIndexBuffer;
-  d.primitive = glPrim;
-  return GLNMesh_Draw(d, count, (unsigned)byteOffset);
-}
-#endif
 
 void CGLRenderer::EF_DrawIndexedMesh (int nPrimType)
 {
@@ -3793,9 +3740,6 @@ void CGLRenderer::EF_DrawIndexedMesh (int nPrimType)
           //assert(m_RP.m_RendIndices[0]<60000);
           for (int i=0; i<mats->Count(); i++, m++)
           {
-#ifdef GLES3_RENDERER
-            if (!GLNTryIndexed(this, GL_TRIANGLE_STRIP, m->nNumIndices, (size_t)&m_RP.m_RendIndices[m->nFirstIndexId]))
-#endif
             GLR_DrawElements(GL_TRIANGLE_STRIP, m->nNumIndices, GL_UNSIGNED_SHORT, &m_RP.m_RendIndices[m->nFirstIndexId]);
             m_nPolygons += (m->nNumIndices - 2);
           }
@@ -3811,14 +3755,6 @@ void CGLRenderer::EF_DrawIndexedMesh (int nPrimType)
           for (int i=0; i<mi->m_dwNumSections; i++)
           {
             SPrimitiveGroup *g = &mi->m_pPrimitiveGroups[i];
-#ifdef GLES3_RENDERER
-            if (GLNTryIndexed(this, g->type == PT_STRIP ? GL_TRIANGLE_STRIP : (g->type == PT_FAN ? GL_TRIANGLE_FAN : GL_TRIANGLES),
-                              g->numIndices, (size_t)&m_RP.m_RendIndices[g->offsIndex]))
-            {
-              m_nPolygons += g->numTris;
-              continue;
-            }
-#endif
             switch (g->type)
             {
               case PT_STRIP:
@@ -3849,10 +3785,6 @@ void CGLRenderer::EF_DrawIndexedMesh (int nPrimType)
   {
     if(m_RP.m_RendNumIndices)
     {
-#ifdef GLES3_RENDERER
-      if (nType != GL_QUADS && GLNTryIndexed(this, (unsigned)nType, m_RP.m_RendNumIndices, (size_t)m_RP.m_RendIndices))
-        return;
-#endif
       GLR_DrawElements(nType, m_RP.m_RendNumIndices, GL_UNSIGNED_SHORT, m_RP.m_RendIndices);
     }
     else
@@ -3913,9 +3845,6 @@ bool CGLRenderer::EF_PreDraw(SShaderPass *slw)
           PROFILE_FRAME(Mesh_UpdateIBuffersDynMerge);
           GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, m_RP.m_IBDyn.m_VertBuf.m_nID);
           GLR_BufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, nOffsetI, sizeI, m_RP.m_SysRendIndices);
-#ifdef GLES3_RENDERER
-          g_GLNIndexBuffer = m_RP.m_IBDyn.m_VertBuf.m_nID;
-#endif
         }
         m_RP.m_RendIndices = (ushort *)(nOffsetI);
         m_RP.m_FlagsPerFlush |= RBSI_INDEXSTREAM;

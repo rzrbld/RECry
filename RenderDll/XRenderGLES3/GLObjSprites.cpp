@@ -1154,7 +1154,7 @@ uint CGLRenderer::MakeSprite(float _fSpriteDistance, int nTexSize, float angle, 
     return ti->m_Bind;
 
   int bFog=0; // remember fog value
-  glGetIntegerv(GL_FOG,&bFog);
+  GLR_GetIntegerv(GL_FOG,&bFog);
   GLR_Disable(GL_FOG);
 
   GLR_ReadBuffer(GL_BACK);

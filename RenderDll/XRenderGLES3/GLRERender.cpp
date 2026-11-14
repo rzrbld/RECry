@@ -7,7 +7,6 @@
 
 =============================================================================*/
 
-#include "GLNMesh.h"
 #include "RenderPCH.h"
 #include "GL_Renderer.h"
 #include "I3dengine.h"
@@ -180,9 +179,6 @@ bool CREOcLeaf::mfPreDraw(SShaderPass *sl)
   if (SUPPORTS_GL_ARB_vertex_buffer_object)
   {
     GLR_BindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, m_pBuffer->m_Indices.m_VertBuf.m_nID);
-#ifdef GLES3_RENDERER
-    g_GLNIndexBuffer = m_pBuffer->m_Indices.m_VertBuf.m_nID;
-#endif
     gRenDev->m_RP.m_FlagsPerFlush |= RBSI_INDEXSTREAM;
     gRenDev->m_RP.m_RendIndices = NULL;
   }

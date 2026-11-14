@@ -41,7 +41,6 @@ COMPRESSOR_ERROR (*CompressTextureATI)(DWORD width,
 #include <vector>
 #include <algorithm>
 #include "GLES3CoreFuncs.h"
-#include "GLNative.h"
 #include "GLES3FFP.h"
 #include "../../port/platform/PortTiming.h"
 
@@ -402,7 +401,6 @@ void GLES3_SwapBuffers()
 {
   if (g_GLES3Window)
   {
-    { int sw = 0, sh = 0; GLES3_ReadSize(sw, sh); GLN::SelfTest(sw, sh); }
     if (GLR::Active())
     {
       if (getenv("FARCRY_GLR_SELFTEST")) GLR::SelfTest();
@@ -453,7 +451,6 @@ void GLES3_SwapBuffers()
       SDL_GL_SwapWindow(g_GLES3Window);
     }
     GLES3_SceneRebind();
-    GLN::FrameBoundary();
     if (GLR::Active()) GLR::BeginFrame();
     GLAudit_Frame();
     GLES3_LogFrameTime();
@@ -1951,7 +1948,6 @@ HWND CGLRenderer::SetMode(int x,int y,int width,int height,unsigned int cbpp, in
       iLog->Log("GLES3 surface: alpha %d bits, depth %d bits%s", a, d, a > 0 ? "" : " (no destination alpha: terrain layers/sprites degrade)");
     }
     GLES3FFPInit(&GLES3LogBridge);
-    GLN::Init(&GLES3LogBridge);
     if (GLR::Active() && !GLR::Init()) iLog->Log("GLR: native backend could not start");
     GLTex::SetTexNameLookup(&GLES3TexNameOf);
     GLES3FFPSetAuditHook(&GLES3AuditTextureNames);

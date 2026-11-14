@@ -11,7 +11,6 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "GLN2D.h"
 #include "RenderPCH.h"
 #include "GL_Renderer.h"
 #include "GLCGVProgram.h"
@@ -474,7 +473,7 @@ void CGLRenderer::BeginFrame()
 
   GLR_Color4f(1,1,1,1);
   nFrameTexSize = 0;
-  glDrawBuffer  (GL_BACK);
+  if (!GLR::Active()) glDrawBuffer  (GL_BACK);
   ResetToDefault();
 
   //  EF_ClearBuffers(true);
@@ -1307,6 +1306,7 @@ const char* CGLRenderer::ErrorString( GLenum errorCode )
 
 void CGLRenderer::CheckError(const char *comment)
 {
+  if (GLR::Active()) return;   // native backend: GL runs at frame end (FARCRY_GLR_DEBUG checks errors there)
   GLenum err = glGetError();
   int errnum=0;
   while (err != GL_NO_ERROR)
@@ -1690,40 +1690,6 @@ void CGLRenderer::Draw2dImage(float xpos,float ypos,float w,float h,int texture_
 		EnableTMU(false);
 
   EF_SetColorOp(255, 255, DEF_TEXARG0, DEF_TEXARG0);
-
-  // Native 2D (FARCRY_NATIVE=2d): same corners, texcoords and colour.
-  if (eTT != eTT_Rectangle)
-  {
-    float pos[4][3] = { { xpos, ypos, z }, { xpos + w, ypos, z }, { xpos + w, ypos + h, z }, { xpos, ypos + h, z } };
-    if (angle != 0)
-    {
-      const float xsub = xpos + w / 2, ysub = ypos + h / 2;
-      const float mcos = cry_cosf(DEG2RAD(angle)), msin = cry_sinf(DEG2RAD(angle));
-      for (int i = 0; i < 4; ++i)
-      {
-        const float x = pos[i][0] - xsub, y = pos[i][1] - ysub;
-        pos[i][0] = x * mcos - y * msin + xsub; pos[i][1] = x * msin + y * mcos + ysub;
-      }
-    }
-    const float st[4][2] = { { s0, 1.f - t0 }, { s1, 1.f - t0 }, { s1, 1.f - t1 }, { s0, 1.f - t1 } };
-    const float rgba[4] = { r, g, b, a };
-    int atMode = 0; float atRef = 0;
-    switch (m_CurState & GS_ALPHATEST_MASK)
-    {
-      case GS_ALPHATEST_GREATER0: atMode = 1; atRef = 0.0f; break;
-      case GS_ALPHATEST_LESS128: atMode = 2; atRef = 0.5f; break;
-      case GS_ALPHATEST_GEQUAL128: atMode = 3; atRef = 0.5f; break;
-      case GS_ALPHATEST_GEQUAL64: atMode = 3; atRef = 0.25f; break;
-    }
-    if (GLN2D_DrawQuad(pos, st, rgba, texture_id > 0, atMode, atRef, (float)m_width, (float)m_height, -1.0f / 9999.0f))
-    {
-      GLR_PopMatrix();
-      GLR_MatrixMode(GL_PROJECTION);
-      GLR_PopMatrix();
-      GLR_MatrixMode(GL_MODELVIEW);
-      return;
-    }
-  }
 
   GLR_Begin(GL_QUADS);
   
@@ -2349,7 +2315,7 @@ void CGLRenderer::ProjectToScreen( float ptx, float pty, float ptz,
 
   GLR_GetFloatv(GL_PROJECTION_MATRIX,g_ProjectionMatrix);
   GLR_GetFloatv(GL_MODELVIEW_MATRIX,g_ModelMatrix);
-  glGetIntegerv(GL_VIEWPORT,g_Viewport);
+  GLR_GetIntegerv(GL_VIEWPORT,g_Viewport);
 
   SGLFuncs::gluProject(ptx,pty,ptz,
               g_ModelMatrix,
@@ -2383,7 +2349,7 @@ int CGLRenderer::UnProjectFromScreen( float  sx, float  sy, float  sz,
 
   GLR_GetFloatv(GL_MODELVIEW_MATRIX,   g_ModelMatrix);
   GLR_GetFloatv(GL_PROJECTION_MATRIX,  g_ProjectionMatrix);
-  glGetIntegerv(GL_VIEWPORT,          g_Viewport);
+  GLR_GetIntegerv(GL_VIEWPORT,          g_Viewport);
 
   int res=SGLFuncs::gluUnProject(sx,sy,sz,
                     g_ModelMatrix,
@@ -3052,7 +3018,7 @@ void CGLRenderer::Set2DMode(bool enable, int ortox, int ortoy)
 
   if(enable)
   {
-    glGetIntegerv(GL_FOG, &bOldFog);
+    GLR_GetIntegerv(GL_FOG, &bOldFog);
     GLR_Disable(GL_FOG);
 
     GLR_MatrixMode(GL_PROJECTION);

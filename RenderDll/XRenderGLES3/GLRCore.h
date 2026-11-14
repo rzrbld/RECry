@@ -95,6 +95,7 @@ struct Program
 Program* GetProgram(const ProgramKey& k);
 bool BuildProgram(Program& p, const char* name, const std::string& vs, const std::string& fs);
 void ProgramsShutdown();
+size_t ProgramCount();
 
 // ---------------------------------------------------------------- recorded commands
 // Raster state: everything outside the program that a draw or clear needs.
@@ -140,6 +141,7 @@ struct CgParams { float v[kCgVRegs][4]; float f[kCgFRegs][4]; };
 struct CgProgram;                       // GLRCgPrograms.cpp
 CgProgram* CgFind(unsigned id, bool vertex);
 unsigned CgBound(bool vertex);
+void CgMemStats(size_t& glslBytes, int& programs, int& pairs);
 // Linked program for this vertex/fragment combination (null side: generated
 // from the key, as for fixed function). Null when it can't be built.
 // texUnits/texCube: units the fragment program samples (bit per unit).

@@ -315,6 +315,7 @@ Program* GetProgram(const ProgramKey& k)
   return p;
 }
 
+size_t ProgramCount() { return s_programs.size(); }
 void ProgramsShutdown()
 {
   for (auto& e : s_programs) { if (e.second->prog) gl.glDeleteProgram(e.second->prog); delete e.second; }

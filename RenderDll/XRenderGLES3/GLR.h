@@ -44,6 +44,8 @@ void CullFace(unsigned mode);
 void FrontFace(unsigned mode);
 void PolygonOffset(float factor, float units);
 void Viewport(int x, int y, int w, int h);
+void GetViewport(int v[4]);         // current (recorded) viewport
+bool FogEnabled();
 void Scissor(int x, int y, int w, int h);
 void DepthRange(float n, float f);
 void ClearColor(float r, float g, float b, float a);

@@ -181,7 +181,6 @@ mkdir -p "$BASE/logs/snaps"; export FARCRY_SNAP_DIR=${FARCRY_SNAP_DIR:-$BASE/log
 export MALLOC_ARENA_MAX=${MALLOC_ARENA_MAX:-2}
 export FARCRY_AUDIO_RATE=${FARCRY_AUDIO_RATE:-22050}
 export FARCRY_AUDIO_MONO_3D=${FARCRY_AUDIO_MONO_3D:-1}
-export FARCRY_WORLD_TEXTURE_MAX=${FARCRY_WORLD_TEXTURE_MAX:-192}
 export FARCRY_GLES_QUEUE_FRAMES=${FARCRY_GLES_QUEUE_FRAMES:-2}
 # DXT textures are converted once on spare cores and cached here. The cache
 # is made from the user's own game files: never redistribute it.

@@ -698,9 +698,9 @@ void CREOcean::mfDrawOceanScreenLod()
   float ProjectionMatrix[16];
   float ModelMatrix[16];
   int   Viewport[4];
-  glGetFloatv(GL_MODELVIEW_MATRIX,   ModelMatrix);
-  glGetFloatv(GL_PROJECTION_MATRIX,  ProjectionMatrix);
-  glGetIntegerv(GL_VIEWPORT,         Viewport);
+  GLR_GetFloatv(GL_MODELVIEW_MATRIX,   ModelMatrix);
+  GLR_GetFloatv(GL_PROJECTION_MATRIX,  ProjectionMatrix);
+  GLR_GetIntegerv(GL_VIEWPORT,         Viewport);
   float m[16], A[16];
   matmul4(A, ProjectionMatrix, ModelMatrix);
   QQinvertMatrixf(m, A);

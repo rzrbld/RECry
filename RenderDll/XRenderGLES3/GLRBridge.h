@@ -130,6 +130,16 @@ inline void GLR_GetFloatv(GLenum pname, GLfloat* v)
   }
   glGetFloatv(pname, v);
 }
+// Integer queries: native state where the backend owns it (no driver round trip).
+inline void GLR_GetIntegerv(GLenum pname, GLint* v)
+{
+  if (GLR::Active())
+  {
+    if (pname == GL_VIEWPORT) { int t[4]; GLR::GetViewport(t); for (int i = 0; i < 4; ++i) v[i] = t[i]; return; }
+    if (pname == GL_FOG) { *v = GLR::FogEnabled() ? 1 : 0; return; }
+  }
+  glGetIntegerv(pname, v);
+}
 inline void GLR_GetDoublev(GLenum pname, GLdouble* v)
 {
   if (GLR::Active() && (pname == GL_MODELVIEW_MATRIX || pname == GL_PROJECTION_MATRIX || pname == GL_TEXTURE_MATRIX))

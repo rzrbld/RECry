@@ -38,17 +38,6 @@ uint32_t s_serial = 0;
 std::map<std::string, Program*> s_pairs;
 unsigned s_bound[2] = {};          // 0 vertex, 1 fragment
 
-bool CompileCheck(GLenum type, const std::string& src, std::string& log)
-{
-  GLuint sh = gl.glCreateShader(type);
-  const char* p = src.c_str();
-  gl.glShaderSource(sh, 1, &p, nullptr);
-  gl.glCompileShader(sh);
-  GLint ok = 0; gl.glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
-  if (!ok) { char b[2048] = ""; gl.glGetShaderInfoLog(sh, sizeof(b), nullptr, b); log = b; }
-  gl.glDeleteShader(sh);
-  return ok != 0;
-}
 const char* const kAlphaCmp[8] = { nullptr, "o_Color.a > uAlphaRef", "o_Color.a < uAlphaRef", "o_Color.a >= uAlphaRef",
                                     "o_Color.a <= uAlphaRef", "o_Color.a == uAlphaRef", "o_Color.a != uAlphaRef", "false" };
 } // namespace
@@ -92,14 +81,10 @@ void ProgramString(unsigned target, const char* text, int len)
     if (n++ < 5) Log("GLR: program %u has no translation (stale shader cache entry?) - fixed function used", id);
     return;
   }
-  std::string log;
-  std::string src = cp->p.glsl;
-  if (!CompileCheck(vertex ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER, src, log))
-  {
-    Log("GLR: %s program %u failed to compile - fixed function used:\n%s", vertex ? "vertex" : "fragment", id, log.c_str());
-    if (getenv("FARCRY_GLR_DUMP_PROGRAMS")) Log("%s", src.c_str());
-    return;
-  }
+  // Compiled when a draw first uses it (CgPair): the engine loads several
+  // hundred programs per level and draws with a few dozen; compiling them all
+  // here cost load time and driver memory. A program that fails to link is
+  // marked then and its draws use fixed function.
   for (const GLRCg::Param& q : cp->p.params) if (q.reg + q.count > cp->regs) cp->regs = q.reg + q.count;
   for (const GLRCg::Sampler& sm : cp->p.samplers)
     if (sm.unit >= 0 && sm.unit < 4)
@@ -114,6 +99,11 @@ void ProgramString(unsigned target, const char* text, int len)
   if ((++loaded % 50) == 1) Log("GLR: %d engine programs loaded (last: %s %u, %d registers)", loaded, vertex ? "vertex" : "fragment", id, cp->regs);
 }
 
+void CgMemStats(size_t& glslBytes, int& programs, int& pairs)
+{
+  glslBytes = 0; programs = (int)s_progs.size(); pairs = (int)s_pairs.size();
+  for (auto& e : s_progs) glslBytes += e.second->p.glsl.capacity();
+}
 CgProgram* CgFind(unsigned id, bool vertex)
 {
   auto it = s_progs.find(id);
@@ -181,7 +171,12 @@ Program* CgPair(CgProgram* vp, CgProgram* fp, const ProgramKey& key, uint8_t& te
           if (FILE* f = fopen(path, "w")) { fputs(fs.c_str(), f); fclose(f); }
         }
     }
-    else Log("GLR: cg pair vp %u fp %u failed to link - draw skipped", vp ? vp->id : 0, fp ? fp->id : 0);
+    else
+    {
+      Log("GLR: engine program pair vp %u fp %u failed to compile/link - fixed function used for it", vp ? vp->id : 0, fp ? fp->id : 0);
+      if (vp) vp->ok = false;   // CgFind skips it from now on
+      if (fp) fp->ok = false;
+    }
   }
   s_lastKey = pk; s_last = p;
   return p->ok ? p : nullptr;

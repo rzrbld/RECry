@@ -118,7 +118,7 @@ void RingInit(Ring& r, GLenum target, size_t cap)
     gl.glBindBuffer(target, r.buf[i]);
     gl.glBufferData(target, (GLsizeiptr)(s_mapMode ? cap : 4096), nullptr, GL_STREAM_DRAW);
   }
-  r.cpu.reserve(cap);
+  r.cpu.reserve((size_t)256 << 10);   // grows with use (upload mode)
 }
 void RingBeginSegment(Ring& r)
 {
@@ -339,6 +339,8 @@ void CullFace(unsigned m) { s_cur.r.cullFace = (uint16_t)m; }
 void FrontFace(unsigned m) { s_cur.r.frontFace = (uint16_t)m; }
 void PolygonOffset(float factor, float units) { s_cur.r.poly[0] = factor; s_cur.r.poly[1] = units; }
 void Viewport(int x, int y, int w, int h) { int* v = s_cur.r.viewport; v[0] = x; v[1] = y; v[2] = w; v[3] = h; }
+void GetViewport(int v[4]) { memcpy(v, s_cur.r.viewport, sizeof(int) * 4); }
+bool FogEnabled() { return s_cur.fogOn; }
 void Scissor(int x, int y, int w, int h) { int* v = s_cur.r.scissor; v[0] = x; v[1] = y; v[2] = w; v[3] = h; }
 void DepthRange(float n, float f) { s_cur.r.depthRange[0] = n; s_cur.r.depthRange[1] = f; }
 void ClearColor(float r, float g, float b, float a) { s_cur.clearColor[0] = r; s_cur.clearColor[1] = g; s_cur.clearColor[2] = b; s_cur.clearColor[3] = a; }
@@ -733,7 +735,7 @@ bool PrepareDraw(Cmd& c, uint16_t attrMask, int colorSemantic)
   if (vp || fp)
   {
     prog = CgPair(vp, fp, k, fpUnits, fpCube);
-    if (!prog) return false;
+    if (!prog) { vp = fp = nullptr; prog = GetProgram(k); }   // failed to build: fixed function
   }
   else prog = GetProgram(k);
   if (!prog || !prog->ok) return false;
@@ -923,6 +925,10 @@ GLuint& Bound(unsigned target) { return target == GL_ELEMENT_ARRAY_BUFFER ? s_bo
 // Upload now, or record it when recorded draws still use the buffer.
 void Upload(GLenum target, GLuint b, bool whole, size_t offset, size_t size, const void* data, GLenum usage)
 {
+  // Level loads upload many buffers that recorded draws still use: past a
+  // few MB, play the recorded draws back now instead of copying the data.
+  const size_t kArenaMax = (size_t)4 << 20;
+  if (s_pendingBuf.count(b) && s_arena.size() + size > kArenaMax) Flush();
   if (!s_pendingBuf.count(b))
   {
     StateBindBuffer(target, b);
@@ -1328,6 +1334,10 @@ static void Playback()
     Log("GLR debug: %zu commands, GL error 0x%x, draw framebuffer %d, viewport %d,%d %dx%d", s_cmds.size(), gl.glGetError(), fb, vp[0], vp[1], vp[2], vp[3]);
   }
   s_cmds.clear(); s_uniforms.clear(); s_arena.clear(); s_cgSnaps.clear(); s_cgDirty = true;
+  // Give back what a load spike grew (kept capacity is RSS on 1 GB devices).
+  if (s_arena.capacity() > ((size_t)8 << 20)) std::vector<uint8_t>().swap(s_arena);
+  if (s_cgSnaps.capacity() > 256) std::vector<CgParams>().swap(s_cgSnaps);
+  if (s_cmds.capacity() > 8192) std::vector<Cmd>().swap(s_cmds);
   s_pendingTex.clear(); s_pendingBuf.clear();
   ++s_statSegments;
   RingBeginSegment(s_vring); RingBeginSegment(s_iring);
@@ -1382,6 +1392,19 @@ void FrameStats()
   if (++frames % 120) return;
   Log("GLR: last 120 frames: %u draws, %u clears, %u segments, %u program switches, %u buffer uploads in order (%u recorded), %.1f KB ring data per frame",
       s_statDraws, s_statClears, s_statSegments, s_statProgSwitch, s_statUploads, s_statUploadsRecorded, s_statRingBytes / 1024.0 / 120.0);
+  {
+    // FARCRY_GLR_MEMSTATS: CPU memory held by the backend.
+    static const bool s_mem = getenv("FARCRY_GLR_MEMSTATS") != NULL;
+    if (s_mem)
+    {
+      size_t shadow = 0; for (auto& e : s_bufs) shadow += e.second.shadow.capacity();
+      size_t glsl = 0; int progs = 0, pairs = 0; CgMemStats(glsl, progs, pairs);
+      Log("GLR mem: buffer shadows %.1f MB (%zu buffers), ring cpu %.1f+%.1f MB, cmds %.1f MB, uniforms %.1f MB, cg snapshots %.1f MB, arena %.1f MB, engine programs %d (GLSL %.1f MB), linked pairs %d, generated programs %zu",
+          shadow / 1048576.0, s_bufs.size(), s_vring.cpu.capacity() / 1048576.0, s_iring.cpu.capacity() / 1048576.0,
+          s_cmds.capacity() * sizeof(Cmd) / 1048576.0, s_uniforms.capacity() * sizeof(DrawUniforms) / 1048576.0,
+          s_cgSnaps.capacity() * sizeof(CgParams) / 1048576.0, s_arena.capacity() / 1048576.0, progs, glsl / 1048576.0, pairs, ProgramCount());
+    }
+  }
   if (s_statRejected || s_statCgDraws || s_statNoArrays) Log("GLR: last 120 frames: %u draws with engine programs, %u draws rejected, %u without position array", s_statCgDraws, s_statRejected, s_statNoArrays);
   s_statRejected = s_statCgDraws = s_statNoArrays = 0;
   s_statDraws = s_statClears = s_statSegments = s_statProgSwitch = s_statUploads = s_statUploadsRecorded = 0; s_statRingBytes = 0;

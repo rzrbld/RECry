@@ -229,12 +229,6 @@ static bool s_lighting = false, s_colorMaterial = false, s_alphaTest = false, s_
 static GLenum s_alphaFunc = GL_ALWAYS; static float s_alphaRef = 0;
 static GLenum s_fogMode = D_EXP; static float s_fogStart = 0, s_fogEnd = 1, s_fogDensity = 1, s_fogColor[4] = {0,0,0,0};
 static bool s_stateDirty = true;
-// Native renderer hand-over: native draws leave the real bindings changed;
-// the layer restores them before its next draw (GLES3FFPRestoreState).
-static bool s_nativeDirty = false;
-void GLES3FFPMarkNativeDirty() { s_nativeDirty = true; }
-void GLES3FFPRestoreState();
-static inline void RestoreIfNative() { if (s_nativeDirty) GLES3FFPRestoreState(); }
 
 // Per-texture info needed at upload time.
 
@@ -1136,7 +1130,6 @@ static bool SkipShaderDraw()
 }
 static void APIENTRY f_glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
-  RestoreIfNative();
   if (SkipShaderDraw()) return;
   if (FFPActive()) DumpDraw("arrays", count);
   SAuditNoBlend auditNoBlend;
@@ -1223,7 +1216,6 @@ static void DumpUniforms()
 
 static void APIENTRY f_glDrawElements(GLenum mode, GLsizei count, GLenum type, const void* indices)
 {
-  RestoreIfNative();
   if (SkipShaderDraw()) return;
   if (SkipMulDraw()) return;
   ++s_statDraws; s_statVerts += (unsigned)count; CountArraySource(count);
@@ -1255,7 +1247,6 @@ static void APIENTRY f_glDrawElements(GLenum mode, GLsizei count, GLenum type, c
 
 static void APIENTRY f_glDrawRangeElements(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const void* indices)
 {
-  RestoreIfNative();
   if (SkipShaderDraw()) return;
   if (IsDesktopPrim(mode)) { f_glDrawElements(mode, count, type, indices); return; }
   ++s_statDraws; s_statVerts += (unsigned)count; CountArraySource(count);
@@ -1296,7 +1287,6 @@ static void ImmVertex(float x, float y, float z, float w)
 
 static void APIENTRY f_glEnd()
 {
-  RestoreIfNative();
   s_inBegin = false;
   if (s_imm.empty()) return;
   ++s_statDraws; s_statVerts += (unsigned)s_imm.size(); ++s_statImmDraws;
@@ -1433,7 +1423,6 @@ static GLuint s_mappedShadow[2] = { 0, 0 }; // [0] array, [1] element
 static GLuint BoundBufferFor(GLenum target) { return target == GL_ELEMENT_ARRAY_BUFFER ? s_elementBuffer : s_arrayBuffer; }
 static void* APIENTRY f_glMapBuffer(GLenum target, GLenum access)
 {
-  RestoreIfNative();
   GLint size = 0;
   r_glGetBufferParameteriv(target, GL_BUFFER_SIZE, &size);
   if (size <= 0) return NULL;
@@ -1512,7 +1501,6 @@ static void* APIENTRY f_glMapBuffer(GLenum target, GLenum access)
 }
 static GLboolean APIENTRY f_glUnmapBuffer(GLenum target)
 {
-  RestoreIfNative();
   const int slot = target == GL_ELEMENT_ARRAY_BUFFER;
   if ((target == GL_ARRAY_BUFFER || target == GL_ELEMENT_ARRAY_BUFFER) && s_mappedShadow[slot] && s_mappedShadow[slot] == BoundBufferFor(target))
   {
@@ -1524,16 +1512,11 @@ static GLboolean APIENTRY f_glUnmapBuffer(GLenum target)
   }
   return r_glUnmapBuffer(target);
 }
-void GLNForgetBuffer(unsigned buffer);   // GLNative.cpp
 static void APIENTRY f_glDeleteBuffers(GLsizei n, const GLuint* bufs)
 {
-  RestoreIfNative();
   for (GLsizei i = 0; i < n; ++i)
   {
     s_shadowBufs.erase(bufs[i]);
-    auto rit = s_bufRings.find(bufs[i]);
-    if (rit != s_bufRings.end()) for (int k = 0; k < rit->second.n; ++k) GLNForgetBuffer(rit->second.ids[k]);
-    GLNForgetBuffer(bufs[i]);
     DropRing(bufs[i]);
   }
   r_glDeleteBuffers(n, bufs);
@@ -1541,121 +1524,6 @@ static void APIENTRY f_glDeleteBuffers(GLsizei n, const GLuint* bufs)
 
 static void APIENTRY f_glUseProgram(GLuint prog) { s_userProgram = prog; s_boundProg = prog; r_glUseProgram(prog); }
 
-// Native mesh path (GLNMesh.h): current matrices until matrix setup is native.
-void GLES3FFPGetMatrices(float mv[16], float proj[16]) { memcpy(mv, Modelview(), 64); memcpy(proj, Projection(), 64); }
-bool GLES3FFPHasEnvOverride() { return s_forceEnvAlpha0 >= 0.0f; }
-// Diagnostic for the native path: the layer's texcoord array of a unit.
-void GLES3FFPTexArrayInfo(int u, int* on, unsigned* buffer, long* offset, int* stride)
-{
-  *on = s_texArr[u].on; *buffer = s_texArr[u].buffer; *offset = (long)(size_t)s_texArr[u].ptr; *stride = (int)s_texArr[u].stride;
-}
-// Native mesh path (GLNMesh.h): resolved lighting and texgen state until the
-// engine-side capture is native.
-#include "GLNMesh.h"
-void GLES3FFPGetLighting(GLNLighting* L)
-{
-  memset(L, 0, sizeof(*L));
-  L->on = s_lighting;
-  L->colorMaterial = s_colorMaterial;
-  for (int i = 0; i < MAX_LIGHTS && L->on; ++i)
-  {
-    if (!s_light[i].on) continue;
-    const int n = L->count++;
-    memcpy(L->pos[n], s_light[i].pos, 16); memcpy(L->amb[n], s_light[i].amb, 16);
-    memcpy(L->diff[n], s_light[i].diff, 16); memcpy(L->att[n], s_light[i].att, 12);
-  }
-  memcpy(L->matAmb, s_matAmb, 16); memcpy(L->matDiff, s_matDiff, 16); memcpy(L->matEmis, s_matEmis, 16); memcpy(L->sceneAmb, s_sceneAmb, 16);
-  float inv[16]; MatInverse(inv, Modelview());
-  const float n9[9] = { inv[0], inv[4], inv[8], inv[1], inv[5], inv[9], inv[2], inv[6], inv[10] };
-  memcpy(L->normalMat, n9, sizeof(n9));
-}
-// Vertex streams as the layer has them (every engine path sets them through
-// gl*Pointer), the index buffer, and the current colour / texcoords.
-static void StreamFrom(const SClientArray& a, GLNMeshStream& s, bool norm)
-{
-  memset(&s, 0, sizeof(s));
-  if (!a.on || !a.buffer) return;
-  static const int bytes[] = { 1, 1, 2, 2, 4, 4, 4 };   // GL_BYTE..GL_FLOAT
-  const int tsz = (a.type >= 0x1400 && a.type <= 0x1406) ? bytes[a.type - 0x1400] : 4;
-  const int size = a.size == 0x80E1 ? 4 : a.size;
-  s.buffer = RealBuf(a.buffer); s.offset = (unsigned)(size_t)a.ptr;
-  s.stride = a.stride ? a.stride : size * tsz; s.size = size; s.type = a.type; s.normalized = norm;
-}
-bool GLES3FFPGetArrays(GLNMeshDraw* d, float curColor[4], float curTex[4][4])
-{
-  if (s_vertexArr.on && !s_vertexArr.buffer) return false;     // client memory
-  if (s_colorArr.on && !s_colorArr.buffer) return false;
-  StreamFrom(s_vertexArr, d->pos, false);
-  StreamFrom(s_colorArr, d->color, true);
-  StreamFrom(s_normalArr, d->normal, false);
-  d->colorSemantic = s_colorArr.on ? s_colorArr.semantic : 0;
-  for (int u = 0; u < MAX_UNITS; ++u)
-  {
-    if (s_texArr[u].on && !s_texArr[u].buffer) return false;
-    StreamFrom(s_texArr[u], d->tex[u], false);
-    memcpy(curTex[u], s_curTex[u], 16);
-  }
-  if (s_normalArr.on && !s_normalArr.buffer) memset(&d->normal, 0, sizeof(d->normal));
-  d->indexBuffer = s_elementBuffer ? RealBuf(s_elementBuffer) : 0;
-  memcpy(curColor, s_curColor, 16);
-  return true;
-}
-// Fog in effect (the engine also switches it with direct glFog calls).
-void GLES3FFPGetFog(int* mode, float* start, float* end, float* density, float color[3])
-{
-  *mode = !s_fog ? 0 : (s_fogMode == D_LINEAR_FOG ? 1 : (s_fogMode == D_EXP2 ? 3 : 2));
-  *start = s_fogStart; *end = s_fogEnd; *density = s_fogDensity;
-  color[0] = s_fogColor[0]; color[1] = s_fogColor[1]; color[2] = s_fogColor[2];
-}
-void GLES3FFPGetTexGen(int u, GLNTexGen* G)
-{
-  memset(G, 0, sizeof(*G));
-  if (u < 0 || u >= MAX_UNITS) return;
-  const SUnit& U = s_unit[u];
-  G->cube = U.enCube;
-  memcpy(G->envColor, U.env.color, 16); G->scaleRGB = U.env.scaleRGB; G->scaleA = U.env.scaleA;
-  G->texture = U.enCube ? s_boundCube[u] : s_bound2D[u];   // engine paths bind directly, bypassing its own cache
-  for (int c = 0; c < 4; ++c) G->gen[c] = U.gen[c] ? GenIndex(U.genMode[c]) : 0;
-  memcpy(G->obj, U.objPlane, 64); memcpy(G->eye, U.eyePlane, 64);
-  G->texMatOn = !MatIsIdentity(TexMatrix(u));
-  memcpy(G->texMat, TexMatrix(u), 64);
-}
-// Texgen or a texture matrix on any enabled unit (not native yet).
-bool GLES3FFPUsesTexGen()
-{
-  for (int u = 0; u < MAX_UNITS; ++u)
-  {
-    const SUnit& U = s_unit[u];
-    if (!U.en2D && !U.enCube) continue;
-    if (U.gen[0] || U.gen[1] || U.gen[2] || U.gen[3]) return true;
-    if (!MatIsIdentity(TexMatrix(u))) return true;
-  }
-  return false;
-}
-
-// Native renderer hand-over (GLNative.h): native code bound its own VAOs,
-// program, textures and buffers; put back what this layer believes is bound.
-double g_GLNRestoreMs = 0;   // diagnostic (FARCRY_NATIVE_PROFILE)
-void GLES3FFPRestoreState()
-{
-  static const bool s_prof = getenv("FARCRY_NATIVE_PROFILE") != NULL;
-  struct T { bool on; timespec a; T(bool o) : on(o) { if (on) clock_gettime(CLOCK_MONOTONIC, &a); }
-    ~T() { if (on) { timespec b; clock_gettime(CLOCK_MONOTONIC, &b); g_GLNRestoreMs += (b.tv_sec - a.tv_sec) * 1e3 + (b.tv_nsec - a.tv_nsec) / 1e6; } } } t(s_prof);
-  s_nativeDirty = false;
-  r_glBindVertexArray(0);
-  r_glUseProgram(s_userProgram);   // the engine's own program, or none
-  s_boundProg = s_userProgram;
-  for (int u = 0; u < MAX_UNITS; ++u)
-  {
-    r_glActiveTexture(GL_TEXTURE0 + u);
-    r_glBindTexture(GL_TEXTURE_2D, s_bound2D[u]);
-    r_glBindTexture(D_TEXTURE_CUBE_MAP, s_boundCube[u]);
-  }
-  r_glActiveTexture(GL_TEXTURE0 + (s_activeUnit < MAX_UNITS ? s_activeUnit : 0));
-  BindReal(GL_ARRAY_BUFFER, s_arrayBuffer);
-  BindReal(GL_ELEMENT_ARRAY_BUFFER, s_elementBuffer);
-  s_stateDirty = true;
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Matrices
@@ -1939,8 +1807,8 @@ static void APIENTRY f_glBindTexture(GLenum target, GLuint tex)
 
 static GLenum TexTarget(GLenum t) { return t == D_TEXTURE_RECTANGLE ? GL_TEXTURE_2D : t; }
 
-static void APIENTRY f_glTexParameteri(GLenum target, GLenum pname, GLint v) { RestoreIfNative(); GLTex::Param(BoundTexture(TexTarget(target)), target, pname, v); }
-static void APIENTRY f_glTexParameterf(GLenum target, GLenum pname, GLfloat v) { RestoreIfNative(); GLTex::ParamF(BoundTexture(TexTarget(target)), target, pname, v); }
+static void APIENTRY f_glTexParameteri(GLenum target, GLenum pname, GLint v) { GLTex::Param(BoundTexture(TexTarget(target)), target, pname, v); }
+static void APIENTRY f_glTexParameterf(GLenum target, GLenum pname, GLfloat v) { GLTex::ParamF(BoundTexture(TexTarget(target)), target, pname, v); }
 static void APIENTRY f_glTexParameteriv(GLenum target, GLenum pname, const GLint* v) { f_glTexParameteri(target, pname, v[0]); }
 static void APIENTRY f_glTexParameterfv(GLenum target, GLenum pname, const GLfloat* v) { f_glTexParameterf(target, pname, v[0]); }
 
@@ -1969,21 +1837,21 @@ static GLTex::Backend LayerTexBackend()
 // Uploads: shared with the native backend (GLTexUpload.cpp); the layer
 // passes the texture bound on the active unit.
 static void APIENTRY f_glTexImage2D(GLenum target, GLint level, GLint internal, GLsizei w, GLsizei h, GLint border, GLenum format, GLenum type, const void* pixels)
-{ RestoreIfNative(); NoteTexUpload(); GLTex::Image2D(BoundTexture(TexTarget(target)), target, level, internal, w, h, border, format, type, pixels); }
+{ NoteTexUpload(); GLTex::Image2D(BoundTexture(TexTarget(target)), target, level, internal, w, h, border, format, type, pixels); }
 static void APIENTRY f_glTexSubImage2D(GLenum target, GLint level, GLint x, GLint y, GLsizei w, GLsizei h, GLenum format, GLenum type, const void* pixels)
-{ RestoreIfNative(); NoteTexUpload(); GLTex::SubImage2D(BoundTexture(TexTarget(target)), target, level, x, y, w, h, format, type, pixels); }
+{ NoteTexUpload(); GLTex::SubImage2D(BoundTexture(TexTarget(target)), target, level, x, y, w, h, format, type, pixels); }
 static void APIENTRY f_glCompressedTexImage2D(GLenum target, GLint level, GLenum internal, GLsizei w, GLsizei h, GLint border, GLsizei size, const void* data)
-{ RestoreIfNative(); NoteTexUpload(); GLTex::CompressedImage2D(BoundTexture(TexTarget(target)), target, level, internal, w, h, border, size, data); }
+{ NoteTexUpload(); GLTex::CompressedImage2D(BoundTexture(TexTarget(target)), target, level, internal, w, h, border, size, data); }
 static void APIENTRY f_glCompressedTexSubImage2D(GLenum target, GLint level, GLint x, GLint y, GLsizei w, GLsizei h, GLenum fmt, GLsizei size, const void* data)
-{ RestoreIfNative(); NoteTexUpload(); GLTex::CompressedSubImage2D(BoundTexture(TexTarget(target)), target, level, x, y, w, h, fmt, size, data); }
+{ NoteTexUpload(); GLTex::CompressedSubImage2D(BoundTexture(TexTarget(target)), target, level, x, y, w, h, fmt, size, data); }
 
 // Read-back with desktop format conversion: shared with the native backend (GLTexUpload.cpp).
 static void APIENTRY f_glReadPixels(GLint x, GLint y, GLsizei w, GLsizei h, GLenum format, GLenum type, void* pixels)
-{ RestoreIfNative(); GLTex::ReadPixels(x, y, w, h, format, type, pixels); }
+{ GLTex::ReadPixels(x, y, w, h, format, type, pixels); }
 
 // Texture names: allocated by GLTexUpload.cpp (outside the engine's own range).
 static void APIENTRY f_glGenTextures(GLsizei n, GLuint* out) { GLTex::GenNames(n, out); }
-static void APIENTRY f_glDeleteTextures(GLsizei n, const GLuint* tex) { RestoreIfNative(); GLTex::DeleteNames(n, tex); }
+static void APIENTRY f_glDeleteTextures(GLsizei n, const GLuint* tex) { GLTex::DeleteNames(n, tex); }
 static void PumpTextures(bool block) { GLTex::Pump(block); }
 
 
@@ -2100,7 +1968,6 @@ static void APIENTRY f_glDepthFunc(GLenum f)
 }
 static void APIENTRY f_glBufferData(GLenum t, GLsizeiptr n, const void* d, GLenum u)
 {
-  RestoreIfNative();
   SUpScope sc((uint64_t)n);
   if (!s_bufRings.empty() && (t == GL_ARRAY_BUFFER || t == GL_ELEMENT_ARRAY_BUFFER))
   {
@@ -2113,14 +1980,13 @@ static void APIENTRY f_glBufferData(GLenum t, GLsizeiptr n, const void* d, GLenu
 }
 static void APIENTRY f_glBufferSubData(GLenum t, GLintptr o, GLsizeiptr n, const void* d)
 {
-  RestoreIfNative();
   SUpScope sc((uint64_t)n);
   auto it = s_shadowBufs.find(BoundBufferFor(t));
   if (it != s_shadowBufs.end() && d && (size_t)(o + n) <= it->second.data.size()) memcpy(it->second.data.data() + o, d, n);
   r_glBufferSubData(t, o, n, d);
 }
 static void APIENTRY f_glCopyTexSubImage2D(GLenum t, GLint l, GLint xo, GLint yo, GLint x, GLint y, GLsizei w, GLsizei h) {
-  RestoreIfNative(); SUpScope sc((uint64_t)w * h * 4); r_glCopyTexSubImage2D(TexTarget(t), l, xo, yo, x, y, w, h); }
+  SUpScope sc((uint64_t)w * h * 4); r_glCopyTexSubImage2D(TexTarget(t), l, xo, yo, x, y, w, h); }
 
 static const SOverride s_overrides[] =
 {

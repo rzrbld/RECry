@@ -11,9 +11,6 @@
 //////////////////////////////////////////////////////////////////////
 
 #ifdef GLES3_RENDERER
-#include "GLNative.h"
-#include "GLNMesh.h"
-#include "GLN2D.h"
 #include "GLES3FFP.h"
 #endif
 #include "RenderPCH.h"
@@ -136,10 +133,6 @@ void CGLRenderer::DrawDynVB(int nOffs, int Pool, int nVerts)
     struct_VERTEX_FORMAT_P3F_COL4UB_TEX2F *pVB = m_DynVB;
     if (m_TempDynVB)
       pVB = m_TempDynVB;
-
-    extern bool g_bGLNFontState;
-    if (g_bGLNFontState && GLN2D_DrawFontTriangles(pVB, nVerts, (float)m_width, (float)m_height))
-      return;
 
     GLR_Begin(GL_TRIANGLES);
     int nTris = nVerts/3;
@@ -816,78 +809,6 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
       assert(0);
       break;
   }
-#ifdef GLES3_RENDERER
-  // Native mesh stage (FARCRY_NATIVE=mesh): same streams, stage state and
-  // primitives, drawn with a GLSL program/VAO; otherwise the layer below.
-  if (GLN::Enabled(GLN_STAGE_MESH) && SUPPORTS_GL_ARB_vertex_buffer_object && src->m_vertexformat != VERTEX_FORMAT_TRP3F_COL4UB_TEX2F)
-  {
-    if (true)
-    {
-      GLNMeshDraw d; memset(&d, 0, sizeof(d));
-      const int fmt = src->m_vertexformat, stride = m_VertexSize[fmt];
-      const unsigned vbo = src->m_VS[VSF_GENERAL].m_VertBuf.m_nID;
-      d.pos = { vbo, 0, stride, 3, GL_FLOAT, false };
-      if (pOffs->OffsNormal) d.normal = { vbo, (unsigned)pOffs->OffsNormal, stride, 3, GL_FLOAT, false };
-      if (pOffs->OffsColor && !(m_RP.m_FlagsPerFlush & (RBSI_ALPHAGEN | RBSI_RGBGEN)))
-        d.color = { vbo, (unsigned)pOffs->OffsColor, stride, 4, GL_UNSIGNED_BYTE, true };
-      d.colorSemantic = (fmt == VERTEX_FORMAT_P3F_COL4UB_COL4UB || fmt == VERTEX_FORMAT_P3F_N_COL4UB_COL4UB) ? 1 : 0;
-      if (!d.colorSemantic && m_RP.m_pRE && m_RP.m_pRE->mfGetType() == eDATA_OcLeaf)
-      {
-        CLeafBuffer* pLB = ((CREOcLeaf*)m_RP.m_pRE)->m_pBuffer;
-        if (pLB) pLB = pLB->GetVertexContainer();
-        if (pLB && pLB->m_bVertexAlphaIsLighting) d.colorSemantic = 2;
-      }
-      d.numStages = CTexMan::m_nCurStages < 4 ? CTexMan::m_nCurStages : 4;
-      for (int u = 0; u < d.numStages; ++u)
-      {
-        GLNMeshStage& st = d.stage[u];
-        st.texture = CGLTexMan::m_TUState[u].m_Bind; st.target = CGLTexMan::m_TUState[u].m_Target;
-        st.colorOp = m_eCurColorOp[u]; st.alphaOp = m_eCurAlphaOp[u]; st.colorArg = m_eCurColorArg[u]; st.alphaArg = m_eCurAlphaArg[u];
-        st.rgbScale = m_fCurRGBScale[u] > 0 ? m_fCurRGBScale[u] : 1.0f;
-        memcpy(st.constant, CGLTexMan::m_TUState[u].m_Color.bcolor, 4);
-        if (SArrayPointer::m_CurEnabled & (PFE_POINTER_TEX0 << u)) d.tex[u] = g_GLNTexStream[u];
-        else if (u == 0 && pOffs->OffsTC) d.tex[u] = { vbo, (unsigned)pOffs->OffsTC, stride, 2, GL_FLOAT, false };
-      }
-      if (pOffs->OffsTC && !(SArrayPointer::m_CurEnabled & PFE_POINTER_TEX0))
-        d.tex[0] = { vbo, (unsigned)pOffs->OffsTC, stride, 2, GL_FLOAT, false };
-      switch (m_CurState & GS_ALPHATEST_MASK)
-      {
-        case GS_ALPHATEST_GREATER0: d.alphaTestMode = 1; d.alphaRef = 0.0f; break;
-        case GS_ALPHATEST_LESS128: d.alphaTestMode = 2; d.alphaRef = 0.5f; break;
-        case GS_ALPHATEST_GEQUAL128: d.alphaTestMode = 3; d.alphaRef = 0.5f; break;
-        case GS_ALPHATEST_GEQUAL64: d.alphaTestMode = 3; d.alphaRef = 0.25f; break;
-      }
-      if (m_FS.m_bEnable)
-      {
-        d.fogMode = m_FS.m_nCurFogMode == GL_EXP ? 2 : (m_FS.m_nCurFogMode == GL_EXP2 ? 3 : 1);
-        d.fogStart = m_FS.m_FogStart; d.fogEnd = m_FS.m_FogEnd; d.fogDensity = m_FS.m_FogDensity;
-        d.fogColor[0] = m_FS.m_FogColor[0]; d.fogColor[1] = m_FS.m_FogColor[1]; d.fogColor[2] = m_FS.m_FogColor[2];
-      }
-      d.indexBuffer = indicies ? indicies->m_VertBuf.m_nID : 0;
-      const unsigned idxBase = (unsigned)offsindex * 2;
-      bool drawn = false;
-      if (prmode == R_PRIMV_TRIANGLES || prmode == R_PRIMV_TRIANGLE_STRIP)
-      {
-        d.primitive = prmode == R_PRIMV_TRIANGLES ? GL_TRIANGLES : GL_TRIANGLE_STRIP;
-        drawn = GLNMesh_Draw(d, numindices, idxBase);
-        if (drawn) m_nPolygons += prmode == R_PRIMV_TRIANGLES ? numindices / 3 : numindices - 2;
-      }
-      else if (prmode == R_PRIMV_MULTI_GROUPS && mi && mi->m_pPrimitiveGroups)
-      {
-        drawn = true;
-        for (int i = 0; i < (int)mi->m_dwNumSections && drawn; i++)
-        {
-          SPrimitiveGroup* g = &mi->m_pPrimitiveGroups[i];
-          d.primitive = g->type == PT_STRIP ? GL_TRIANGLE_STRIP : (g->type == PT_FAN ? GL_TRIANGLE_FAN : GL_TRIANGLES);
-          drawn = GLNMesh_Draw(d, g->numIndices, idxBase + g->offsIndex * 2);
-          if (drawn) m_nPolygons += g->numTris;
-          else if (i > 0) { GLNMesh_Fallback("BUG: partial multi-group"); }
-        }
-      }
-      if (drawn) goto native_drawn;
-    }
-  }
-#endif
   // draw
   switch (prmode)
   {
@@ -941,7 +862,6 @@ void CGLRenderer::DrawBuffer(CVertexBuffer * src, SVertexStream *indicies,int nu
   }
   
 #ifdef GLES3_RENDERER
-native_drawn:
 #endif
   if(!SUPPORTS_GL_ARB_vertex_buffer_object && IsVarPresent() && !src->m_bFenceSet)
   {

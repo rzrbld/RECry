@@ -187,7 +187,7 @@ void CGLRenderer::PrepareDepthMap(ShadowMapFrustum * lof, bool make_new_tid)
 
   // remember fog value
   int bFog=0; 
-  glGetIntegerv(GL_FOG,&bFog);
+  GLR_GetIntegerv(GL_FOG,&bFog);
   GLR_Disable(GL_FOG);
 
   // glPush

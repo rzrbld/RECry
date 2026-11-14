@@ -20,7 +20,7 @@
 
 namespace GLRCg
 {
-const int kVersion = 4;                  // bump when the translation changes
+const int kVersion = 5;                  // bump when the translation changes
 const int kVertexRegs = 96, kFragmentRegs = 32;
 
 struct Param { std::string name, type; int reg = -1, count = 1; bool explicitReg = false; };
