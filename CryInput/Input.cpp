@@ -789,8 +789,8 @@ void CInput::UpdateController()
 		float rx = m_Gamepad.GetStickRX();
 		float ry = m_Gamepad.GetStickRY();
 		if (bInvertY) ry = -ry;
-		// gptk layout: LB + right stick leans (gptokeyb2 layer), so no look while LB is held.
-		if (PadLayoutGptk() && m_Gamepad.KeyDown(XKEY_GP_WHITE)) rx = ry = 0.f;
+		// Modern uses LB + right stick for CryVision; Classic keeps aiming on its LB layer.
+		if (PadLayoutGptk() && !PortCfgFlag("FARCRY_PAD_LB_LOOK", false) && m_Gamepad.KeyDown(XKEY_GP_WHITE)) rx = ry = 0.f;
 
 		float mag = sqrtf(rx*rx + ry*ry);
 		if (mag > 1.0f) mag = 1.0f;

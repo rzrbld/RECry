@@ -62,28 +62,35 @@ In the menus either stick moves the pointer and A clicks. A, B or Start skips mo
 cutscenes (the ones Far Cry lets you skip).
 
 Two presets, chosen in the launcher (Controls). Both go through PortMaster's gptokeyb2, so
-they work with each handheld's own controls. Classic: gptokeyb2 presents a virtual Xbox pad
-and the game maps it. Modern shooter: `recry/controls/modern.gptk` maps the buttons to the
-game's keyboard/mouse bindings (edit it, or add your own `<name>.gptk` there).
+they work with each handheld's own controls. Both Classic and Modern shooter use
+`recry/controls/<name>.gptk` to map buttons to keyboard/mouse inputs, while the
+engine reads the sticks. Edit a preset or add your own `<name>.gptk` there.
+With older gptokeyb or a missing preset, the launch log reports a fallback to
+the engine's legacy native-pad layout; that fallback does not implement this table.
 
 **Classic**
 
 | Button | Action |
 |---|---|
-| Left stick | Move |
-| Right stick | Look |
+| Left / right stick | Move or steer / look or aim |
 | RT / LT | Fire / aim (zoom) |
-| A | Jump |
-| B | Use, enter vehicles |
-| X | Reload |
-| Y / D-pad left | Next / previous weapon |
-| LB / RB | Lean left / right |
-| L3 | Sprint |
-| R3 | Crouch / prone |
-| D-pad up | Fire mode |
-| D-pad down | Throw grenade |
-| Select | Objectives / score |
-| Start | Pause menu |
+| A / B | Jump / crouch (hold) |
+| X / Y | Reload / use, enter or exit vehicles |
+| RB | Throw grenade |
+| L3 / R3 | Sprint (hold) / flashlight |
+| D-pad up / down | Binoculars / CryVision |
+| D-pad left / right | Previous / next weapon |
+| Select / Start | Pause menu / objectives or scoreboard |
+| LB | Hold for secondary controls |
+| LB + B / X | Prone / fire mode |
+| LB + D-pad down | Switch grenade type |
+| LB + D-pad left / right | Mouse wheel up / down |
+
+In menus, either stick moves the pointer, A clicks and B goes back.
+The LB wheel directions match the requested mapping literally. With the game's
+stock binocular bindings, wheel up zooms **in** and wheel down zooms **out**;
+those actions are the reverse of the labels in the supplied table.
+Classic is the default for new installations. Existing saved layout choices are preserved.
 
 **Modern shooter** (based on the Steam Input layout "Far Cry 1 custom layout to match modern
 shooters"; gptokeyb2 has no tap-vs-hold, so its hold actions are on an LB layer):

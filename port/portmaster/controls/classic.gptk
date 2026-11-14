@@ -1,0 +1,30 @@
+# RECry Classic layout. Sticks are handled by the engine through SDL2.
+# Wheel directions on the LB layer intentionally match the requested layout.
+[controls]
+overlay = clear
+
+a = space
+b = ctrl
+x = r
+y = f
+r2 = mouse_left
+l2 = mouse_right
+r1 = g
+l1 = hold_state lb
+l3 = shift
+r3 = l
+up = b
+down = t
+left = pageup
+right = pagedown
+back = esc
+start = tab
+
+[controls:lb]
+overlay = parent
+
+b = v
+x = x
+down = h
+left = mouse_wheel_up
+right = mouse_wheel_down

@@ -251,7 +251,7 @@ static int poll_key(void) {
 /* ---------------------------------------------------------- settings */
 static char g_res[32] = "auto";        /* auto or WxH */
 static int g_stretch = 0, g_phys = 0, g_fx = 0, g_view = 0;   /* 0 auto, 1 on (simplified), 2 off (full) */
-static int g_text = 0, g_limit = 30, g_fps = 0, g_cpu_perf = 1, g_controls = 1;   /* controls: 0 classic, 1 modern */
+static int g_text = 0, g_limit = 30, g_fps = 0, g_cpu_perf = 1, g_controls = 0;   /* controls: 0 classic, 1 modern */
 static int g_look = 30, g_pointer = 30;   /* stick speeds in %: 30 = the port's tuned default */
 /* Panfrost (Mesa's open-source Mali driver): the port bundles a Mesa with a
    fixed tiler setup in libs.mesa/. Shown only where Panfrost drives the GPU
@@ -338,10 +338,12 @@ static const char *k_layout_name[2] = { "Classic", "Modern shooter" };
 static int page_controls(void) {
     static const char *classic[][2] = {
         { "Left stick", "Move" }, { "Right stick", "Look" }, { "RT", "Fire" }, { "LT", "Aim / zoom" },
-        { "A", "Jump" }, { "B", "Use, enter vehicles" }, { "X", "Reload" }, { "Y", "Next weapon" },
-        { "LB / RB", "Lean left / right" }, { "L3", "Sprint" }, { "R3", "Crouch / prone" },
-        { "D-pad left", "Previous weapon" }, { "D-pad up", "Fire mode" }, { "D-pad down", "Throw grenade" },
-        { "Select", "Objectives / score" }, { "Start", "Pause menu" } };
+        { "A", "Jump" }, { "B", "Crouch (hold)" }, { "X", "Reload" }, { "Y", "Use, vehicles" },
+        { "RB", "Throw grenade" }, { "L3 / R3", "Sprint / flashlight" }, { "D-pad up", "Binoculars" },
+        { "D-pad down", "CryVision (T)" }, { "D-pad L / R", "Previous / next weapon" },
+        { "Select", "Pause menu" }, { "Start", "Objectives / score" }, { "LB + B", "Prone" },
+        { "LB + X", "Fire mode" }, { "LB + D-pad down", "Grenade type" },
+        { "LB + D-pad L / R", "Mouse wheel up / down" } };
     static const char *modern[][2] = {
         { "Left stick", "Move" }, { "Right stick", "Look" }, { "RT / LT", "Fire / aim" }, { "A", "Jump" },
         { "B", "Crouch (hold)" }, { "X", "Reload" }, { "Y", "Next weapon" }, { "RB", "Throw grenade" },
@@ -430,7 +432,7 @@ static int page_settings(void) {
             sel == S_CPU ? "Performance: CPU at full rated speed while playing (restored on exit)" :
             sel == S_WATER ? (g_water_refl ? "Reflections: the sky and shore mirrored in the water" : "Simple: textured water without reflections, a little faster") :
             sel == S_GPU ? (g_mesa_patched ? "Patched: bundled Mesa with a Mali tiler fix, full resolution at speed" : "System: the firmware's Mesa; Auto resolution drops to 496 px wide for speed") :
-            sel == S_CTRL ? (g_controls ? "Modern shooter: B crouch, RB grenade, LB layer. A shows the layout" : "Classic: the port's original layout. A shows the layout") :
+            sel == S_CTRL ? (g_controls ? "Modern shooter: B crouch, RB grenade, LB layer. A shows the layout" : "Classic: Y use, D-pad weapons / vision, LB layer. A shows the layout") :
             sel == S_LOOK ? "Right stick turning speed in the game (30 % = default)" :
             sel == S_POINTER ? "Menu pointer speed with the sticks (30 % = default)" :
             "Save these settings and start the game. B leaves without starting";

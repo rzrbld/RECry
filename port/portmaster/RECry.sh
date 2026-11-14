@@ -75,22 +75,29 @@ trap cpu_restore EXIT
 [ "${RECRY_CPU:-perf}" = perf ] && cpu_perf
 
 # Controller presets (launcher: Controls), all through PortMaster's gptokeyb2:
-#   classic - gptokeyb2 -x presents the handheld as a virtual Xbox 360 pad and
-#             the game maps the pad itself;
+#   classic - Classic keyboard/mouse layout in controls/classic.gptk;
 #   modern  - "Modern shooter": gptokeyb2 -c controls/modern.gptk turns the
 #             buttons into the game's keyboard/mouse bindings; the game reads
 #             the sticks itself (PortMaster's SDL controller mapping).
 # gptokeyb2 takes either -x or -c, not both. User presets: put <name>.gptk in
-# controls/ and set RECRY_CONTROLS=<name>. Older gptokeyb: classic layout.
-RECRY_CONTROLS=${RECRY_CONTROLS:-modern}
+# controls/ and set RECRY_CONTROLS=<name>. Without a preset/gptokeyb2, the
+# engine's legacy native-pad layout remains available as a fallback.
+RECRY_CONTROLS=${RECRY_CONTROLS:-classic}
 [ "$RECRY_CONTROLS" = classic ] || [ -f "$GAMEDIR/controls/$RECRY_CONTROLS.gptk" ] || RECRY_CONTROLS=classic
-if [ -n "$GPTOKEYB2" ] && [ "$RECRY_CONTROLS" != classic ]; then
+if [ -n "$GPTOKEYB2" ] && [ -f "$GAMEDIR/controls/$RECRY_CONTROLS.gptk" ]; then
   export FARCRY_PAD_LAYOUT=gptk
+  # Classic has no LB+stick action; keep aiming available on its LB layer.
+  export FARCRY_PAD_LB_LOOK=0
+  [ "$RECRY_CONTROLS" = classic ] && export FARCRY_PAD_LB_LOOK=1
   $GPTOKEYB2 "farcry.${DEVICE_ARCH}" -c "$GAMEDIR/controls/$RECRY_CONTROLS.gptk" &
 elif [ -n "$GPTOKEYB2" ]; then
+  export FARCRY_PAD_LAYOUT=classic
+  echo "[recry] controller preset unavailable; using legacy native-pad layout"
   $GPTOKEYB2 "farcry.${DEVICE_ARCH}" -x &
 else
   RECRY_CONTROLS=classic
+  export FARCRY_PAD_LAYOUT=classic
+  echo "[recry] gptokeyb2 unavailable; using legacy native-pad layout"
   $GPTOKEYB "farcry.${DEVICE_ARCH}" -c "$GAMEDIR/recry.gptk" &
 fi
 echo "[recry] controls: $RECRY_CONTROLS"
